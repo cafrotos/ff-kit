@@ -13,8 +13,10 @@
 3. Config sai/thiếu → `ff doctor` fail rõ ràng, phiên ff bị chặn. Agent không tự bịa giá trị.
 4. ff-worker chạy qua `npx`, daemon trong tmux. `INSTALL.md` đủ để một AI như Claude tự cài.
 5. Channel thông báo là adapter thay được. Mặc định `console`. `rocketchat` đi kèm. Channel **chỉ 1 chiều**.
-
 6. Mọi dòng Brief/AC/design truy được về câu dossier hoặc quyết định người dùng (`ff trace-check` xanh). Người duyệt quyết được Gate mà không phải hỏi lại để agent diễn đạt lại.
+7. Chạy `/ff-init` xong là worker đang chạy trong tmux; người dùng nhận một báo cáo nói rõ cái gì đang chạy, xem ở đâu, dừng thế nào, còn thiếu gì. Sửa config → worker tự nạp lại.
+8. Không agent nào đọc được nội dung `.ff.env`.
+9. Mọi file ff trong tiniweb có đích đến và danh sách thay đổi trong §10. Không file nào bị bỏ sót khi port.
 
 **Ngoài phạm vi (YAGNI):** plugin loader động cho adapter; adapter Slack/Telegram; giao tiếp 2 chiều qua chat; MCP bridge; cài kèm nguyên bộ `addyosmani/agent-skills` (skill `using-agent-skills` sẽ giành điều phối khỏi luồng ff — chỉ chuyển thể pattern); cross-model review.
 
@@ -35,21 +37,31 @@
 | D11 | Gate là "tài liệu để quyết định" theo khuôn cố định. Bỏ giới hạn 1200 ký tự (sinh ra vì RocketChat) |
 | D12 | Luật viết chung `references/writing.md`, chuyển thể từ `diataxis-writer` (MIT, ghi nguồn). Thêm agent `ff-gate-reader` kiểm độ dễ hiểu của Gate |
 | D13 | Vệ sinh prompt theo model 5.x: thêm giới hạn phạm vi, hạ giọng ra lệnh gắt, bỏ lệnh tự kiểm thừa, đặt `effort` từng agent, đo bằng thẻ thật |
+| D14 | `/ff-init` làm trọn từ đầu tới worker chạy: chạy `/init` của Claude nếu workspace chưa có `CLAUDE.md`, cài/hỏi cài `tmux`, tự spawn tmux session chạy ff-worker, báo lại cho người dùng bằng lời rõ ràng |
+| D15 | ff-worker tự restart khi `ff.config.yaml`, `ff.config.lock.json` hoặc `.ff.env` đổi; config mới đỏ thì giữ config cũ và báo lỗi |
+| D16 | `.ff.env` bị cấm đọc bằng 3 lớp: `permissions.deny` trong `.claude/settings.json`, `guard.mjs`, dòng luật trong `CLAUDE.md`. `/ff-init` sinh/bổ sung `.ff.env.example` theo adapter đã chọn |
+| D17 | `workspace.cards_dir` mặc định `trellocards` |
 
 ## 3. Cấu trúc repo
 
 ```
 ff-kit/
 ├── .claude-plugin/plugin.json
-├── skills/    ff-understand ff-build ff-verify ff-init
+├── skills/
+│   ├── ff-understand/ SKILL.md rules.md briefs/ references/
+│   ├── ff-build/      SKILL.md briefs/ references/
+│   ├── ff-verify/     SKILL.md briefs/ references/
+│   └── ff-init/       SKILL.md references/{detect.md, report.md, env-keys.md}
 ├── agents/    ff-*.md (10 file, thêm ff-gate-reader)
-├── references/writing.md       # luật viết chung (D12)
+├── references/writing.md       # luật viết chung (D12), skill nào cũng trỏ tới
 ├── NOTICE                      # ghi nguồn MIT: tronghieu/agent-skills, addyosmani/agent-skills
 ├── commands/  ship-to-dev.md, ff-worker.md
 ├── hooks/hooks.json
-├── bin/ff                      # CLI: cfg get, doctor, notify, state, copy, squash-check, verify-lock, ship-request, trace-check...
+├── bin/ff                      # CLI Node (1 entry), lệnh con ở scripts/cli/*
 ├── scripts/                    # guard.mjs, allow.mjs, design-check.mjs, ... (từ scripts/ff)
+├── templates/                  # .ff.env.example theo adapter, khối CLAUDE.md, settings deny
 ├── schema/ff.config.schema.json
+├── tests/                      # fixture workspace giả + test guard/doctor/trace-check/cli
 ├── ff-worker/                  # package npm (bin: ff-worker)
 │   └── src/ core/ adapters/{task-source/trello, channel/{console,rocketchat}}
 ├── INSTALL.md                  # dành cho AI
@@ -59,6 +71,8 @@ ff-kit/
 - Đường dẫn trong skills/hooks dùng `${CLAUDE_PLUGIN_ROOT}/...`.
 - `scripts/ff/ff.sh` (gắn tiniweb) được viết lại thành CLI `ff` đọc `ff.config.yaml`.
 - Quy ước tiniweb (`yarn`, `oe-hrm-fe`, `trellisflow/`) chỉ là giá trị trong `ff.config.yaml` của project đích, không nằm trong repo này.
+- Skills nằm trong plugin, **không chép vào workspace đích**. Workspace đích chỉ nhận: `ff.config.yaml`, `ff.config.lock.json`, `.ff.env.example`, `.ff/` (state, gate, log), khối luật trong `CLAUDE.md`, mục deny trong `.claude/settings.json`, dòng `.gitignore`.
+- Workspace tiniweb cũ: sau khi chuyển sang plugin, xóa `.claude/skills/ff-*`, `.claude/agents/ff-*`, `scripts/ff/*`, `ff-worker/` (bước cuối của plan, có xác nhận người dùng).
 
 ## 4. Cấu hình
 
@@ -66,33 +80,83 @@ ff-kit/
 
 ```yaml
 version: 1
-workspace: { root: ., cards_dir: trellisflow, worktrees_dir: worktrees }
+workspace:
+  root: .
+  cards_dir: trellocards            # mặc định (D17); thư mục thẻ đã xong: <cards_dir>/task-dones
+                                    # workspace đã có thư mục thẻ (vd tiniweb `trellisflow/`) → ff-init hỏi giữ tên cũ hay đổi; không tự di chuyển thư mục
+  worktrees_dir: worktrees
 repos:
   - name: web
     path: oe-hrm-fe
     base_branch: dev
-    commands: { install, lint, build, test, migrate? }
-e2e: { dir: e2e, up_cmd, down_cmd, test_cmd }
+    commands: { install, lint, typecheck, build, test, migrate?, migrate_create? }
+    env_files: [.env.local]         # chỉ tên file để guard/copy biết, không đọc nội dung
+e2e:
+  dir: e2e
+  playwright_config: e2e/playwright.config.ts
+  tests_dir: e2e/tests
+  done_tests_dir: e2e/tests/task-done
+  auth_storage: e2e/.auth/mcp-storage.json
+  up_cmd, down_cmd, test_cmd
+project_docs:                       # tùy chọn; thiếu thì skill bỏ bước liên quan và ghi "không áp dụng"
+  roles_file: _project/environment.toml
+  verification_queries_dir: _project/verification-queries
+db:                                 # tùy chọn, cho `ff db-query`
+  driver: postgres|mysql
+  env_file: system-service/.env.DATABASE   # chỉ trỏ file; db-query đọc trong process, không in
 guard: { protected_paths: [...], allowed_bash: [...] }
 engine: { default: claude, commands: {...} }
 worker:
   max_concurrent_tasks: 2
-  task_source: { adapter: trello, trello: {...} }
+  task_source: { adapter: trello, trello: { board_id, lists: { todo, doing, review, done } } }
   channel: { adapter: console }        # console | rocketchat
-  tmux: { session_prefix, cleanup_on_success, cleanup_on_failure, max_session_lifetime_hours }
+  tmux: { session_name: ff-worker-<slug>, session_prefix, cleanup_on_success, cleanup_on_failure, max_session_lifetime_hours }
+  http: { port: 0 }                    # 0 = tự chọn, ghi cổng thật vào .ff/worker.json
+  reload: { watch: true, debounce_ms: 2000 }
 secrets: { env_file: .ff.env }         # chỉ trỏ file, không chứa giá trị
 ```
 
-Nhóm trường theo các lệnh `ff.sh` hiện có (`copy`, `squash-check`, `verify-up/down`, `lock-tests`, `ac-matrix`, `allow`, `db-query`...). Danh sách trường cuối cùng chốt ở bước plan khi đối chiếu từng lệnh.
+**Ánh xạ lệnh → trường** (chốt danh sách trường; plan chỉ được thêm trường khi port phát hiện thiếu và phải cập nhật bảng này):
+
+| Lệnh `ff` | Trường dùng |
+|---|---|
+| `sync`, `state` | `workspace.*`, `repos[].path`, `repos[].base_branch` |
+| `copy` | `workspace.worktrees_dir`, `repos[].{path,base_branch,commands.install,env_files}` |
+| `squash-check` | `repos[].{path,base_branch,commands.lint,commands.typecheck,commands.build}` |
+| `verify-up`, `verify-down` | `e2e.{up_cmd,down_cmd}`, `repos[].commands.migrate` |
+| `lock-tests`, `relock`, `ac-matrix`, `e2e-lint` | `e2e.{tests_dir,done_tests_dir,playwright_config}`, `workspace.cards_dir` |
+| `mcp-auth` | `e2e.auth_storage`, `project_docs.roles_file` |
+| `db-query` | `db.*`, `project_docs.verification_queries_dir` |
+| `design-check`, `trace-check`, `probe-slice` | `workspace.cards_dir`, `repos[].path` |
+| `allow` | `guard.*` |
+| `worker start/stop/status/logs` | `worker.*`, `secrets.env_file` |
 
 ### 4.2 `ff.config.lock.json`
 Cạnh YAML, ghi `source` cho từng giá trị: `file:line` (đọc từ repo/AGENTS.md) hoặc `user` (người dùng xác nhận). Giá trị không có nguồn thì không được ghi.
 
-### 4.3 `/ff-init` (có LLM, chạy 1 lần)
-1. Đọc `AGENTS.md`, `package.json`/`Makefile`/CI của từng repo; tìm repo con bằng git.
-2. Trường có bằng chứng → ghi kèm `source`.
-3. Trường mơ hồ/nhiều ứng viên → hỏi người dùng 1 câu có lựa chọn → `source: user`.
-4. Ghi YAML + lock, tự chạy `ff doctor`.
+### 4.3 `/ff-init` (có LLM; chạy lần đầu, chạy lại được)
+
+Chạy lại trên workspace đã có config → chỉ hỏi phần đổi, giữ nguyên `source` cũ, không ghi đè `.ff.env`.
+
+| Bước | Việc | Điều kiện xong / khi lỗi |
+|---|---|---|
+| 0. Tiền kiểm | `node -v` (theo `engines`), `git --version`, `claude --version`. Thiếu node/git → dừng, nói lệnh cài, không tự cài | Đủ 3 binary |
+| 1. `/init` của Claude | Workspace chưa có `CLAUDE.md` → chạy `claude -p "/init"` ở gốc workspace (kiểm khả thi ở plan; không chạy được headless thì dừng, nhờ người dùng gõ `/init` rồi chạy lại `/ff-init`). Đã có → bỏ qua, không sửa nội dung có sẵn | `CLAUDE.md` tồn tại |
+| 2. tmux | `tmux -V`. Thiếu → hỏi bằng `AskUserQuestion` (Cài giúp / Tôi tự cài / Hủy). Cài giúp: macOS `brew install tmux` (thiếu brew → không cài brew, chuyển "tự cài"); Debian/Ubuntu `sudo apt-get install -y tmux`; Fedora `sudo dnf install -y tmux`; khác → in lệnh cho người dùng. Lệnh có `sudo` chạy qua `! <lệnh>` để người dùng tự nhập mật khẩu. Windows ngoài WSL → không hỗ trợ, dừng | `tmux -V` chạy được |
+| 3. Dò workspace | Đọc `CLAUDE.md`, `AGENTS.md`, `package.json`/`Makefile`/CI của từng repo; tìm repo con bằng git. Chi tiết `skills/ff-init/references/detect.md` | Danh sách ứng viên cho mọi trường bắt buộc |
+| 4. Hỏi khi mơ hồ | Trường có bằng chứng → ghi kèm `source`. Mơ hồ/nhiều ứng viên → 1 câu `AskUserQuestion` có lựa chọn → `source: user`. Chọn adapter (TaskSource, Channel; mặc định `console`) | Không trường bắt buộc nào thiếu nguồn |
+| 5. Ghi file | `ff.config.yaml` + lock; `.ff.env.example` (§4.5); khối luật vào `CLAUDE.md`; deny vào `.claude/settings.json`; `.gitignore` thêm `.ff.env`, `.ff/` | `ff doctor --schema-only` xanh |
+| 6. Secrets | Thiếu key trong `.ff.env` → nói rõ key nào, lấy ở đâu (theo `references/env-keys.md`), nhờ người dùng tự điền; hỏi "Đã điền xong / Bỏ qua, chạy với console" | Người dùng trả lời |
+| 7. `ff doctor` | Chạy đầy đủ | Xanh → bước 8. Đỏ → báo từng lỗi + cách sửa, không spawn worker |
+| 8. Spawn worker | `ff worker start` (§6.6) | `ff worker status` = `ready` trong 30 giây |
+| 9. Báo cáo | Theo khuôn `references/report.md` (dưới) | — |
+
+**Khuôn báo cáo cuối `/ff-init`** (viết theo `references/writing.md`):
+1. **Đang chạy:** worker trong tmux session `<tên>`, TaskSource `<adapter>` đang nhận thẻ từ list `<todo>`, thông báo đi qua `<channel>`.
+2. **Xem thế nào:** `tmux attach -t <tên>` (thoát mà không dừng: `Ctrl-b` rồi `d`). Với `console`, thông báo hiện trong chính cửa sổ này.
+3. **Duyệt Gate:** khi có thông báo Gate, chạy lệnh `tmux attach -t ff-<id>` có trong thông báo.
+4. **Dừng/khởi động lại:** `ff worker stop` / `ff worker start`. Sửa `ff.config.yaml` hoặc `.ff.env` → worker tự nạp lại, không cần làm gì.
+5. **Còn thiếu:** danh sách cụ thể (vd key chưa điền) hoặc "không".
 
 ### 4.4 `ff doctor` (xác định, không LLM)
 - Validate theo JSON Schema.
@@ -100,8 +164,28 @@ Cạnh YAML, ghi `source` cho từng giá trị: `file:line` (đọc từ repo/A
 - Kiểm `source` còn đúng (dòng đó vẫn chứa giá trị) để phát hiện config lỗi thời.
 - Lỗi → exit ≠ 0. Hook `SessionStart` và `ff cfg get` chặn phiên khi doctor đỏ.
 
-### 4.5 Secrets
-YAML không chứa token. `.ff.env` đã gitignore. `doctor` chỉ báo có/không, không in giá trị.
+### 4.5 Secrets (D16)
+
+**Không ai đọc `.ff.env` ngoài process của worker và CLI `ff`.** 3 lớp chặn:
+1. `.claude/settings.json` của workspace (ff-init thêm, không xóa mục có sẵn):
+   ```json
+   { "permissions": { "deny": ["Read(./.ff.env)", "Edit(./.ff.env)", "Write(./.ff.env)", "Read(./**/.env*)"] } }
+   ```
+   `Read(./**/.env*)` chỉ thêm khi người dùng đồng ý ở bước 4 (có repo cần agent đọc `.env.example`; plan kiểm deny không chặn nhầm `.env.example`).
+2. `guard.mjs`: chặn Bash có tham chiếu `.ff.env` (cat/less/head/tail/grep/sed/awk/source/cp/base64/`<`), trừ đúng các lệnh `ff …`.
+3. Khối luật trong `CLAUDE.md`: "Không đọc, in, chép `.ff.env`. Cần biết key có hay chưa → `ff doctor`."
+
+**`.ff.env.example`:** sinh từ `templates/env/<adapter>.env.example` theo adapter đã chọn. Chỉ có tên key + comment chỉ chỗ lấy, giá trị rỗng. Đã có file → chỉ **thêm key còn thiếu**, không sửa/xóa dòng có sẵn. Key theo adapter (chốt ở `references/env-keys.md`):
+
+| Adapter | Key |
+|---|---|
+| `trello` | `TRELLO_API_KEY`, `TRELLO_API_TOKEN` (`TRELLO_BOARD_ID` chuyển sang YAML `worker.task_source.trello.board_id` — không phải secret) |
+| `rocketchat` | `RC_URL`, `RC_USER_ID`, `RC_AUTH_TOKEN`, `RC_ROOM_ID` |
+
+Giữ đúng tên biến ff-worker hiện dùng để workspace tiniweb chuyển sang không phải đổi `.env`. `PROJECT_DIR` bỏ, thay bằng `workspace.root`.
+| `console` | (không) |
+
+YAML không chứa token. `doctor` đọc `.ff.env` trong process, chỉ in "có/thiếu" từng key, không in giá trị.
 
 ## 5. Skills, hooks và Gate
 
@@ -210,16 +294,33 @@ Người dùng `tmux attach -t ff-<id>` và trả lời `AskUserQuestion` trong 
 ### 6.5 Phân phối
 `ff-worker/package.json` có `bin: ff-worker`, phát hành npm. Chạy: `npx ff-worker --config ff.config.yaml`. Worker tự validate config khi khởi động, không chạy khi config sai.
 
+### 6.6 Vòng đời worker: tmux, tự restart (D14, D15)
+
+**`ff worker start`** (gọi từ `/ff-init` bước 8, hoặc người dùng tự chạy):
+1. Session đã tồn tại và `status = ready` → báo "đang chạy", không tạo thêm.
+2. Tạo `tmux new-session -d -s <worker.tmux.session_name> -c <workspace.root>` chạy vòng giám sát `scripts/worker-supervise.sh`:
+   - chạy `npx ff-worker@<version-khớp-plugin> --config ff.config.yaml`;
+   - exit code `75` (= yêu cầu restart do config đổi) → chạy lại ngay;
+   - exit khác 0 → đợi 5 giây rồi chạy lại; quá 5 lần trong 10 phút → dừng vòng, ghi `.ff/worker.json` `state: crashed`, in lý do;
+   - exit 0 (`ff worker stop`) → thoát vòng, đóng session.
+3. Đợi tối đa 30 giây cho `.ff/worker.json` có `state: ready` (worker ghi kèm `pid`, `port`, adapter, thời điểm nạp config).
+
+**Tự restart khi config đổi** (trong worker, `worker.reload.watch: true`):
+1. Theo dõi `ff.config.yaml`, `ff.config.lock.json`, `secrets.env_file` (theo mtime/inode, chịu được editor ghi bằng rename). Debounce `debounce_ms`.
+2. Đổi → chạy validator như `ff doctor` trên bản mới, trong process.
+3. **Đỏ:** giữ config cũ, chạy tiếp, `notify(kind: error)` kèm danh sách lỗi; ghi `.ff/worker.json` `config_state: rejected`.
+4. **Xanh:** dừng poll mới, đợi lệnh HTTP đang dở xong (tối đa 10 giây), ghi state, exit `75`. Supervisor chạy lại; worker mới khôi phục task đang chạy bằng cơ chế startup sẵn có (`orchestrator.ts` "Khôi phục task dở dang" theo session tmux `ff-<id>`). Phiên Claude của từng thẻ **không bị dừng**.
+5. Sau khi lên lại: `notify(kind: info)` "Đã nạp config mới: <các trường đổi>" (chỉ tên trường, không giá trị; với `.ff.env` chỉ ghi "secrets đổi").
+
+**Lệnh khác:** `ff worker stop` (gửi tín hiệu dừng êm, worker exit 0), `ff worker status` (đọc `.ff/worker.json` + `tmux has-session`), `ff worker logs [-n 100]` (`tmux capture-pane`). Hook `SessionStart` chạy `ff worker status`; worker không chạy → nhắc 1 dòng, không chặn phiên.
+
 ## 7. `INSTALL.md` (cho AI)
 
-1. Kiểm tra `node -v` (theo `engines`), `tmux -V`, `claude --version`.
+1. Kiểm tra `node -v` (theo `engines`), `git --version`, `claude --version`.
 2. `/plugin marketplace add <repo>` rồi `/plugin install ff-kit`.
-3. Chạy `/ff-init` trong workspace đích. Hỏi người dùng các câu mơ hồ, không tự đoán.
-4. Người dùng tự điền `.ff.env`. AI không đọc/in giá trị.
-5. `ff doctor` phải xanh.
-6. `tmux new-session -d -s ff-worker 'npx ff-worker --config ff.config.yaml'`.
-7. Xác nhận: `tmux capture-pane -t ff-worker -p | tail`, thấy `ready` và tên adapter.
-8. Nhắc người dùng `tmux attach` để duyệt Gate.
+3. Chạy `/ff-init` trong workspace đích. `/ff-init` tự làm phần còn lại theo §4.3: `/init` của Claude, tmux, config, `.ff.env.example`, luật chặn `.ff.env`, doctor, spawn worker, báo cáo.
+4. AI cài đặt không tự điền `.ff.env` và không đọc/in giá trị; chỉ chuyển lời nhắc của `/ff-init` cho người dùng.
+5. Xác nhận cuối: `ff worker status` = `ready`. Không xanh → dán nguyên lỗi cho người dùng, dừng.
 
 Mỗi bước có "điều kiện xong" và "nếu lỗi thì dừng, báo người dùng". Cấm AI sửa `ff.config.yaml` bằng tay ngoài `/ff-init`.
 
@@ -234,6 +335,10 @@ Mỗi bước có "điều kiện xong" và "nếu lỗi thì dừng, báo ngư�
 - Thử end-to-end: cài plugin vào workspace tiniweb thật và chạy `/ff-init` → doctor xanh.
 - `ff trace-check`: unit test cho từng điều kiện fail ở §5.3 mục 4 (D-xx mồ côi, mã không tồn tại, thiếu cột `Nguồn`, trích lệch dossier). `guard.mjs` chặn header `GATE_A|GATE_B` khi trace-check đỏ.
 - Grep CI: skills/agents không chứa `CẤM`, `Tuyệt đối`, `TUYỆT ĐỐI`, `BẮT BUỘC` viết hoa kiểu ra lệnh; mỗi `agents/*.md` có `model` và `effort`.
+- Worker reload: sửa YAML hợp lệ → exit `75`, supervisor chạy lại, task giả đang chạy vẫn còn session và được khôi phục; sửa YAML sai → worker giữ config cũ, có `notify(kind: error)`; crash 6 lần/10 phút → supervisor dừng, `state: crashed`.
+- `ff worker start` chạy 2 lần liên tiếp → chỉ 1 session.
+- `/ff-init` trên fixture: không có `CLAUDE.md` → gọi `/init`; thiếu tmux (giả lập PATH) → hỏi, không tự `sudo`; `.ff.env.example` có sẵn 1 key → chỉ thêm key thiếu; `.claude/settings.json` có sẵn → giữ mục cũ, thêm deny; chạy lại `/ff-init` → không ghi đè `source` cũ.
+- Chặn `.ff.env`: `Read(.ff.env)` bị từ chối bởi deny; `cat .ff.env`, `grep X .ff.env`, `source .ff.env` bị guard chặn; `ff doctor` vẫn báo có/thiếu key; `.env.example` của repo vẫn đọc được với mẫu deny mặc định.
 - **Đo trước/sau trên 2–3 thẻ cũ của tiniweb** (chạy bộ ff cũ và ff-kit trên cùng dossier). Chỉ số: số `D-xx` bị bỏ sót/bóp méo (người dùng chấm theo ledger); số lần người dùng phải hỏi lại tại Gate; `ff-gate-reader` trả lời đúng ở vòng 1; tổng token. ff-kit không được tệ hơn bản cũ ở chỉ số nào; dùng kết quả để chốt `effort`.
 
 ## 9. Rủi ro
@@ -248,3 +353,92 @@ Mỗi bước có "điều kiện xong" và "nếu lỗi thì dừng, báo ngư�
 | Hạ giọng gắt làm agent bỏ qua luật quan trọng | Luật không được vi phạm đều có chặn xác định (`guard.mjs`, `trace-check`, `doctor`); đo trước/sau ở §8 |
 | `ff-gate-reader` (haiku) đánh giá sai, gây vòng viết lại vô ích | Tối đa 2 vòng; đo tỉ lệ đúng vòng 1 ở §8, tệ thì nâng model |
 | Docs model 5.x thay đổi theo phiên bản | Ghi ngày đọc docs trong `references/writing.md`; quyết định `effort` dựa trên đo thật, không dựa docs |
+| `claude -p "/init"` không chạy được ở chế độ headless | Kiểm ở task đầu của plan; không được thì `/ff-init` dừng ở bước 1 và nhờ người dùng gõ `/init` |
+| Cài tmux cần `sudo` | Không bao giờ chạy `sudo` ngầm; luôn hỏi trước và để người dùng tự chạy qua `! <lệnh>` |
+| Restart khi config đổi làm mất task đang chạy | Phiên Claude của thẻ nằm ở tmux session riêng, không bị dừng; worker mới khôi phục bằng cơ chế startup sẵn có; có test ở §8 |
+| Config sửa dở (đang gõ) bị nạp | Debounce + validate trước khi restart; đỏ thì giữ config cũ |
+| `permissions.deny` chặn nhầm file `.env.example` mà agent cần đọc | Mẫu deny hẹp mặc định (chỉ `.ff.env`); mẫu rộng chỉ thêm khi người dùng đồng ý; test ở §8 |
+
+## 10. Bản đồ chuyển đổi file (tiniweb → ff-kit)
+
+Quy ước cột "Thay đổi chung" áp cho **mọi** file skill/agent/command, không nhắc lại từng dòng:
+- **H** — hardcode → `ff cfg get <key>` hoặc lệnh `ff …`: `trellisflow` → `workspace.cards_dir`; `oe-hrm-fe`/`system-service` → `repos[]`; `yarn …` → `repos[].commands.*`; `_project/...` → `project_docs.*`; `bash scripts/ff/ff.sh X` → `ff X`; `.claude/skills/...` → `${CLAUDE_PLUGIN_ROOT}/skills/...`.
+- **M** — gỡ MCP của ff-worker (`ff_*`, "qua MCP", RocketChat) → `AskUserQuestion` + header Gate (§5.1) hoặc CLI `ff notify|verify-lock|ship-request`. **Playwright MCP giữ nguyên** (quan sát/verify app).
+- **P** — vệ sinh prompt §5.5: hạ giọng gắt, phân loại lệnh tự kiểm, thêm đoạn phạm vi nếu là skill/agent làm việc chính.
+- **W** — phần người dùng đọc tuân `references/writing.md`.
+
+Số trong ngoặc = (dòng / số chỗ hardcode / số chỗ giọng gắt) đếm ngày 2026-10-12.
+
+### 10.1 Skills
+
+| Nguồn `.claude/skills/` | Đích `skills/` | Thay đổi riêng |
+|---|---|---|
+| `ff-understand/SKILL.md` (70/17/2) | giữ | H M P W. P0: `ff sync`, `ff state`. P1 bước 0 mới: lập `01b-ledger.md` (§5.3). Gate A/B → `AskUserQuestion` theo khuôn §5.4, chạy `ff trace-check` + `ff-gate-reader` trước khi trình. Bỏ `ff_notify` các mốc (hook `Stop` lo). "Ranh giới dừng hỏi" → `AskUserQuestion` thay `ff_ask_user`. `allowed-tools` → `Bash(ff *)`. `description` bỏ chữ "tiniweb" |
+| `ff-understand/rules.md` (113/21/8) | giữ | H M P. §8 viết lại hoàn toàn: bỏ "100% qua MCP", bỏ luật 1200 ký tự/không bảng; thay bằng trỏ §5.4 + `references/writing.md`. Giữ 4 ranh giới dừng hỏi. §9 bảng trạng thái → lệnh `ff`. Thêm đoạn giới hạn phạm vi (§5.5) |
+| `ff-understand/references/brief.md` (108/4/0) | giữ | H W. Mục 1 đọc dossier → lập ledger trước. Khuôn `brief.md`: phần chính theo khuôn Gate §5.4; bảng nguồn dữ liệu/bất biến/precedent/ngân sách chuyển vào phụ lục; mọi bảng thêm cột `Nguồn` (`D-xx`/`U-xx`). "Cần bạn quyết" đổi từ bảng sang khối hỏi có hậu quả từng phương án |
+| `ff-understand/references/design.md` (44/3/0) | giữ | H. Cột `Nguồn` của YC/AC dùng `D-xx`/`U-xx` (thay "dòng Brief / trích dossier"). `ff design-check` + `ff trace-check` |
+| `ff-understand/references/reopen.md` (62/2/0) | giữ | H M. Gate A' → `AskUserQuestion` header `GATE_A`. Comment mới sau ship → thêm vào ledger dưới dạng `D-xx` mới (đánh dấu `reopen`). `ff.sh reopen` không có trong dispatcher hiện tại → plan xác minh, hoặc bỏ tham chiếu |
+| `ff-understand/references/big-task.md` (28/2/0) | giữ | H. Ledger cấp thẻ, các cụm/slice trỏ `D-xx` |
+| `ff-understand/references/agents.md` (70/13/0) | giữ | H M. Bảng agent thêm `ff-gate-reader`; ghi `model` + `effort` từng agent; bỏ mô tả MCP bridge |
+| `ff-understand/briefs/adversary.md` (39/2/0) | giữ | H. Đầu vào: ledger + dossier + Brief. Thêm hướng 9 "bóp méo dossier" (§5.3 mục 6); định dạng kết quả thêm dòng 9 |
+| `ff-understand/briefs/design-review.md` (33/5/0) | giữ | H. Kiểm thêm: mỗi thành phần design có `Nguồn` |
+| `ff-understand/briefs/observe.md` (33/3/0) | giữ | H. `ff mcp-auth`; app/port lấy từ config |
+| — | `ff-understand/briefs/gate-reader.md` (mới) | Brief cho `ff-gate-reader`: chỉ nhận phần chính Gate; 3 câu phải trả lời; định dạng `ĐỦ | THIẾU: <câu không trả lời được>` |
+| `ff-build/SKILL.md` (82/18/0) | giữ | H M P. Bỏ 3 `ff_notify`. Thêm đoạn giới hạn phạm vi. Mọi `ff.sh` → `ff` |
+| `ff-build/references/plan-slice.md` (78/5/1) | giữ | H P. `yarn tsc` → `repos[].commands.typecheck`. Slice trỏ `D-xx`/AC |
+| `ff-build/references/review-squash.md` (49/9/0) | giữ | H. Lệnh lint/build/install theo `repos[].commands` |
+| `ff-build/references/test-first.md` (71/5/2) | giữ | H P. Role lấy từ `project_docs.roles_file`; thiếu → hỏi |
+| `ff-build/briefs/planner.md` (28/2/0) | giữ | H. "scope = dossier" → "scope = ledger" |
+| `ff-build/briefs/implement-micro.md` (34/2/0) | giữ | H P. Rút gọn cho Haiku; giữ yêu cầu chạy check thật |
+| `ff-build/briefs/test-writer.md` (31/3/1) | giữ | H P |
+| `ff-build/briefs/diff-review.md` (39/1/0) | giữ | H. Kiểm thêm: hunk ngoài các `D-xx`/AC → báo "ngoài phạm vi" |
+| `ff-verify/SKILL.md` (89/18/2) | giữ | H M P W. Gate C → `AskUserQuestion` theo khuôn §5.4 (kết luận ĐẠT/CHƯA ĐẠT, mỗi `D-xx` đạt/không). Verify lock → `ff verify-lock`. `yarn migration:run` → `repos[].commands.migrate` |
+| `ff-verify/references/report.md` (96/5/0) | giữ | H W. Bảng AC thêm cột `D-xx`. Phần chính theo khuôn Gate, bảng chi tiết vào phụ lục |
+| `ff-verify/references/measure.md` (94/12/2) | giữ | H P. `ff db-query`; file query mẫu từ `project_docs.verification_queries_dir` |
+| `ff-verify/references/proof-discipline.md` (112/4/1) | giữ | H P |
+| `ff-verify/references/bind-locators.md` (41/4/0) | giữ | H |
+| `ff-verify/references/ship.md` (80/8/0) | giữ | H M. `ff_request_ship` → `ff ship-request` (notify 1 chiều + chờ người dùng xác nhận qua `AskUserQuestion`) |
+| `ff-verify/briefs/bind-verify.md` (40/5/0) | giữ | H |
+| — | `ff-init/SKILL.md`, `references/{detect,report,env-keys}.md` (mới) | Theo §4.3, §4.5 |
+| — | `references/writing.md` (mới, gốc plugin) | Theo §5.4; ghi nguồn diataxis-writer |
+
+### 10.2 Agents, commands
+
+| Nguồn | Đích | Thay đổi riêng |
+|---|---|---|
+| `.claude/agents/ff-*.md` × 9 (14 dòng mỗi file) | `agents/` | Bỏ "(repo tiniweb)"; đường dẫn brief → `${CLAUDE_PLUGIN_ROOT}`; thêm `effort`; giữ `model`. `ff-observer`, `ff-verifier`, `ff-test-writer` giữ tool Playwright MCP |
+| — | `agents/ff-gate-reader.md` (mới) | `model: haiku`, `effort: low`, tools: `Read` |
+| `.claude/commands/ship-to-dev.md` (230/13/1) | `commands/ship-to-dev.md` | H M. Bỏ RocketChat/`ff_request_ship`; xác nhận push qua `AskUserQuestion`; lệnh test/build/install theo `repos[].commands`; `task-dones` → `<cards_dir>/task-dones` |
+| — | `commands/ff-worker.md` (mới) | Gọi `ff worker start|stop|status|logs` |
+| `.claude/settings.json` (hooks guard) | `hooks/hooks.json` | Chuyển hook guard sang plugin; thêm hook §5.2. Mục `permissions` của tiniweb **không** chuyển (là của workspace) |
+
+### 10.3 Scripts → CLI `ff`
+
+| Nguồn `scripts/ff/` | Đích | Thay đổi riêng |
+|---|---|---|
+| `ff.sh` (491/45/5) | `bin/ff` + `scripts/cli/<lệnh>.mjs` | Viết lại bằng Node, mỗi lệnh 1 file: `sync state copy squash-check verify-up verify-down mcp-auth ship-approve ac-matrix e2e-lint design-check lock-tests relock allow db-query probe-slice` + mới `cfg doctor notify verify-lock ship-request trace-check worker`. Thông báo lỗi giữ tiếng Việt |
+| `ff-common.mjs` (41/3/0) | `scripts/lib/config.mjs` | Bỏ `trellisflow` cứng; đọc YAML qua 1 loader dùng chung với `doctor` |
+| `guard.mjs` (359/10/0) | `scripts/guard.mjs` | Đọc `guard.*`, `repos[]` từ config. Thêm: chặn marker `ĐÃ DUYỆT` thiếu file gate (§5.2); chặn `GATE_A|GATE_B` khi trace-check đỏ (§5.3); chặn đọc `.ff.env` (§4.5) |
+| `allow.mjs`, `design-check.mjs`, `ac-matrix.mjs`, `e2e-lint.mjs`, `probe-slice.mjs`, `db-query.mjs`, `mcp-auth.mjs` | `scripts/cli/` | H; đường dẫn theo config; `db-query` đọc `db.env_file` trong process |
+| `hook-dump.mjs` (26) | `scripts/dev/hook-dump.mjs` | Công cụ debug hook, không đăng ký hook mặc định |
+| `test-guard.sh` (199/71/0), `test-tools.sh` (167/7/0), `test-lock.mjs` (71/1/0) | `tests/` | Chạy trên fixture workspace giả trong `tests/fixtures/` (2 repo git giả, `ff.config.yaml` mẫu) thay vì tiniweb thật; giữ nguyên các ca kiểm |
+
+### 10.4 ff-worker
+
+| Nguồn `ff-worker/` | Đích `ff-worker/` | Thay đổi riêng |
+|---|---|---|
+| `src/index.ts` (28) | giữ | Nhận `--config`; exit code `75` cho restart (§6.6) |
+| `src/config.ts` (105) | `src/core/config.ts` | Đọc `ff.config.yaml` + `.ff.env`; dùng chung validator với `ff doctor`; thêm watcher (§6.6) |
+| `src/orchestrator.ts` (556) | `src/core/orchestrator.ts` | Gọi `TaskSource`/`Channel` qua interface; bỏ nhánh nghe thread `WAITING_*`; giữ "Khôi phục task dở dang"; thêm HTTP local cho `ff notify|verify-lock|ship-request` |
+| `src/services/trello.ts` (176) | `src/adapters/task-source/trello.ts` | Implement `TaskSource`; bỏ phụ thuộc `scripts/trello.sh` |
+| `src/services/rocketchat.ts` (376), `ui-blocks.ts` (438) | `src/adapters/channel/rocketchat/` | Chỉ `notify`; bỏ `getLatestUserMessage`, `approval_keywords`, `sanitizeAndWrapFeedback` |
+| — | `src/adapters/channel/console.ts` (mới) | §6.2 |
+| `src/services/tmux.ts` (126), `ff-monitor.ts` (545), `quota.ts` (75), `verify-mutex.ts` (55) | `src/core/` | H (tên session, đường dẫn thẻ từ config). `verify-mutex` phục vụ `ff verify-lock` qua HTTP |
+| `src/types/index.ts` (111) | `src/core/types.ts` + `src/adapters/types.ts` | Bỏ kiểu RocketChat khỏi core |
+| `src/mcp/server.ts` (841), `src/mcp-stdio.ts` (272), `claude-mcp.json` | **xóa** | D8 |
+| `docs/02-mcp-architecture-spec.md` (349) | **xóa** | Hết hiệu lực |
+| `test/*.ts`, `test-rc-blocks.ts` | `ff-worker/test/` | Viết lại theo contract test §8; bỏ `real-gate-a-wait.ts` (luồng đợi chat) |
+| `config.example.yaml` | **xóa** | Thay bằng `ff.config.yaml` do `/ff-init` sinh |
+| `config.yaml` | **không chuyển, không đọc** | Có thể chứa giá trị thật; để nguyên trong tiniweb |
+| `README.md` | gộp vào `README.md` + `INSTALL.md` gốc | — |
+| `.codegraph/`, `package-lock.json` | không chuyển / sinh lại | — |
