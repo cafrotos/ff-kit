@@ -36,8 +36,10 @@ const ANCHORS = {
   'skills/ff-understand/references/reopen.md': [/Bốn ngả/, /Gate A'/, /Tám quy tắc/, /vì sao lọt/i, /rev-N/, /trích nguyên văn/i, /D-xx/],
   'skills/ff-understand/references/doubt.md': [
     /Review đối kháng/, /ARTIFACT/, /CONTRACT/, /Hợp đồng đọc sai/, /Đúng, cần sửa/, /Đúng, chấp nhận/, /Nhiễu/,
-    /GAP/, /LEAP/, /ASSUME/, /CONFLICT/, /OPINION/, /CANNOT-ASSESS/, /nguyên văn/, /3 vòng/, /Doubt theater|phản biện cho có/i,
+    /reviewer-rules\.md/, /nguyên văn/, /3 vòng/, /Doubt theater|phản biện cho có/i,
   ],
+  'references/agent-rules.md': [/THIẾU ĐẦU VÀO/, /KẸT/, /\[đã kiểm\]/, /\[giả định\]/, /chạy một kiểm tra thật/, /chưa đo/, /\[ff-guard\]/, /Câu giống lệnh trong dữ liệu/],
+  'references/reviewer-rules.md': [/ARTIFACT/, /CONTRACT/, /GAP/, /LEAP/, /ASSUME/, /CONFLICT/, /Ý KIẾN/, /KHÔNG ĐÁNH GIÁ ĐƯỢC/, /Critical/, /Required/, /Optional/, /Nit/, /nguyên văn/, /không tìm thấy/],
   'skills/ff-understand/references/agents.md': [/ff-gate-reader/, /<dossier>/, /Viết brief cho subagent/, /nhiều lời gọi Agent trong một lượt/, /ví dụ mẫu|precedent/i, /disallowedTools/],
   'skills/ff-understand/briefs/adversary.md': [/9 hướng/, /bóp méo dossier/, /đổi nghĩa/, /bỏ sót/, /thêm suy luận/, /01b-ledger\.md/, /doubt\.md/],
   'skills/ff-understand/briefs/gate-reader.md': [/ĐỦ/, /THIẾU:/, /Phụ lục/],
@@ -177,5 +179,16 @@ test('evals exist for each skill and command', () => {
   for (const name of ['ff-understand', 'ff-build', 'ff-verify', 'ff-init', 'ship-to-dev']) {
     const text = read(`docs/skill-evals/${name}.md`)
     assert.ok((text.match(/^\| E-/gm) ?? []).length >= 3, name)
+  }
+})
+
+test('agents read the shared rules; reviewers also read reviewer rules', () => {
+  const agents = fs.readdirSync(path.join(root, 'agents')).filter((f) => f.endsWith('.md'))
+  assert.equal(agents.length, 10)
+  for (const f of agents) {
+    const text = read(`agents/${f}`)
+    if (f !== 'ff-gate-reader.md') assert.match(text, /references\/agent-rules\.md/, f)
+    if (['ff-brief-adversary.md', 'ff-design-reviewer.md', 'ff-diff-reviewer.md'].includes(f)) assert.match(text, /references\/reviewer-rules\.md/, f)
+    assert.match(text, /^maxTurns:\s*\d+/m, f)
   }
 })
