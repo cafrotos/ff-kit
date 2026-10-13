@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "ff-kit",
+  "owner": {
+    "name": "cafrotos"
+  },
+  "description": "Feature-flow kit for Claude Code workspaces",
+  "plugins": [
+    {
+      "name": "ff-kit",
+      "source": ".",
+      "description": "Feature-flow skills, agents, hooks, and CLI for Claude Code workspaces"
+    }
+  ]
+}
