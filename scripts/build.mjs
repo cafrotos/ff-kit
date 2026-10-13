@@ -3,6 +3,7 @@ import { build } from 'esbuild'
 
 const entryPoints = {
   cli: 'scripts/cli/main.mjs',
+  guard: 'scripts/guard.mjs',
 }
 
 await build({
