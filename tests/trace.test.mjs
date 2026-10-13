@@ -130,6 +130,48 @@ test('bỏ: chỉ hợp lệ cho dòng trong Comments', (t) => {
   assert.match(r.errors.join('\n'), /D-03: "bỏ:" chỉ dùng cho dòng trong mục Comments/)
 })
 
+test('ledger có loại (sự kiện/giả thuyết/giải pháp/quyết định/bỏ) vẫn xanh', (t) => {
+  const r = traceCheck(card(t, {
+    [`${CARD}/01-dossier.md`]: `# Thẻ 123: Lọc ứng viên
+## Mô tả
+Danh sách ứng viên mất bộ lọc khi chuyển trang.
+Chắc do state bị reset trong component danh sách.
+Cần lưu bộ lọc vào URL.
+## Checklist
+- [ ] Giữ bộ lọc khi chuyển trang
+## Comments
+- 🔄 Sync từ sheet row 77
+`,
+    [`${CARD}/01b-ledger.md`]: `# Ledger thẻ 123
+| Mã | Trích nguyên văn | Vị trí | Ghi chú |
+|---|---|---|---|
+| D-01 | Danh sách ứng viên mất bộ lọc khi chuyển trang. | Mô tả | sự kiện |
+| D-02 | Chắc do state bị reset trong component danh sách. | Mô tả | giả thuyết |
+| D-03 | Cần lưu bộ lọc vào URL. | Mô tả | giải pháp |
+| D-04 | Giữ bộ lọc khi chuyển trang | Checklist #1 | quyết định |
+| D-05 | 🔄 Sync từ sheet row 77 | Comment 1 | bỏ: bookkeeping |
+
+| Mã | Câu hỏi | Đáp án | Ngày |
+|---|---|---|---|
+| U-01 | Giữ bộ lọc khi tải lại trang? | Có | 2026-10-13 |
+
+## Ngoài phạm vi
+- D-05
+`,
+    [`${CARD}/brief.md`]: `> Trạng thái: CHỜ DUYỆT
+# Brief 123
+| # | Mục | Nguồn |
+|---|---|---|
+| 1 | Bộ lọc trạng thái | D-01, D-02, D-03 |
+| 2 | Giữ bộ lọc | D-04, U-01 |
+
+## Ngoài phạm vi
+- D-05
+`,
+  }).dir)
+  assert.deepEqual(r.errors, [])
+})
+
 test('design ở thư mục task con được tính', (t) => {
   const r = traceCheck(card(t, {
     [`${CARD}/brief.md`]: BRIEF.replace('- D-03: để thẻ sau\n', ''),
