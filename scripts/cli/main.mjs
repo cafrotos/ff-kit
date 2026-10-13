@@ -1,11 +1,13 @@
 // Dispatcher của CLI `ff`. Mỗi lệnh là 1 module có { summary, run(args, ctx) }.
 import * as cfg from './cfg.mjs'
 import * as envExample from './env-example.mjs'
+import * as doctor from './doctor.mjs'
 const VERSION = '0.1.0'
 
 export const COMMANDS = {
   cfg,
   'env-example': envExample,
+  doctor,
 }
 
 const defaultCtx = () => ({ cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr })
