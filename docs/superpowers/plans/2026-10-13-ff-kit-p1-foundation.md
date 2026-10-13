@@ -505,6 +505,17 @@ test('validate bắt thiếu repos, khóa lạ, repo trùng tên, trello thiếu
   assert.ok(validate(parseConfigText(YAML.stringify(t)).config).length > 0)
 })
 
+test('validate khối e2e: form-login bắt buộc login_url, base_url phải là URL', () => {
+  const c = baseConfig()
+  c.e2e = { dir: 'ff-e2e', apps: [{ name: 'web', base_url: 'http://localhost:3001' }], health_urls: ['http://localhost:8080/health'], auth: { strategy: 'storage-state' } }
+  assert.deepEqual(validate(parseConfigText(YAML.stringify(c)).config), [])
+  c.e2e.auth = { strategy: 'form-login' }
+  assert.ok(validate(parseConfigText(YAML.stringify(c)).config).some((e) => /login_url/.test(e)))
+  c.e2e.auth = { strategy: 'none' }
+  c.e2e.apps[0].base_url = 'localhost:3001'
+  assert.ok(validate(parseConfigText(YAML.stringify(c)).config).some((e) => /base_url/.test(e)))
+})
+
 test('getKey tra theo chấm và theo name trong mảng', () => {
   const { config } = parseConfigText(YAML.stringify(baseConfig()))
   assert.deepEqual(getKey(config, 'repos.web.path'), { found: true, value: 'web' })
@@ -688,6 +699,30 @@ export function getKey(obj, key) {
         "tests_dir": { "$ref": "#/definitions/relpath" },
         "done_tests_dir": { "$ref": "#/definitions/relpath" },
         "auth_storage": { "$ref": "#/definitions/relpath" },
+        "apps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "base_url"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+              "base_url": { "type": "string", "pattern": "^https?://" }
+            }
+          }
+        },
+        "health_urls": { "type": "array", "items": { "type": "string", "pattern": "^https?://" } },
+        "auth": {
+          "type": "object",
+          "required": ["strategy"],
+          "additionalProperties": false,
+          "properties": {
+            "strategy": { "enum": ["storage-state", "form-login", "none"] },
+            "login_url": { "type": "string", "pattern": "^https?://" }
+          },
+          "if": { "properties": { "strategy": { "const": "form-login" } } },
+          "then": { "required": ["login_url"] }
+        },
         "up_cmd": { "$ref": "#/definitions/cmd" },
         "down_cmd": { "$ref": "#/definitions/cmd" },
         "test_cmd": { "$ref": "#/definitions/cmd" }
@@ -1087,7 +1122,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `findRoot`, `loadConfig`, `ConfigError` (Task 3).
-- Produces (`scripts/lib/env.mjs`): `ADAPTER_KEYS: Record<string, { key: string, hint: string }[]>`; `requiredKeys(config): string[]`; `parseEnvKeys(text, { withValueOnly?: boolean }): Set<string>`; `presentKeys(file): Set<string> | null` (chỉ key có giá trị; `null` khi không có file); `mergeEnvExample(exampleFile, config): string[]` (key đã thêm).
+- Produces (`scripts/lib/env.mjs`): `ADAPTER_KEYS: Record<string, { key: string, hint: string }[]>`; `FEATURE_KEYS` (`e2e-form-login` → `E2E_USER`, `E2E_PASSWORD`); `requiredKeys(config): string[]`; `parseEnvKeys(text, { withValueOnly?: boolean }): Set<string>`; `presentKeys(file): Set<string> | null` (chỉ key có giá trị; `null` khi không có file); `mergeEnvExample(exampleFile, config): string[]` (key đã thêm).
 - Produces (CLI): `ff env-example` — tạo/bổ sung `<secrets.env_file>.example`, không đọc `.ff.env`, không cần doctor xanh.
 
 - [ ] **Step 1: Viết test (fail)**
@@ -1118,6 +1153,8 @@ test('requiredKeys theo adapter đã chọn', () => {
   assert.deepEqual(requiredKeys(cfg()), ['TRELLO_API_KEY', 'TRELLO_API_TOKEN'])
   const rc = requiredKeys(cfg((c) => { c.worker.channel.adapter = 'rocketchat'; return c }))
   assert.deepEqual(rc, ['TRELLO_API_KEY', 'TRELLO_API_TOKEN', 'RC_URL', 'RC_USER_ID', 'RC_AUTH_TOKEN', 'RC_ROOM_ID'])
+  const fl = requiredKeys(cfg((c) => { c.e2e = { dir: 'ff-e2e', auth: { strategy: 'form-login', login_url: 'http://localhost:3000/login' } }; return c }))
+  assert.deepEqual(fl, ['TRELLO_API_KEY', 'TRELLO_API_TOKEN', 'E2E_USER', 'E2E_PASSWORD'])
 })
 
 test('presentKeys: không có file → null', () => {
@@ -1183,11 +1220,20 @@ export const ADAPTER_KEYS = {
   console: [],
 }
 
+// Key theo tính năng (không phải adapter).
+export const FEATURE_KEYS = {
+  'e2e-form-login': [
+    { key: 'E2E_USER', hint: 'Tài khoản test để ff-e2e đăng nhập (e2e.auth.strategy: form-login)' },
+    { key: 'E2E_PASSWORD', hint: 'Mật khẩu của tài khoản test trên' },
+  ],
+}
+
 const adaptersOf = (config) => [config.worker?.task_source?.adapter, config.worker?.channel?.adapter].filter(Boolean)
 
 function neededEntries(config) {
   const seen = new Set()
-  return adaptersOf(config).flatMap((a) => ADAPTER_KEYS[a] ?? []).filter((k) => !seen.has(k.key) && seen.add(k.key))
+  const features = config.e2e?.auth?.strategy === 'form-login' ? FEATURE_KEYS['e2e-form-login'] : []
+  return [...adaptersOf(config).flatMap((a) => ADAPTER_KEYS[a] ?? []), ...features].filter((k) => !seen.has(k.key) && seen.add(k.key))
 }
 
 export const requiredKeys = (config) => neededEntries(config).map((k) => k.key)
@@ -3793,8 +3839,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | §3 cấu trúc repo | `.claude-plugin`, `bin/ff`, `scripts/`, `schema/`, `hooks/`, `tests/`, `dist/` | `skills/`, `agents/`, `commands/`, `references/`, `templates/`, `NOTICE`, `INSTALL.md`, `README.md` (Plan 4); `ff-worker/` (Plan 3) |
 | §4.1 config | loader, mặc định, schema, `cfg get` | — |
 | §4.2 lock | kiểm nguồn trong doctor | ghi lock (Plan 4, `/ff-init`) |
-| §4.3 `/ff-init` | `ff env-example`, `ff doctor --schema-only` (công cụ cho init) | skill `/ff-init` (Plan 4) |
-| §4.4 doctor | đủ | `ff worker status` trong SessionStart (Plan 3) |
+| §4.3 `/ff-init` | `ff env-example`, `ff doctor --schema-only` (công cụ cho init) | skill `/ff-init` + `INSTALL.md` (Plan 4); `/ff-worker start` (Plan 3) |
+| §4.4 doctor | đủ, trừ mục e2e | kiểm e2e (`node_modules`, chromium, `playwright test --list`) cùng `ff e2e-scaffold` (Plan 2); `ff worker status` trong SessionStart (Plan 3) |
+| §4.6 ff-e2e | schema `e2e.apps`, `e2e.health_urls`, `e2e.auth`; key `E2E_USER`/`E2E_PASSWORD` cho `form-login` | template + `ff e2e-scaffold` (Plan 2); bước e2e trong `INSTALL.md` (Plan 4) |
 | §4.5 secrets | guard chặn Bash + tool; doctor chỉ báo có/thiếu | `permissions.deny` + khối `CLAUDE.md` (Plan 4) |
 | §5.1 Gate | quy ước header/`[#id]`/`Duyệt`, ghi Gate, chặn marker | sửa skill (Plan 4) |
 | §5.2 hooks | SessionStart, PreToolUse/PostToolUse AskUserQuestion, Notification, guard | `Stop` (Plan 3, cần phase từ ff-monitor) |
