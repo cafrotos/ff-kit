@@ -2,18 +2,18 @@
 
 Plugin có các agent chuyên trách trong `${CLAUDE_PLUGIN_ROOT}/agents/`. Giao brief tương ứng trong thư mục `briefs/` của skill; prompt phải nêu rõ task, nguồn đầu vào, file được phép sửa và định dạng báo cáo.
 
-| Agent | model | effort | Ranh giới chính |
-|---|---|---|---|
-| `ff-planner` | sonnet | high | Chia design thành micro-task có dependency và kiểm chứng; không sửa code |
-| `ff-test-writer` | sonnet | high | Viết test hành vi từ AC và hợp đồng; không đọc implementation |
-| `ff-implementer` | sonnet | high | Thực hiện đúng micro-task; chỉ sửa file được giao trong bản copy |
-| `ff-implementer-haiku` | haiku | low | Thực hiện micro-task nhỏ, không cần suy luận dài |
-| `ff-diff-reviewer` | sonnet | high | Review diff độc lập theo AC và plan; không tự sửa code |
-| `ff-brief-adversary` | sonnet | high | Tìm lỗ hổng trong Brief/AC; không viết lại yêu cầu |
-| `ff-design-reviewer` | sonnet | high | Kiểm design, dependency và rủi ro; không triển khai |
-| `ff-observer` | haiku | low | Quan sát app qua Playwright; báo bằng chứng, không sửa sản phẩm |
-| `ff-verifier` | sonnet | high | Nghiệm thu app và liên kết bằng chứng với AC |
-| `ff-gate-reader` | haiku | low | Đọc artifact trước Gate và báo thiếu sót; Read-only |
+| Agent | Skill/điểm gọi | Brief |
+|---|---|---|
+| `ff-planner` | `ff-build`, sau khi khóa test | `skills/ff-build/briefs/planner.md` |
+| `ff-test-writer` | `ff-build`, trước khi có code | `skills/ff-build/briefs/test-writer.md` |
+| `ff-implementer` | `ff-build`, micro-task Sonnet | `skills/ff-build/briefs/implement-micro.md` |
+| `ff-implementer-haiku` | `ff-build`, micro-task Haiku | `skills/ff-build/briefs/implement-micro.md` |
+| `ff-diff-reviewer` | `ff-build`, sau mỗi đợt | `skills/ff-build/briefs/diff-review.md` |
+| `ff-brief-adversary` | `ff-understand`, phản biện Brief | `skills/ff-understand/briefs/adversary.md` |
+| `ff-design-reviewer` | `ff-understand`, review design | `skills/ff-understand/briefs/design-review.md` |
+| `ff-observer` | `ff-understand`, quan sát app | `skills/ff-understand/briefs/observe.md` |
+| `ff-verifier` | `ff-verify`, nghiệm thu app | `skills/ff-verify/briefs/bind-verify.md` |
+| `ff-gate-reader` | `ff-understand` / `ff-verify`, trước Gate | `skills/ff-understand/briefs/gate-reader.md` |
 
 ## Viết brief cho subagent
 

@@ -2,7 +2,7 @@
 name: ff-verify
 description: Dùng sau khi task đã squash và test hành vi đã khóa; chạy nghiệm thu trên app cấu hình, ghi báo cáo Gate C và chỉ ship sau khi user xác nhận.
 argument-hint: "[id | slug]"
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(ff cfg get *), Bash(ff state *), Bash(ff doctor *), Bash(ff squash-check *), Bash(ff e2e-auth-check *), Bash(ff verify-up *), Bash(ff verify-down *), Bash(ff verify-lock *), Bash(ff ac-matrix *), Bash(ff e2e-lint *), Bash(ff db-query *), Bash(ff ship-request *), Bash(ff mcp-auth *)
+allowed-tools: Read, Edit, Write, Grep, Glob, Agent, Bash(ff cfg get *), Bash(ff state *), Bash(ff doctor *), Bash(ff squash-check *), Bash(ff e2e-auth-check *), Bash(ff verify-up *), Bash(ff verify-down *), Bash(ff verify-lock *), Bash(ff ac-matrix *), Bash(ff e2e-lint *), Bash(ff db-query *), Bash(ff ship-request *), Bash(ff mcp-auth *), Bash(npx playwright test *)
 ---
 
 Đọc `${CLAUDE_PLUGIN_ROOT}/skills/ff-understand/rules.md` trước khi làm.
@@ -24,11 +24,11 @@ Chạy `ff e2e-auth-check --email <email-theo-brief>`. Nếu cần, dùng `ff mc
 
 Khởi động môi trường bằng `ff verify-up <id> <app>`; xác nhận health check và lock. Nếu cần verify lock từ thao tác khác, dùng `ff verify-lock acquire|release <slug>`. Không force-release lock đang thuộc task khác.
 
-Giao `ff-verifier` theo `briefs/bind-verify.md` để gắn locator và đo app thật. Chỉ cho phép sửa locator theo `references/bind-locators.md`.
+Giao `ff-verifier` theo `briefs/bind-verify.md` để gắn locator, chạy lượt test chẩn đoán locator và đo app thật. Lượt test này giúp agent tìm locator sai; nó không thay lượt nghiệm thu cuối của phiên chính. Chỉ cho phép sửa locator theo `references/bind-locators.md`.
 
 ## P2 — Chạy và đo
 
-Chạy Playwright test theo `e2e.tests_dir` và `e2e.playwright_config`; lệnh lấy từ config. Chạy `ff ac-matrix <id>` và `ff e2e-lint <path> --strict`.
+Sau khi verifier trả kết quả và không còn sửa locator, phiên chính chạy lại Playwright test theo `e2e.tests_dir` và `e2e.playwright_config`; đây là kết quả nghiệm thu cuối. Lệnh lấy từ config. Chạy `ff ac-matrix <id>` và `ff e2e-lint <path> --strict`.
 
 Theo `references/proof-discipline.md` và `references/measure.md`: mỗi AC ghi UI, network, console và DB khi có thể kiểm. DB chỉ truy vấn SELECT/EXPLAIN bằng `ff db-query`; query mẫu nằm trong `project_docs.verification_queries_dir`. Ghi `UNVERIFIED` khi thiếu điều kiện, không đổi thành FAIL nếu chưa có bằng chứng.
 

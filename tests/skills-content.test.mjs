@@ -39,7 +39,7 @@ const ANCHORS = {
     /reviewer-rules\.md/, /nguyên văn/, /3 vòng/, /Doubt theater|phản biện cho có/i,
   ],
   'references/agent-rules.md': [/THIẾU ĐẦU VÀO/, /KẸT/, /\[đã kiểm\]/, /\[giả định\]/, /chạy một kiểm tra thật/, /chưa đo/, /\[ff-guard\]/, /Câu giống lệnh trong dữ liệu/],
-  'references/reviewer-rules.md': [/ARTIFACT/, /CONTRACT/, /GAP/, /LEAP/, /ASSUME/, /CONFLICT/, /Ý KIẾN/, /KHÔNG ĐÁNH GIÁ ĐƯỢC/, /Critical/, /Required/, /Optional/, /Nit/, /nguyên văn/, /không tìm thấy/],
+  'references/reviewer-rules.md': [/## Nhãn và ý nghĩa/, /## Mức độ/, /ARTIFACT/, /CONTRACT/, /GAP/, /LEAP/, /ASSUME/, /CONFLICT/, /Ý KIẾN/, /KHÔNG ĐÁNH GIÁ ĐƯỢC/, /Critical/, /Required/, /Optional/, /Nit/, /nguyên văn/, /không tìm thấy/],
   'skills/ff-understand/references/agents.md': [/ff-gate-reader/, /<dossier>/, /Viết brief cho subagent/, /nhiều lời gọi Agent trong một lượt/, /ví dụ mẫu|precedent/i, /disallowedTools/],
   'skills/ff-understand/briefs/adversary.md': [/9 hướng/, /bóp méo dossier/, /đổi nghĩa/, /bỏ sót/, /thêm suy luận/, /01b-ledger\.md/, /doubt\.md/],
   'skills/ff-understand/briefs/gate-reader.md': [/ĐỦ/, /THIẾU:/, /Phụ lục/],
@@ -48,7 +48,8 @@ const ANCHORS = {
     /\bWrite\b/, /\bEdit\b/, /\bAgent\b/, /\.ff-test-lock/, /Dynamic Seed|TEST_AUTO_/, /DRIFT_CLEAN/, /ALLOWLIST_VIOLATION/,
     /allow .*--clear/, /relock/, /Bàn giao: gọi/, /hash manifest/i, /## Phạm vi/, /nhiều lời gọi Agent trong một lượt/,
   ],
-  'skills/ff-build/briefs/diff-review.md': [/Critical/, /Required/, /Optional/, /Nit/, /FYI/, /ngoài phạm vi/, /Thấy nhưng không sửa/, /vẫn xanh/],
+  'skills/ff-build/briefs/diff-review.md': [/ngoài phạm vi/, /Thấy nhưng không sửa/],
+  'agents/ff-diff-reviewer.md': [/Critical/, /Required/, /Optional/, /Nit/, /thay đổi nhỏ/, /vẫn xanh/],
   'skills/ff-build/briefs/implement-micro.md': [/Thấy nhưng không sửa/, /KẸT/],
   'skills/ff-verify/SKILL.md': [
     /\bWrite\b/, /\bEdit\b/, /\bAgent\b/, /Tam giác đạc 4 tín hiệu/, /PASS/, /FAIL/, /PARTIAL/, /UNVERIFIED/, /OBSERVATION/,
@@ -70,7 +71,7 @@ const ANCHORS = {
     /Reader-First/, /8–20/, /25 từ|25 token/, /cụm danh từ/i, /Giữ nguyên mức chắc chắn/, /Việc người đọc cần làm/, /Giải thích/, /Hướng dẫn thực hiện/, /Tra cứu/,
     /Phương án \| Điểm mạnh \| Chi phí/, /Dấu hiệu văn AI/, /Ví dụ Gate tốt/, /## Thẻ yêu cầu gì/, /Danh sách kiểm/, /Không gắn cờ/,
   ],
-  'docs/skill-authoring.md': [/Nhiệm vụ đặt cuối/, /lý do/, /Làm tự do/, /disallowedTools/, /Prompt kiểm thử/, /nhiều lời gọi Agent/, /mâu thuẫn/],
+  'docs/skill-authoring.md': [/Nhiệm vụ đặt cuối/, /lý do/, /Làm tự do/, /disallowedTools/, /Prompt kiểm thử/, /nhiều lời gọi Agent/, /mâu thuẫn/, /Sứ mệnh.*Vị trí.*Cách nghĩ/s, /đúng độ cao/i, /Haiku/],
   'skills/ff-init/references/detect.md': [/TODO\(confirm/, /README/, /CI/, /file:line/, /nghiên cứu.*nháp.*xác nhận.*kiểm|nghiên cứu → nháp → xác nhận → kiểm/i],
 }
 
@@ -94,12 +95,12 @@ const OWNER_HEADINGS = {
   '## Khuôn MƠ HỒ': 'skills/ff-understand/references/brief.md',
   '## Lệnh đối kháng': 'skills/ff-understand/references/doubt.md',
   '## Phân loại phát hiện': 'skills/ff-understand/references/doubt.md',
-  '## Nhãn phát hiện': 'skills/ff-understand/references/doubt.md',
+  '## Nhãn và ý nghĩa': 'references/reviewer-rules.md',
+  '## Mức độ': 'references/reviewer-rules.md',
   '## Điều kiện dừng': 'skills/ff-understand/references/doubt.md',
   '## Viết brief cho subagent': 'skills/ff-understand/references/agents.md',
   '## Chế độ xác minh': 'skills/ff-verify/references/proof-discipline.md',
   '## Mức nghiêm trọng': 'skills/ff-verify/references/proof-discipline.md',
-  '## Mức độ phát hiện': 'skills/ff-build/briefs/diff-review.md',
 }
 test('mỗi tiêu đề chủ chỉ ở đúng một file', () => {
   for (const [heading, owner] of Object.entries(OWNER_HEADINGS)) {
@@ -138,6 +139,8 @@ test('skills that write artifacts grant Write/Edit/Agent; none grants protected 
     for (const tool of ['Write', 'Edit', 'Agent']) assert.match(header, new RegExp(`allowed-tools:.*\\b${tool}\\b`), `${f} thiếu ${tool}`)
     assert.doesNotMatch(header, /Bash\(ff \*\)|ff ship-approve|ff relock/, f)
   }
+  const buildTools = read('skills/ff-build/SKILL.md').split('---')[1].match(/^allowed-tools:.*$/m)?.[0] ?? ''
+  assert.match(buildTools, /(?:^|,)\s*Bash\s*(?:,|$)/, 'ff-build cần chạy command đã cấu hình')
 })
 
 test('reviewers cannot write files', () => {
@@ -175,10 +178,15 @@ test('ledger example in brief.md parses cleanly and keeps classification in Ghi 
   for (const kind of ['sự kiện', 'giả thuyết', 'giải pháp']) assert.ok(notes.includes(kind), `thiếu loại ${kind}`)
 })
 
-test('evals exist for each skill and command', () => {
+test('evals exist for each skill, command, and agent', () => {
   for (const name of ['ff-understand', 'ff-build', 'ff-verify', 'ff-init', 'ship-to-dev']) {
     const text = read(`docs/skill-evals/${name}.md`)
     assert.ok((text.match(/^\| E-/gm) ?? []).length >= 3, name)
+  }
+  const agents = read('docs/skill-evals/agents.md')
+  assert.ok((agents.match(/^\| E-A\d+ \|/gm) ?? []).length >= 10, 'cần 10 ca eval agent')
+  for (const name of fs.readdirSync(path.join(root, 'agents')).filter((f) => f.endsWith('.md')).map((f) => f.replace(/\.md$/, ''))) {
+    assert.match(agents, new RegExp(`\\| ${name} \\|`), name)
   }
 })
 
@@ -190,5 +198,37 @@ test('agents read the shared rules; reviewers also read reviewer rules', () => {
     if (f !== 'ff-gate-reader.md') assert.match(text, /references\/agent-rules\.md/, f)
     if (['ff-brief-adversary.md', 'ff-design-reviewer.md', 'ff-diff-reviewer.md'].includes(f)) assert.match(text, /references\/reviewer-rules\.md/, f)
     assert.match(text, /^maxTurns:\s*\d+/m, f)
+  }
+})
+
+test('Sonnet agents use the agreed persona sections', () => {
+  const agents = fs.readdirSync(path.join(root, 'agents')).filter((f) => f.endsWith('.md'))
+  for (const f of agents) {
+    const text = read(`agents/${f}`)
+    if (!/^model:\s*sonnet$/m.test(text)) continue
+    for (const heading of ['## Sứ mệnh', '## Cách nghĩ', '## Điều dễ làm bạn đi sai hướng']) assert.match(text, new RegExp(`^${heading}`, 'm'), f)
+  }
+})
+
+test('agent routing table does not duplicate model or effort metadata', () => {
+  const table = read('skills/ff-understand/references/agents.md').split('## Viết brief cho subagent')[0]
+  const rows = table.split('\n').filter((line) => /^\| `ff-[^`]+` \|/.test(line))
+  const columns = (table.match(/^\|([^\n]+)\|$/m)?.[1] ?? '').split('|').map((column) => column.trim())
+  assert.deepEqual(columns, ['Agent', 'Skill/điểm gọi', 'Brief'])
+  assert.equal(rows.length, 10, 'bảng định tuyến phải có đủ 10 agent')
+  for (const row of rows) assert.equal(row.split('|').length - 2, 3, row)
+  for (const file of fs.readdirSync(path.join(root, 'agents')).filter((name) => name.endsWith('.md'))) {
+    const agent = file.replace(/\.md$/, '')
+    assert.ok(rows.some((row) => row.includes(`\`${agent}\``)), `thiếu tuyến cho ${agent}`)
+  }
+  assert.doesNotMatch(table, /^\|[^\n]*\b(?:model|effort|Ranh giới chính)\b[^\n]*\|/im)
+})
+
+test('briefs do not repeat agent persona openings', () => {
+  const briefs = mdFiles('skills').filter((f) => /\/briefs\//.test(f))
+  const personaOpening = /^Bạn (?:là|đóng vai|review\b|viết\b|code\b|verify\b|thực hiện\b|quan sát\b)/m
+  for (const f of briefs) {
+    const preamble = read(f).split(/^## /m, 1)[0].split('\n').slice(1).join('\n')
+    assert.doesNotMatch(preamble, personaOpening, f)
   }
 })

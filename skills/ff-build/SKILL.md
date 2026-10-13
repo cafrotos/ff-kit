@@ -2,7 +2,7 @@
 name: ff-build
 description: Dùng để triển khai task sau khi Brief và design đã qua Gate A/B; tạo test hành vi, lập plan, code trong worktree, review và squash.
 argument-hint: "[id | slug]"
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(ff cfg get *), Bash(ff state *), Bash(ff copy *), Bash(ff e2e-lint *), Bash(ff lock-tests *), Bash(ff allow *), Bash(ff probe-slice *), Bash(ff ac-matrix *), Bash(ff squash-check *)
+allowed-tools: Read, Edit, Write, Grep, Glob, Agent, Bash, Bash(ff cfg get *), Bash(ff state *), Bash(ff copy *), Bash(ff e2e-lint *), Bash(ff lock-tests *), Bash(ff allow *), Bash(ff probe-slice *), Bash(ff ac-matrix *), Bash(ff squash-check *)
 ---
 
 Đọc `${CLAUDE_PLUGIN_ROOT}/skills/ff-understand/rules.md` trước khi làm.
@@ -16,6 +16,8 @@ Brief và design đã duyệt → test hành vi khóa → plan → implement the
 Chạy `ff state <id>` và đọc dossier, Brief, design. Gate A và Gate B phải hợp lệ theo bản ghi/hash. Nếu chưa, chuyển `/ff-understand`. Nếu đã squash, chuyển `/ff-verify`.
 
 Đọc `workspace.worktrees_dir`, `workspace.cards_dir` và repo/command từ `ff.config.yaml`. Tạo bản copy bằng `ff copy <id>`; mọi sửa code chỉ nằm trong worktree của task.
+
+Với lint, type-check, build và test, chỉ chạy đúng command lấy từ `repos[].commands` trong worktree tương ứng. Không tự ghép command hoặc thêm cờ không có trong cấu hình.
 
 ## P1 — Test hành vi trước
 
