@@ -43,7 +43,7 @@
 | D17 | `workspace.cards_dir` mặc định `trellocards` |
 | D18 | Plugin kèm template `templates/ff-e2e/` (Playwright). `INSTALL.md` dựng `ff-e2e/` nằm chung workspace (không `git init` riêng) bằng `ff e2e-scaffold`, trừ khi người dùng chọn dùng bộ e2e có sẵn. Code test đọc thẳng `ff.config.yaml` |
 | D19 | Đăng nhập e2e kiểu `jwt-mint`: config chỉ mô tả **cách** ký và đưa token (file + key secret, thuật toán, payload, cách đưa, URL kiểm). **User nào** do từng bài test tự tạo/chọn, không nằm trong config. Có pre-check offline (doctor) và online (`ff e2e-auth-check --email`) |
-| D20 | `ff doctor` chia 3 nhóm kiểm: **core** (schema, repo, lệnh, nguồn), **worker** (key adapter), **e2e** (bộ Playwright, key/secret đăng nhập). Chỉ core đỏ mới làm `ff cfg get` từ chối; worker đỏ chỉ chặn `/ff-worker start`; e2e đỏ chỉ chặn ff-verify. Chạy skill tay khi chưa có key Trello vẫn được |
+| D20 | **Ranh giới worker ↔ skill là file dossier.** Worker (dùng key Trello/channel) kéo thẻ về `<cards_dir>/<id>-<slug>/01-dossier.md`, chuyển cột, gửi thông báo. Skill chỉ đọc dossier, không bao giờ gọi Trello hay cần key adapter. Vì vậy `ff doctor` chia 3 nhóm: **core** (schema, repo, lệnh, nguồn) — đỏ thì `ff cfg get` từ chối; **worker** (key adapter) — đỏ chỉ chặn `/ff-worker start`; **e2e** (bộ Playwright, secret đăng nhập) — đỏ chỉ chặn ff-verify. Không có worker vẫn dùng skill được: tự tạo `01-dossier.md` hoặc đưa yêu cầu tự do cho `ff-understand` |
 
 ## 3. Cấu trúc repo
 
@@ -155,13 +155,12 @@ Tiền kiểm, tmux, `/init` của Claude và bộ e2e thuộc giai đoạn cài
 | 2. Hỏi khi mơ hồ | Trường có bằng chứng → ghi kèm `source`. Mơ hồ/nhiều ứng viên → 1 câu `AskUserQuestion` có lựa chọn → `source: user`. Hỏi: adapter (TaskSource, Channel; mặc định `console`), app + base URL, health URL, cách đăng nhập e2e | Không trường bắt buộc nào thiếu nguồn |
 | 3. Ghi file | `ff.config.yaml` + lock; `ff env-example` (§4.5); khối luật vào `CLAUDE.md`; deny vào `.claude/settings.json` (§4.5); `.gitignore` thêm `.ff.env`, `.ff/`, `<e2e.dir>/.auth/`, `<e2e.dir>/test-results/`, `<e2e.dir>/node_modules/` | `ff doctor --schema-only` xanh |
 | 4. `ff doctor` | Chạy đầy đủ. Nhóm worker/e2e đỏ vì thiếu key là bình thường ở lần đầu (D20) | Core đỏ → báo lỗi + cách sửa, dừng. Worker/e2e đỏ → ghi vào báo cáo, chạy tiếp |
-| 4b. Thử đăng nhập e2e | Chỉ khi `jwt-mint`/`form-login` và server đang bật: hỏi 1 email có sẵn trong DB local (bỏ qua được) → `ff e2e-auth-check --email <email>`. Email không ghi vào config | Kết quả (hoặc "chưa kiểm") vào báo cáo |
 | 5. Hỏi bật worker | **Chỉ khi nhóm core và worker đều xanh** (vd chạy lại `/ff-init` khi key đã có): hỏi "Bật worker ngay? / Để sau". Đồng ý → `ff worker start` (§6.6) | — |
 | 6. Báo cáo | Theo khuôn `references/report.md` (dưới) | — |
 
 **Khuôn báo cáo cuối `/ff-init`** (viết theo `references/writing.md`):
 1. **Đã cấu hình:** repo nào, nhánh gốc, lệnh build/test, app e2e, adapter đã chọn. Mỗi mục ghi nguồn (file:dòng hoặc "bạn chọn").
-2. **Còn thiếu:** từng key chưa có trong `.ff.env`, lấy ở đâu (link/menu cụ thể), hoặc "không". Lỗi doctor khác (nếu có) kèm cách sửa.
+2. **Còn thiếu:** từng key chưa có trong `.ff.env`, ghi rõ key đó dùng cho việc gì (vd "Trello — chỉ worker cần để kéo thẻ; dùng skill tay thì chưa cần") và lấy ở đâu, hoặc "không". Lỗi doctor khác (nếu có) kèm cách sửa.
 3. **Bước tiếp theo:** "Điền các key trên vào `.ff.env` (agent không đọc file này), rồi gõ `/ff-worker start`." Doctor đã xanh và worker đã bật → thay bằng khuôn báo cáo của `/ff-worker start` (§6.6).
 
 ### 4.4 `ff doctor` (xác định, không LLM)
@@ -236,7 +235,7 @@ e2e:
 - **Pre-check:**
   - Offline, trong `ff doctor`: file secret tồn tại, key có trong file (chỉ báo có/thiếu), `algorithm` hợp lệ, `payload` chỉ dùng biến `{user.*}`/`{uuid}`.
   - Online, `ff e2e-auth-check --email <email>` (chạy khi server đang bật): tra user → ký → gọi `verify.url` → báo từng bước. Lỗi được dịch ra nguyên nhân: không có user trong DB; `401` = sai secret/payload; không kết nối được = server chưa bật.
-  - Chạy ở: cuối `/ff-init` (hỏi bạn 1 email có sẵn trong DB local để thử, bỏ qua được, email không ghi vào config); đầu `ff-verify` với user mà test của thẻ dùng; người dùng tự gọi.
+  - Chạy ở: đầu `ff-verify` với user mà test của thẻ dùng (lúc này server đã bật qua `ff verify-up`); người dùng tự gọi khi cần. `/ff-init` không thử đăng nhập — lúc cấu hình chưa cần và server thường chưa bật.
 
 **`ff e2e-scaffold [--dir ff-e2e] [--db postgres|mysql]`** (xác định, không LLM):
 1. Đích đã tồn tại và không rỗng → dừng, không ghi đè.
@@ -501,7 +500,7 @@ Số trong ngoặc = (dòng / số chỗ hardcode / số chỗ giọng gắt) đ
 
 | Nguồn `scripts/ff/` | Đích | Thay đổi riêng |
 |---|---|---|
-| `ff.sh` (491/45/5) | `bin/ff` + `scripts/cli/<lệnh>.mjs` | Viết lại bằng Node, mỗi lệnh 1 file: `sync state copy squash-check verify-up verify-down mcp-auth ship-approve ac-matrix e2e-lint design-check lock-tests relock allow db-query probe-slice` + mới `cfg doctor env-example notify verify-lock ship-request trace-check e2e-scaffold worker`. Thông báo lỗi giữ tiếng Việt |
+| `ff.sh` (491/45/5) | `bin/ff` + `scripts/cli/<lệnh>.mjs` | Câu báo thiếu dossier (dòng 55, 160 đang chỉ `scripts/trello.sh`) đổi thành: "chưa có `<cards_dir>/<id>-*/01-dossier.md` — đợi worker kéo thẻ về, hoặc tự tạo file này". Viết lại bằng Node, mỗi lệnh 1 file: `sync state copy squash-check verify-up verify-down mcp-auth ship-approve ac-matrix e2e-lint design-check lock-tests relock allow db-query probe-slice` + mới `cfg doctor env-example notify verify-lock ship-request trace-check e2e-scaffold worker`. Thông báo lỗi giữ tiếng Việt |
 | `ff-common.mjs` (41/3/0) | `scripts/lib/config.mjs` | Bỏ `trellisflow` cứng; đọc YAML qua 1 loader dùng chung với `doctor` |
 | `guard.mjs` (359/10/0) | `scripts/guard.mjs` | Đọc `guard.*`, `repos[]` từ config. Thêm: chặn marker `ĐÃ DUYỆT` thiếu file gate (§5.2); chặn đọc file secret (§4.5). Chặn Gate khi trace-check đỏ nằm ở hook `ask-pre`, không ở guard |
 | `allow.mjs`, `design-check.mjs`, `ac-matrix.mjs`, `e2e-lint.mjs`, `probe-slice.mjs`, `db-query.mjs` | `scripts/cli/` | H; đường dẫn theo config; `db-query` đọc `db.env_file` trong process |
