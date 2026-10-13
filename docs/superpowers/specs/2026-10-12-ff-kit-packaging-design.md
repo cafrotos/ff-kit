@@ -81,7 +81,7 @@ ff-kit/
 - `scripts/ff/ff.sh` (gắn tiniweb) được viết lại thành CLI `ff` đọc `ff.config.yaml`.
 - Quy ước tiniweb (`yarn`, `oe-hrm-fe`, `trellisflow/`) chỉ là giá trị trong `ff.config.yaml` của project đích, không nằm trong repo này.
 - Skills nằm trong plugin, **không chép vào workspace đích**. Workspace đích chỉ nhận: `ff.config.yaml`, `ff.config.lock.json`, `.ff.env.example`, `.ff/` (state, gate, log), `ff-e2e/` (nếu dựng mới), khối luật trong `CLAUDE.md`, mục deny trong `.claude/settings.json`, dòng `.gitignore`.
-- Workspace tiniweb cũ: sau khi chuyển sang plugin, xóa `.claude/skills/ff-*`, `.claude/agents/ff-*`, `scripts/ff/*`, `ff-worker/` (bước cuối của plan, có xác nhận người dùng).
+- **Không đụng vào tiniweb** (yêu cầu người dùng 2026-10-13): ff-kit chỉ đọc tiniweb làm nguồn tham khảo. Không cài plugin vào tiniweb, không xóa/sửa file nào ở đó. Thẻ đang dở trong tiniweb có marker nhưng không có bản ghi Gate sẽ bị coi là chưa duyệt nếu sau này chuyển sang ff-kit; không làm công cụ chuyển đổi.
 
 ## 4. Cấu hình
 
@@ -173,7 +173,7 @@ Tiền kiểm, tmux, `/init` của Claude và bộ e2e thuộc giai đoạn cài
 ### 4.4 `ff doctor` (xác định, không LLM)
 - Validate theo JSON Schema; regex trong `guard.*` phải biên dịch được.
 - Kiểm công cụ agent cần (nhóm core, chỉ cảnh báo nếu thiếu): `codegraph` trong PATH (8/9 agent dùng `mcp__codegraph__codegraph_explore`, `ff sync` chạy `codegraph sync`); plugin Playwright có trong `claude plugin list` (`ff-observer`, `ff-verifier` dùng `mcp__plugin_playwright_playwright__*`).
-- Kiểm: path tồn tại; repo là git repo; `base_branch` tồn tại; binary lệnh có trong PATH; adapter đã chọn đủ credential trong `secrets.env_file`.
+- Kiểm: path tồn tại; repo là git repo; `base_branch` và `ship_branch` tồn tại (local hoặc origin); binary lệnh có trong PATH; adapter đã chọn đủ credential trong `secrets.env_file`.
 - Kiểm `source` còn đúng (dòng đó vẫn chứa giá trị) để phát hiện config lỗi thời.
 - Kiểm e2e (nhóm **e2e**, không chặn skill): `e2e.dir` và các đường dẫn `e2e.*` tồn tại; khối `db` (`db.env_file`) tồn tại; `e2e.dir` có `node_modules/@playwright/test`; trình duyệt chromium của Playwright đã cài; `npx playwright test --list` trong `e2e.dir` chạy được (không cần bật server); `auth.strategy: form-login` → `.ff.env` có `E2E_USER`, `E2E_PASSWORD`.
 - Mỗi kiểm thuộc 1 nhóm (D20): core / worker (key adapter) / e2e (bộ Playwright, key `form-login`, secret `jwt-mint`). Ghi `.ff/doctor.json` gồm trạng thái từng nhóm.
@@ -185,7 +185,7 @@ Tiền kiểm, tmux, `/init` của Claude và bộ e2e thuộc giai đoạn cài
 1. `.claude/settings.json` của workspace (ff-init thêm, không xóa mục có sẵn):
    ```json
    { "permissions": {
-       "deny": ["Read(./.ff.env)", "Edit(./.ff.env)", "Read(./<db.env_file>)", "Read(./<e2e.auth.jwt.secret.file>)", "Read(./<e2e.auth_storage>)", "Edit(./.ff/**)"],
+       "deny": ["Read(./.ff.env)", "Edit(./.ff.env)", "Read(./<db.env_file>)", "Read(./<e2e.auth.jwt.secret.file>)", "Read(./<e2e.auth_storage>)", "Read(./.ff/worker.json)", "Edit(./.ff/**)"],
        "ask":  ["Bash(ff ship-approve*)", "Bash(ff relock*)"] } }
    ```
    Không dùng `Write(...)`: docs Claude Code ghi luật đường dẫn cho `Write` "accepts the rule but never consults it"; `Edit`/`Read` đã phủ. `ask` khôi phục hành vi tiniweb (`.claude/settings.json` đang có `ask` cho `ff.sh ship-approve*`, `ff.sh relock*`).
@@ -270,7 +270,7 @@ e2e:
 - Phải sửa: `ff-understand/SKILL.md` (Gate A/B, P1), `ff-verify/SKILL.md` (Gate C, mục 6), `ff-understand/rules.md §8` (bỏ "100% qua MCP" và luật 1200 ký tự, thay bằng §5.4), `references/brief.md` (ledger, cột `Nguồn`, khuôn Gate), `briefs/adversary.md` (hướng 9), `references/reopen.md` (Gate A'), mọi chỗ hardcode đường dẫn/lệnh → `ff cfg get`.
 - Việc trước đây qua MCP chuyển thành CLI: `ff verify-lock acquire|release`, `ff ship-request`, `ff notify`.
 - Giới hạn công cụ (docs Agent SDK): mỗi lần gọi `AskUserQuestion` 1–4 câu, mỗi câu 2–4 lựa chọn, `header` ≤ 12 ký tự. Quy tắc Gate: các câu "Cần bạn chọn" hỏi trước, tối đa 4 câu/lượt, header `Q<n>` (không phải `GATE_*`), câu trả lời ghi vào ledger thành `U-xx`; sau khi hết câu cần chọn mới gọi 1 lượt riêng chỉ có câu duyệt (header `GATE_A|B|C`, câu hỏi bắt đầu `[#<id>]`, lựa chọn `Duyệt`/`Cần sửa`).
-- Bản ghi Gate (D21): hook `PostToolUse` ghi `.ff/gates/<id>-<gate>.json` gồm câu trả lời, thời điểm và sha256 phần thân artifact (bỏ các dòng `Trạng thái:` trong 10 dòng đầu). `ff state` coi là đã duyệt khi bản ghi có `Duyệt` và hash còn khớp; sửa artifact sau khi duyệt → tự động "chưa duyệt", phải trình lại.
+- Bản ghi Gate (D21): hook `PostToolUse` ghi `.ff/gates/<id>-<gate>.json` gồm câu trả lời, thời điểm, sha256 phần thân artifact (chỉ bỏ dòng trạng thái đúng khuôn `> Trạng thái: CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA …` trong 10 dòng đầu) và sha256 của `01b-ledger.md`. Sửa artifact hoặc ledger sau khi duyệt → mất duyệt. `ff state` coi là đã duyệt khi bản ghi có `Duyệt` và hash còn khớp; sửa artifact sau khi duyệt → tự động "chưa duyệt", phải trình lại.
 - Lựa chọn trong `AskUserQuestion` của Gate có nhãn rõ: lựa chọn đồng ý và lựa chọn yêu cầu sửa. Chỉ lựa chọn đồng ý mới cho ghi marker `ĐÃ DUYỆT`. Câu trả lời tự do kiểu "tùy bạn" hay "ok" không tính là duyệt; agent hỏi lại bằng 2 lựa chọn cụ thể (theo addy `interview-me` bước 5).
 
 ### 5.2 Hooks (`hooks/hooks.json`)
@@ -297,8 +297,8 @@ e2e:
    - có `D-xx` không được dòng nào trỏ tới và không nằm trong "Ngoài phạm vi";
    - có dòng trỏ tới mã không tồn tại, hoặc không có cột `Nguồn`;
    - trích nguyên văn trong ledger không còn khớp `01-dossier.md`; trích phải trùng **nguyên 1 dòng hoặc 1 câu** của dossier (không nhận trích rỗng hay mẩu ngắn);
-   - có dòng/câu nào trong các mục `Mô tả`, `IT Note`, `Checklist` của dossier không có trong ledger (bỏ sót);
-   - `bỏ: …` dùng cho dòng không thuộc mục `Comments`;
+   - có dòng/câu nào của dossier không có trong ledger (bỏ sót). "Mục" tính theo heading cấp 2 gần nhất (mục con `### Scope`, `### Acceptance Criteria`… thuộc mục cha). Mọi mục đều bắt buộc, trừ `Tiêu đề`, `Branch`, `Loại`, `Thông tin tiếp nhận`, `Comments`;
+   - `bỏ: …` dùng cho dòng không thuộc các mục được miễn ở trên;
    - bảng trong artifact không có cột `Nguồn` (trừ bảng dưới heading `Phụ lục`).
    Định dạng dossier cố định theo `templates/dossier.md` (worker ghi đúng khuôn này; tạo tay cũng theo khuôn). Còn lại không bắt được bằng code: 1 dòng "gom tất cả" trỏ nhiều mã → việc của `ff-brief-adversary` (hướng 9) và `ff-gate-reader`.
 5. **Chặn:** hook `PreToolUse(AskUserQuestion)` không cho trình Gate A/B (header `GATE_A|GATE_B`) khi `trace-check` đỏ (§5.2).
@@ -430,7 +430,7 @@ Mỗi bước: lỗi thì dừng, báo nguyên lỗi + bước cần làm lại.
 - Adapter: contract test dùng chung cho `console` và `rocketchat` (mock HTTP); lỗi gửi không làm reject task.
 - Orchestrator: test chạy với `console` + TaskSource giả, xác nhận không còn nhánh đợi phản hồi.
 - Grep CI: repo không chứa `oe-hrm`, `system-service`, `trellisflow` (ngoài ví dụ trong docs), `/Users/`, `ff_ask_user`, `ff_submit_gate`.
-- Thử end-to-end: cài vào workspace tiniweb thật theo `INSTALL.md` (chọn "dùng bộ e2e có sẵn"), `/ff-init`, `/ff-worker start` → doctor xanh, worker `ready`. Thêm 1 workspace mẫu rỗng (2 repo giả) → dựng `ff-e2e` mới.
+- Thử end-to-end trên workspace mẫu (2 repo giả, không dùng tiniweb): `INSTALL.md` → dựng `ff-e2e` → `/ff-init` → `/ff-worker start` → doctor xanh, worker `ready`.
 - `ff trace-check`: unit test cho từng điều kiện fail ở §5.3 mục 4 (D-xx mồ côi, mã không tồn tại, thiếu cột `Nguồn`, trích lệch dossier). Hook `ask-pre` chặn header `GATE_A|GATE_B` khi trace-check đỏ.
 - Grep CI: skills/agents không chứa `CẤM`, `Tuyệt đối`, `TUYỆT ĐỐI`, `BẮT BUỘC` viết hoa kiểu ra lệnh; mỗi `agents/*.md` có `model` và `effort`.
 - Worker reload: sửa YAML hợp lệ → exit `75`, supervisor chạy lại, task giả đang chạy vẫn còn session và được khôi phục; sửa YAML sai → worker giữ config cũ, có `notify(kind: error)`; crash 6 lần/10 phút → supervisor dừng, `state: crashed`.
@@ -443,7 +443,7 @@ Mỗi bước: lỗi thì dừng, báo nguyên lỗi + bước cần làm lại.
 - Guard: `cat system-service/.env`, `cd system-service && cat .env`, Read đúng file secret JWT, `db.env_file`, `e2e.auth_storage` → chặn.
 - Template ff-e2e: `playwright.config.ts` sinh đúng số project theo `e2e.apps`; `global-setup` báo lỗi tiếng Việt khi health URL không kết nối được; `helpers/env.ts` tìm được `ff.config.yaml` khi chạy từ thư mục con.
 - Chặn `.ff.env`: `Read(.ff.env)` bị từ chối bởi deny; `cat .ff.env`, `grep X .ff.env`, `source .ff.env` bị guard chặn; `ff doctor` vẫn báo có/thiếu key; `.env.example` của repo vẫn đọc được với mẫu deny mặc định.
-- **Đo trước/sau trên 2–3 thẻ cũ của tiniweb** (chạy bộ ff cũ và ff-kit trên cùng dossier). Chỉ số: số `D-xx` bị bỏ sót/bóp méo (người dùng chấm theo ledger); số lần người dùng phải hỏi lại tại Gate; `ff-gate-reader` trả lời đúng ở vòng 1; tổng token. ff-kit không được tệ hơn bản cũ ở chỉ số nào; dùng kết quả để chốt `effort`.
+- **Đo trước/sau trên 2–3 thẻ** (chỉ làm khi người dùng cho phép dùng dossier tiniweb; chạy trên bản sao trong workspace mẫu, không chạy trong tiniweb). Chỉ số: số `D-xx` bị bỏ sót/bóp méo (người dùng chấm theo ledger); số lần người dùng phải hỏi lại tại Gate; `ff-gate-reader` trả lời đúng ở vòng 1; tổng token. ff-kit không được tệ hơn bản cũ ở chỉ số nào; dùng kết quả để chốt `effort`.
 
 ## 9. Rủi ro
 
@@ -482,7 +482,7 @@ Số trong ngoặc = (dòng / số chỗ hardcode / số chỗ giọng gắt) đ
 
 | Nguồn `.claude/skills/` | Đích `skills/` | Thay đổi riêng |
 |---|---|---|
-| `ff-understand/SKILL.md` (70/17/2) | giữ | H M P W. P0: `ff sync`, `ff state`. P1 bước 0 mới: lập `01b-ledger.md` (§5.3). Gate A/B → `AskUserQuestion` theo khuôn §5.4, chạy `ff trace-check` + `ff-gate-reader` trước khi trình. Bỏ `ff_notify` các mốc (hook `Stop` lo). "Ranh giới dừng hỏi" → `AskUserQuestion` thay `ff_ask_user`. `allowed-tools` → `Bash(ff *)`. `description` bỏ chữ "tiniweb" |
+| `ff-understand/SKILL.md` (70/17/2) | giữ | H M P W. P0: `ff sync`, `ff state`. P1 bước 0 mới: lập `01b-ledger.md` (§5.3). Gate A/B → `AskUserQuestion` theo khuôn §5.4, chạy `ff trace-check` + `ff-gate-reader` trước khi trình. Bỏ `ff_notify` các mốc (hook `Stop` lo). "Ranh giới dừng hỏi" → `AskUserQuestion` thay `ff_ask_user`. `allowed-tools` liệt kê tường minh từng lệnh `ff` skill dùng (vd `Bash(ff cfg *)`, `Bash(ff state *)`, `Bash(ff trace-check *)`…), **không** dùng `Bash(ff *)` để không bao gồm `ff ship-approve`/`ff relock` (D23). `description` bỏ chữ "tiniweb" |
 | `ff-understand/rules.md` (113/21/8) | giữ | H M P. §8 viết lại hoàn toàn: bỏ "100% qua MCP", bỏ luật 1200 ký tự/không bảng; thay bằng trỏ §5.4 + `references/writing.md`. Giữ 4 ranh giới dừng hỏi. §9 bảng trạng thái → lệnh `ff`. Thêm đoạn giới hạn phạm vi (§5.5) |
 | `ff-understand/references/brief.md` (108/4/0) | giữ | H W. Mục 1 đọc dossier → lập ledger trước. Khuôn `brief.md`: phần chính theo khuôn Gate §5.4; bảng nguồn dữ liệu/bất biến/precedent/ngân sách chuyển vào phụ lục; mọi bảng thêm cột `Nguồn` (`D-xx`/`U-xx`). "Cần bạn quyết" đổi từ bảng sang khối hỏi có hậu quả từng phương án |
 | `ff-understand/references/design.md` (44/3/0) | giữ | H. Cột `Nguồn` của YC/AC dùng `D-xx`/`U-xx` (thay "dòng Brief / trích dossier"). `ff design-check` + `ff trace-check` |

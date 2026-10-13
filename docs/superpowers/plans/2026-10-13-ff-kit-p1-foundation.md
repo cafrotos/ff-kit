@@ -401,7 +401,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `tests/config.test.mjs`
 
 **Interfaces:**
-- Produces (`scripts/lib/config.mjs`): `CONFIG_FILE = 'ff.config.yaml'`, `LOCK_FILE = 'ff.config.lock.json'`, `class ConfigError extends Error`, `DEFAULTS`, `findRoot(start: string): string | null` (realpath), `parseConfigText(text): { config, raw }`, `loadConfig(root): { config, raw }` (ném `ConfigError`), `loadConfigOrDefaults(root): { config, raw, broken: boolean }` (YAML hỏng **hoặc sai schema** → mặc định, `repos: []`; guard dùng hàm này nên vẫn chặn luật cơ bản), `getKey(obj, key: string): { found: boolean, value?: any }` (khóa chấm; mảng object tra theo `name`).
+- Produces (`scripts/lib/config.mjs`): `CONFIG_FILE = 'ff.config.yaml'`, `LOCK_FILE = 'ff.config.lock.json'`, `class ConfigError extends Error`, `DEFAULTS`, `findRoot(start: string): string | null` (realpath), `parseConfigText(text): { config, raw }`, `loadConfig(root): { config, raw }` (ném `ConfigError`), `loadConfigOrDefaults(root): { config, raw, broken: boolean }` (YAML hỏng → mặc định hoàn toàn; sai schema → giữ phần dùng được, phần sai thay bằng mặc định; guard dùng hàm này), `getKey(obj, key: string): { found: boolean, value?: any }` (khóa chấm; mảng object tra theo `name`, không có thì theo chỉ số).
 - Produces (`scripts/lib/schema.mjs`): `validate(config): string[]` (rỗng = hợp lệ; gồm cả lỗi regex không biên dịch được trong `guard.*`).
 - Produces (`tests/helpers/fixture.mjs`): `baseConfig()`, `makeWorkspace({ config?, files?, gitRepos? }): { root, cleanup }`, `git(cwd, ...args): string`.
 
@@ -559,12 +559,20 @@ test('findRoot đi ngược lên, ngoài workspace trả null', (t) => {
   assert.equal(findRoot(path.dirname(ws.root)), null)
 })
 
-test('loadConfigOrDefaults: sai schema → broken + mặc định', (t) => {
-  const ws = makeWorkspace({ files: { 'ff.config.yaml': YAML.stringify({ ...baseConfig(), workspace: null }) } })
+test('loadConfigOrDefaults: sai schema → broken, phần sai thay mặc định, phần đúng giữ nguyên', (t) => {
+  const ws = makeWorkspace({ files: { 'ff.config.yaml': YAML.stringify({ ...baseConfig(), workspace: null, guard: { migration_script_re: '(' } }) } })
   t.after(ws.cleanup)
   const r = loadConfigOrDefaults(ws.root)
   assert.equal(r.broken, true)
   assert.equal(r.config.workspace.cards_dir, 'trellocards')
+  assert.equal(r.config.guard.migration_script_re, '^migration:(run|revert)$')
+  assert.deepEqual(r.config.repos.map((x) => x.path), ['web'])
+  const noShip = baseConfig()
+  delete noShip.repos[0].ship_branch
+  fs.writeFileSync(path.join(ws.root, 'ff.config.yaml'), YAML.stringify(noShip))
+  const r2 = loadConfigOrDefaults(ws.root)
+  assert.equal(r2.broken, true)
+  assert.deepEqual(r2.config.repos.map((x) => x.path), ['web'])
 })
 
 test('loadConfigOrDefaults: file hỏng → broken + mặc định', (t) => {
@@ -652,19 +660,57 @@ export function loadConfig(root) {
   return parseConfigText(text)
 }
 
-// Guard cần chạy được kể cả khi config hỏng hoặc sai schema: rơi về mặc định, không repo nào.
+// Guard cần chạy được kể cả khi config hỏng hoặc sai schema.
+// YAML đọc được nhưng sai schema → giữ phần dùng được (repo có path, regex biên dịch được), phần sai thay bằng mặc định,
+// để 1 lỗi nhỏ (vd thiếu ship_branch sau khi nâng cấp) không âm thầm tắt luật khóa test / repo gốc.
+// YAML không đọc được → mặc định hoàn toàn.
 export function loadConfigOrDefaults(root) {
+  let loaded
   try {
-    const loaded = loadConfig(root)
-    if (!validate(loaded.config).length) return { ...loaded, broken: false }
-  } catch {}
-  return { ...parseConfigText('repos: []\n'), broken: true }
+    loaded = loadConfig(root)
+  } catch {
+    return { ...parseConfigText('repos: []\n'), broken: true }
+  }
+  const broken = validate(loaded.config).length > 0
+  return { config: broken ? sanitize(loaded.config) : loaded.config, raw: loaded.raw, broken }
+}
+
+function sanitize(c) {
+  const d = parseConfigText('repos: []\n').config
+  const str = (v, dv) => (typeof v === 'string' && v ? v : dv)
+  const reOk = (v, dv) => {
+    if (typeof v !== 'string') return dv
+    try {
+      new RegExp(v)
+      return v
+    } catch {
+      return dv
+    }
+  }
+  const ws = isObj(c.workspace) ? c.workspace : {}
+  const g = isObj(c.guard) ? c.guard : {}
+  return {
+    ...d,
+    ...c,
+    workspace: { root: str(ws.root, '.'), cards_dir: str(ws.cards_dir, d.workspace.cards_dir), worktrees_dir: str(ws.worktrees_dir, d.workspace.worktrees_dir) },
+    repos: (Array.isArray(c.repos) ? c.repos : []).filter((r) => isObj(r) && typeof r.path === 'string' && r.path),
+    guard: {
+      protected_paths: (Array.isArray(g.protected_paths) ? g.protected_paths : []).filter((x) => typeof x === 'string'),
+      allowed_bash: (Array.isArray(g.allowed_bash) ? g.allowed_bash : []).filter((x) => reOk(x, null) !== null),
+      migration_script_re: reOk(g.migration_script_re, d.guard.migration_script_re),
+      forbidden_script_re: reOk(g.forbidden_script_re, d.guard.forbidden_script_re),
+    },
+    e2e: isObj(c.e2e) && typeof c.e2e.dir === 'string' ? c.e2e : undefined,
+    db: isObj(c.db) && typeof c.db.env_file === 'string' ? c.db : undefined,
+    secrets: { env_file: str(c.secrets?.env_file, '.ff.env') },
+    worker: isObj(c.worker) ? { ...d.worker, ...c.worker, tmux: { ...d.worker.tmux, ...(isObj(c.worker.tmux) ? c.worker.tmux : {}) } } : d.worker,
+  }
 }
 
 export function getKey(obj, key) {
   let cur = obj
   for (const part of key.split('.')) {
-    if (Array.isArray(cur)) cur = cur.find((x) => isObj(x) && x.name === part)
+    if (Array.isArray(cur)) cur = cur.find((x) => isObj(x) && x.name === part) ?? (/^\d+$/.test(part) ? cur[Number(part)] : undefined)
     else if (isObj(cur) && Object.hasOwn(cur, part)) cur = cur[part]
     else return { found: false }
     if (cur === undefined || cur === null) return { found: false }
@@ -1779,6 +1825,11 @@ test('leafKeys theo name, bỏ version và name', () => {
   assert.ok(!keys.some((k) => k.endsWith('.name')))
 })
 
+test('leafKeys: mảng object trùng name (vd deliver) → khóa theo vị trí', () => {
+  const keys = leafKeys({ e2e: { auth: { jwt: { deliver: [{ via: 'query', name: 'token' }, { via: 'local_storage', name: 'token' }] } } } }).map((l) => l.key)
+  assert.deepEqual(keys, ['e2e.auth.jwt.deliver.0.via', 'e2e.auth.jwt.deliver.0.name', 'e2e.auth.jwt.deliver.1.via', 'e2e.auth.jwt.deliver.1.name'])
+})
+
 test('thiếu file lock → 1 lỗi nhắc /ff-init', (t) => {
   const ws = makeWorkspace({ lock: false })
   t.after(ws.cleanup)
@@ -1866,8 +1917,13 @@ export function leafKeys(raw) {
   const out = []
   const walk = (v, key) => {
     if (Array.isArray(v)) {
-      if (v.length && v.every((x) => isObj(x) && typeof x.name === 'string')) {
+      const names = v.map((x) => (isObj(x) && typeof x.name === 'string' ? x.name : null))
+      if (v.length && names.every(Boolean) && new Set(names).size === names.length) {
         for (const x of v) for (const [k, vv] of Object.entries(x)) if (k !== 'name') walk(vv, `${key}.${x.name}.${k}`)
+        return
+      }
+      if (v.length && v.every(isObj)) {
+        v.forEach((x, i) => { for (const [k, vv] of Object.entries(x)) walk(vv, `${key}.${i}.${k}`) })
         return
       }
       out.push({ key, value: v })
@@ -1965,7 +2021,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `validate` (Task 3), `presentKeys`, `requiredKeys` (Task 5), `checkLock` (Task 6), `writeDoctorState` (Task 4).
-- Produces (`scripts/lib/shell.mjs`): `tokenize(seg): string[]` (nháy giữa token, `\"` trong nháy kép), `stripHeredocs(cmd): string`, `segments(cmd): string[]` (không tách `2>&1`, `&>`), `stripPrefix(tokens): string[]`, `headTokens(seg): string[]` (bỏ `(`/`{` đầu), `commandBinaries(cmd): string[]` (bỏ builtin `cd export set unset source . pushd popd true : exit trap`, bỏ token redirect).
+- Produces (`scripts/lib/shell.mjs`): `tokenize(seg): string[]` (nháy giữa token, `\"` trong nháy kép), `stripHeredocs(cmd): string`, `segments(cmd): string[]` (không tách `2>&1`, `&>`), `stripPrefix(tokens): string[]`, `headTokens(seg): string[]` (bỏ `(`/`{` đầu), `commandBinaries(cmd): string[]` (bỏ builtin và từ khóa shell: `cd export set unset source . pushd popd true false : exit trap test [ [[ ! if then else elif fi for while until do done case esac in`; bỏ token redirect; với `if`/`then`/`do`/`!` lấy token kế tiếp làm lệnh).
 - Produces (`scripts/lib/doctor.mjs`): `runDoctor(root, { config, raw }, { which? }): { ok: boolean, groups: { core, worker, e2e }: boolean, checks: { ok: boolean, msg: string, group: 'core' | 'worker' | 'e2e' }[] }`; `whichInPath(bin, cwd): boolean`. Nhóm theo D20: key adapter → `worker`; key `form-login` → `e2e` (Plan 2 thêm kiểm bộ Playwright, secret `jwt-mint` vào nhóm `e2e`); còn lại → `core`.
 - Produces (CLI): `ff doctor [--schema-only] [--json]` — exit `0` xanh, `1` đỏ, `4` không có workspace. Ghi `.ff/doctor.json` (trừ `--schema-only`).
 
@@ -2007,6 +2063,9 @@ test('commandBinaries bỏ builtin, subshell, redirect', () => {
   assert.deepEqual(commandBinaries('(cd web && yarn build)'), ['yarn'])
   assert.deepEqual(commandBinaries('FOO="a b" yarn build'), ['yarn'])
   assert.deepEqual(commandBinaries('yarn build 2>&1 | tee x'), ['yarn', 'tee'])
+  assert.deepEqual(commandBinaries('if [ -f x ]; then make; fi'), ['make'])
+  assert.deepEqual(commandBinaries('for d in a b; do yarn --cwd $d build; done'), ['yarn'])
+  assert.deepEqual(commandBinaries('! grep -q x f'), ['grep'])
 })
 ```
 
@@ -2105,12 +2164,13 @@ export function stripPrefix(tokens) {
 // Token của 1 đoạn lệnh, bỏ `(`/`{` mở và `)`/`}` đóng subshell, bỏ tiền tố.
 export const headTokens = (seg) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, '').replace(/\s*[)}]+\s*$/, '')))
 
-const BUILTINS = new Set(['cd', 'export', 'set', 'unset', 'source', '.', 'pushd', 'popd', 'true', ':', 'exit', 'trap'])
+const BUILTINS = new Set(['cd', 'export', 'set', 'unset', 'source', '.', 'pushd', 'popd', 'true', 'false', ':', 'exit', 'trap', 'test', '[', '[[', '!', 'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'until', 'do', 'done', 'case', 'esac', 'in'])
 
 export function commandBinaries(cmd) {
   const bins = []
   for (const seg of segments(cmd)) {
-    const toks = headTokens(seg).filter((t) => !/^\d*[<>]/.test(t))
+    let toks = headTokens(seg).filter((t) => !/^\d*[<>]/.test(t))
+    while (['if', 'then', 'else', 'elif', 'do', '!', 'while', 'until'].includes(toks[0])) toks = toks.slice(1)
     const head = (toks[0] ?? '').replace(/\)+$/, '')
     if (head && !BUILTINS.has(head)) bins.push(head)
   }
@@ -2168,7 +2228,7 @@ test('repo không phải git', (t) => {
 test('không có base_branch', (t) => {
   const ws = green(t)
   git(path.join(ws.root, 'web'), 'branch', '-m', 'dev', 'khac')
-  assert.match(fails(doctor(ws.root)), /không có nhánh dev/)
+  assert.match(fails(doctor(ws.root)), /không có nhánh dev \(base_branch/)
 })
 
 test('binary của lệnh không có trong PATH', (t) => {
@@ -2337,9 +2397,11 @@ export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
     if (!fs.existsSync(p)) { bad(`repo ${r.name}: không có thư mục ${r.path}`); continue }
     if (git(p, ['rev-parse', '--git-dir']).status !== 0) { bad(`repo ${r.name}: ${r.path} không phải git repo`); continue }
     const has = (ref) => git(p, ['rev-parse', '--verify', '--quiet', ref]).status === 0
-    has(`refs/heads/${r.base_branch}`) || has(`refs/remotes/origin/${r.base_branch}`)
-      ? ok(`repo ${r.name}: nhánh ${r.base_branch} có`)
-      : bad(`repo ${r.name}: không có nhánh ${r.base_branch} (local hoặc origin)`)
+    for (const [k, b] of [['base_branch', r.base_branch], ['ship_branch', r.ship_branch]]) {
+      has(`refs/heads/${b}`) || has(`refs/remotes/origin/${b}`)
+        ? ok(`repo ${r.name}: ${k} ${b} có`)
+        : bad(`repo ${r.name}: không có nhánh ${b} (${k}; local hoặc origin)`)
+    }
     checkCmds(`repo ${r.name}`, r.commands ?? {}, p)
   }
 
@@ -2473,8 +2535,8 @@ const now = () => Math.floor(Date.now() / 1000)
 function setup(t, mut = (c) => c) {
   const config = baseConfig()
   config.repos = [
-    { name: 'api', path: 'api', base_branch: 'dev', commands: { build: 'node -v' } },
-    { name: 'web', path: 'web', base_branch: 'dev', commands: { build: 'node -v' } },
+    { name: 'api', path: 'api', base_branch: 'dev', ship_branch: 'dev', commands: { build: 'node -v' } },
+    { name: 'web', path: 'web', base_branch: 'dev', ship_branch: 'dev', commands: { build: 'node -v' } },
   ]
   config.e2e = { dir: 'e2e', tests_dir: 'e2e/tests' }
   const ws = makeWorkspace({ config: mut(config), gitRepos: false })
@@ -2720,8 +2782,9 @@ export function makeGuard(rootIn, config) {
   const relWt = config.workspace.worktrees_dir
   const worktrees = path.resolve(root, relWt)
   const repoRoots = [...config.repos.map((r) => r.path), ...(g.protected_paths ?? [])].map((p) => path.resolve(root, p))
-  const e2eDir = config.e2e?.dir ? path.resolve(root, config.e2e.dir) : null
-  const e2eTests = config.e2e?.tests_dir ? path.resolve(root, config.e2e.tests_dir) : null
+  const str = (v) => (typeof v === 'string' && v ? v : null)
+  const e2eDir = str(config.e2e?.dir) ? path.resolve(root, config.e2e.dir) : null
+  const e2eTests = str(config.e2e?.tests_dir) ? path.resolve(root, config.e2e.tests_dir) : null
   const testsRel = e2eDir && e2eTests ? path.relative(e2eDir, e2eTests).split(path.sep).join('/') : null
   const migRe = new RegExp(g.migration_script_re)
   const prodRe = new RegExp(g.forbidden_script_re)
@@ -2942,7 +3005,7 @@ const run = (args, input = '') => spawnSync('node', [GUARD, ...args], { input, e
 
 function ws(t) {
   const config = baseConfig()
-  config.repos = [{ name: 'api', path: 'api', base_branch: 'dev', commands: {} }]
+  config.repos = [{ name: 'api', path: 'api', base_branch: 'dev', ship_branch: 'dev', commands: {} }]
   const w = makeWorkspace({ config, gitRepos: false })
   t.after(w.cleanup)
   return w.root
@@ -3143,8 +3206,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - Bảng nào có cột tiêu đề `Nguồn` thì mọi dòng phải chứa ≥ 1 mã `D-xx`/`U-xx` có trong ledger.
   - Mục `## Ngoài phạm vi` (cấp 2–4) ở ledger hoặc artifact: mã `D-xx` nhắc trong mục này được coi là đã xử lý.
   - Dossier theo khuôn `templates/dossier.md`. "Đơn vị" dossier = 1 dòng (bỏ tiền tố `- `, `- [ ] `, `1. `, `> `) hoặc 1 câu trong dòng đó; bỏ heading và khối code. Trích `D-xx` phải trùng nguyên 1 đơn vị (không nhận trích rỗng hay mẩu ngắn).
-  - Mọi dòng thuộc mục bắt đầu bằng `Mô tả`, `IT Note`, `Checklist`, `Acceptance Criteria` phải có trong ledger (cả dòng, hoặc đủ mọi câu của dòng).
-  - Ghi chú `bỏ: …` chỉ hợp lệ cho đơn vị thuộc mục `Comments`.
+  - "Mục" = heading cấp 2 gần nhất (heading cấp 3+ như `### Scope`, `### Acceptance Criteria` thuộc mục cha). Mọi dòng phải có trong ledger (cả dòng, hoặc đủ mọi câu của dòng), trừ các mục được miễn: `Tiêu đề`, `Branch`, `Loại`, `Thông tin tiếp nhận`, `Comments`.
+  - Ghi chú `bỏ: …` chỉ hợp lệ cho đơn vị thuộc mục được miễn.
   - Bảng trong artifact không có cột `Nguồn` → lỗi, trừ bảng nằm dưới heading có chữ `Phụ lục`.
 
 - [ ] **Step 1: Viết test (fail)**
@@ -3228,7 +3291,7 @@ test('mã không có trong ledger → đỏ', (t) => {
 
 test('trích ledger lệch nguyên văn dossier → đỏ', (t) => {
   const r = traceCheck(card(t, { [`${CARD}/01b-ledger.md`]: LEDGER.replace('màn danh sách ứng viên', 'màn ứng viên') }).dir)
-  assert.match(r.errors.join('\n'), /D-02: trích không khớp nguyên văn/)
+  assert.match(r.errors.join('\n'), /D-02: trích không khớp nguyên 1 dòng hoặc 1 câu/)
 })
 
 test('trace NFD/CRLF/BOM vẫn xanh', (t) => {
@@ -3272,6 +3335,11 @@ test('dòng Checklist không có trong ledger → đỏ (bỏ sót)', (t) => {
     [`${CARD}/brief.md`]: BRIEF.replace('- D-03: để thẻ sau\n', ''),
   }).dir)
   assert.match(r.errors.join('\n'), /01-dossier\.md:\d+ chưa có trong ledger: "Giữ bộ lọc khi chuyển trang"/)
+})
+
+test('mục con (### Scope) thuộc mục cha và vẫn phải có trong ledger', (t) => {
+  const r = traceCheck(card(t, { [`${CARD}/01-dossier.md`]: DOSSIER.replace('## Checklist', '### Scope\n- Chỉ áp dụng màn danh sách\n\n## Checklist') }).dir)
+  assert.match(r.errors.join('\n'), /chưa có trong ledger: "Chỉ áp dụng màn danh sách"/)
 })
 
 test('bỏ: chỉ hợp lệ cho dòng trong Comments', (t) => {
@@ -3319,10 +3387,15 @@ test('CLI: xanh exit 0, đỏ exit 1, không thấy thẻ exit 2', async (t) => 
 Run: `npm test`
 Expected: FAIL — không tìm thấy `scripts/lib/trace.mjs`.
 
-- [ ] **Step 2: Viết `templates/dossier.md`** (khuôn worker ghi và người tạo tay làm theo; heading khớp dossier tiniweb hiện tại)
+- [ ] **Step 2: Viết `templates/dossier.md`** (khuôn worker ghi và người tạo tay làm theo; thứ tự heading cấp 2 giống dossier tiniweb do `scripts/trello.mjs` sinh: Tiêu đề, Mô tả (Description), 🌿 Branch, Mô tả, Loại, IT Note, Thông tin tiếp nhận, Checklist, Comments)
 
 ````markdown
-# Thẻ <id>: <tiêu đề>
+# Thẻ Trello <id>
+
+## Tiêu đề
+<tiêu đề thẻ>
+
+## Mô tả (Description)
 
 ## 🌿 Branch
 ```text
@@ -3330,10 +3403,16 @@ feature/<id>-<slug>
 ```
 
 ## Mô tả
-<mỗi ý 1 dòng hoặc 1 câu>
+<mỗi ý 1 dòng hoặc 1 câu; mục con dùng ###, vd ### Scope, ### Cần làm rõ>
+
+## Loại
+<Fix | Nâng cấp | Mới>
 
 ## IT Note
 <ghi chú kỹ thuật từ người giao, nếu có>
+
+## Thông tin tiếp nhận
+<người giao, ngày, nguồn>
 
 ## Checklist
 ### Acceptance Criteria
@@ -3405,11 +3484,12 @@ export function parseTables(text) {
   return tables
 }
 
-const REQUIRED_SECTION_RE = /^(Mô tả|IT Note|Checklist|Acceptance Criteria)/i
-const COMMENT_SECTION_RE = /^Comments?\b/i
+// Mục được miễn yêu cầu phủ (metadata, bình luận). Mọi mục khác đều phải có trong ledger.
+const EXEMPT_SECTION_RE = /^(Tiêu đề|Branch|Loại|Thông tin tiếp nhận|Comments?)\b/i
 const stripLinePrefix = (l) => l.replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|>\s+)/, '').trim()
 
 // Đơn vị dossier: mỗi dòng nội dung (bỏ tiền tố danh sách) và từng câu trong dòng; bỏ heading, khối code.
+// "Mục" = heading cấp 2 gần nhất; heading cấp 3+ (Scope, Acceptance Criteria…) thuộc mục cha; trước heading cấp 2 đầu tiên = mục rỗng (bắt buộc).
 export function dossierUnits(text) {
   const units = []
   let section = ''
@@ -3417,8 +3497,12 @@ export function dossierUnits(text) {
   norm(text).split(/\r?\n/).forEach((raw, i) => {
     if (/^\s*```/.test(raw)) { fence = !fence; return }
     if (fence) return
-    const h = raw.match(/^#{1,6}\s+(.*)$/)
-    if (h) { section = h[1].replace(/^[^\p{L}]+/u, '').trim(); return }
+    const h = raw.match(/^(#{1,6})\s+(.*)$/)
+    if (h) {
+      if (h[1].length === 1) section = ''
+      else if (h[1].length === 2) section = h[2].replace(/^[^\p{L}]+/u, '').trim()
+      return
+    }
     const body = stripLinePrefix(raw)
     if (!body) return
     units.push({ line: squash(body), sentences: body.split(/(?<=[.!?…])\s+/).map(squash).filter(Boolean), section, lineNo: i + 1 })
@@ -3493,10 +3577,10 @@ export function traceCheck(cardDir) {
       quotes.add(q)
       const u = index.get(q)
       if (!u) { errors.push(`01b-ledger.md:${e.line} ${code}: trích không khớp nguyên 1 dòng hoặc 1 câu trong 01-dossier.md`); continue }
-      if (e.note.startsWith('bỏ:') && !COMMENT_SECTION_RE.test(u.section)) errors.push(`01b-ledger.md:${e.line} ${code}: "bỏ:" chỉ dùng cho dòng trong mục Comments`)
+      if (e.note.startsWith('bỏ:') && !EXEMPT_SECTION_RE.test(u.section)) errors.push(`01b-ledger.md:${e.line} ${code}: "bỏ:" chỉ dùng cho dòng trong mục Comments hoặc mục được miễn (Tiêu đề, Branch, Loại, Thông tin tiếp nhận)`)
     }
     for (const u of units) {
-      if (!REQUIRED_SECTION_RE.test(u.section)) continue
+      if (EXEMPT_SECTION_RE.test(u.section)) continue
       const covered = quotes.has(u.line) || (u.sentences.length > 0 && u.sentences.every((x) => quotes.has(x)))
       if (!covered) errors.push(`01-dossier.md:${u.lineNo} chưa có trong ledger: "${u.line}"`)
     }
@@ -3604,10 +3688,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   - `GATES`, `APPROVE_LABEL = 'Duyệt'`, `ARTIFACT_GATE = { 'brief.md': 'GATE_A', '03-design.md': 'GATE_B', '05-verify-report.md': 'GATE_C' }`.
   - `MARKER_RE = /Trạng thái:\s*ĐÃ DUYỆT/` — khớp đúng bộ đọc `ff.sh:73` (`head -10 | grep -q 'Trạng thái: ĐÃ DUYỆT'`), không đòi `>`.
   - `hasMarker(text): boolean` — có marker trong 10 dòng đầu.
-  - `bodyHash(text): string` — sha256 của nội dung sau khi bỏ mọi dòng chứa `Trạng thái:` trong 10 dòng đầu (chuẩn hóa NFC, bỏ BOM, CRLF → LF, bỏ khoảng trắng cuối).
+  - `bodyHash(text): string` — sha256 của nội dung sau khi bỏ dòng trạng thái **đúng khuôn** `> Trạng thái: CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA [ngày]` trong 10 dòng đầu (chuẩn hóa NFC, bỏ BOM, CRLF → LF, bỏ khoảng trắng cuối). Dòng "Trạng thái: <nội dung khác>" vẫn tính vào hash.
   - `gateQuestions(toolInput): { gate, cardId: string | null, question }[]`; `answerFor(toolResponse, question): string | null`.
-  - `recordGates(root, config, toolInput, toolResponse, now?: Date): GateRecord[]` — ghi `.ff/gates/<cardId>-<gate>.json` = `{ gate, cardId, question, answer, approved, at, hashes: { "<đường dẫn tương đối thư mục thẻ>": "<bodyHash>" } }`, `hashes` gồm mọi file tên artifact của Gate đó trong thư mục thẻ (kể cả `task-N/`).
-  - `isApproved(root, cardId, gate, relPath, content): boolean` — `approved === true` và `hashes[relPath] === bodyHash(content)`. Không còn hạn 24 giờ: sửa nội dung là tự mất duyệt.
+  - `recordGates(root, config, toolInput, toolResponse, now?: Date): GateRecord[]` — ghi `.ff/gates/<cardId>-<gate>.json` = `{ gate, cardId, question, answer, approved, at, hashes: { "<đường dẫn tương đối thư mục thẻ>": "<bodyHash>" }, ledgerHash }`, `hashes` gồm mọi file tên artifact của Gate đó trong thư mục thẻ (kể cả `task-N/`), `ledgerHash` = sha256 `01b-ledger.md` (null nếu chưa có).
+  - `isApproved(root, cardId, gate, relPath, content, ledgerText = null): boolean` — `approved === true`, `hashes[relPath] === bodyHash(content)`, và (nếu bản ghi có `ledgerHash`) ledger hiện tại khớp. Không còn hạn 24 giờ: sửa artifact hoặc ledger là tự mất duyệt.
 - Produces (`scripts/lib/notify.mjs`): `KINDS`; `makeEvent({ kind, taskId?, title, fields?, body? })`; `notify(root, event, { timeoutMs = 1500, log }): Promise<{ delivered }>`. Đọc `.ff/worker.json` `{ port, token }`, gửi `POST http://127.0.0.1:<port>/notify` kèm header `authorization: Bearer <token>` (Plan 3 cài phía worker, từ chối request thiếu token).
 - Produces (CLI): `ff notify --kind <kind> --title <t> [--task <id>] [--body <b>]` — exit `0` kể cả khi worker không chạy; `2` khi sai tham số.
 
@@ -3674,6 +3758,17 @@ test('Duyệt → approved khi nội dung còn khớp; sửa thân → mất duy
   assert.deepEqual(Object.keys(rec.hashes), ['brief.md'])
 })
 
+test('chèn dòng "Trạng thái: …" khác khuôn hoặc sửa ledger sau khi duyệt → mất duyệt', (t) => {
+  const LEDGER = '| D-01 | Nội dung | Mô tả | |\n'
+  const { root, config } = ws(t, { [`${CARD}/01b-ledger.md`]: LEDGER })
+  recordGates(root, config, input(), respWith('Duyệt'))
+  const withMarker = BRIEF.replace('CHỜ DUYỆT', 'ĐÃ DUYỆT 2026-10-13')
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', withMarker, LEDGER), true)
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', withMarker.replace('# Brief 123', 'Trạng thái: thêm quyền xoá DB\n# Brief 123'), LEDGER), false)
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', withMarker, LEDGER + '| D-02 | x | y | |\n'), false)
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', withMarker), false)
+})
+
 test('Cần sửa hoặc trả lời tự do → không duyệt', (t) => {
   const { root, config } = ws(t)
   recordGates(root, config, input(), respWith('Cần sửa'))
@@ -3714,7 +3809,8 @@ export const APPROVE_LABEL = 'Duyệt'
 export const ARTIFACT_GATE = { 'brief.md': 'GATE_A', '03-design.md': 'GATE_B', '05-verify-report.md': 'GATE_C' }
 const GATE_ARTIFACT = Object.fromEntries(Object.entries(ARTIFACT_GATE).map(([f, g]) => [g, f]))
 export const MARKER_RE = /Trạng thái:\s*ĐÃ DUYỆT/
-const STATUS_RE = /Trạng thái:/
+// Chỉ bỏ dòng trạng thái đúng khuôn khi băm, để không dùng dòng "Trạng thái: …" làm kênh sửa nội dung đã duyệt.
+const STATUS_LINE_RE = /^\s*>?\s*Trạng thái:\s*(?:CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA)\b[\s\d-]*$/
 const CARD_PREFIX_RE = /^\s*\[#([A-Za-z0-9]+)\]/
 
 const lines = (text) => text.replace(/^\uFEFF/, '').normalize('NFC').split(/\r?\n/)
@@ -3722,8 +3818,17 @@ const lines = (text) => text.replace(/^\uFEFF/, '').normalize('NFC').split(/\r?\
 export const hasMarker = (text) => typeof text === 'string' && lines(text).slice(0, 10).some((l) => MARKER_RE.test(l))
 
 export function bodyHash(text) {
-  const body = lines(text).filter((l, i) => !(i < 10 && STATUS_RE.test(l))).join('\n').replace(/\s+$/, '')
+  const body = lines(text).filter((l, i) => !(i < 10 && STATUS_LINE_RE.test(l))).join('\n').replace(/\s+$/, '')
   return crypto.createHash('sha256').update(body).digest('hex')
+}
+
+const sha = (text) => crypto.createHash('sha256').update(lines(text).join('\n')).digest('hex')
+const readOr = (f) => {
+  try {
+    return fs.readFileSync(f, 'utf8')
+  } catch {
+    return null
+  }
 }
 
 export function gateQuestions(toolInput) {
@@ -3778,6 +3883,7 @@ export function recordGates(root, config, toolInput, toolResponse, now = new Dat
       approved: (answer ?? '').normalize('NFC').trim() === APPROVE_LABEL,
       at: now.toISOString(),
       hashes: card.dir ? artifactHashes(card.dir, g.gate) : {},
+      ledgerHash: card.dir && readOr(path.join(card.dir, '01b-ledger.md')) !== null ? sha(readOr(path.join(card.dir, '01b-ledger.md'))) : null,
     }
     const f = gateFile(root, g.cardId, g.gate)
     fs.mkdirSync(path.dirname(f), { recursive: true })
@@ -3787,10 +3893,11 @@ export function recordGates(root, config, toolInput, toolResponse, now = new Dat
   return out
 }
 
-export function isApproved(root, cardId, gate, relPath, content) {
+export function isApproved(root, cardId, gate, relPath, content, ledgerText = null) {
   try {
     const r = JSON.parse(fs.readFileSync(gateFile(root, cardId, gate), 'utf8'))
-    return r.approved === true && r.hashes?.[relPath] === bodyHash(content)
+    if (r.approved !== true || r.hashes?.[relPath] !== bodyHash(content)) return false
+    return r.ledgerHash == null || (ledgerText !== null && sha(ledgerText) === r.ledgerHash)
   } catch {
     return false
   }
@@ -3980,10 +4087,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Consumes: `ARTIFACT_GATE`, `hasMarker`, `isApproved`, `recordGates` (Task 10); `makeGuard` (Task 8); `tokenize`, `segments`, `stripPrefix` (Task 7).
 - Produces: `evaluate()` thêm các luật sau, chạy trước luật cũ:
   1. **File secret** = `secrets.env_file`, `db.env_file`, `e2e.auth.jwt.secret.file`, `e2e.auth_storage`, `.ff/worker.json` (chứa token HTTP của worker). Bash nhắc tên file (so theo tên, không khớp `<tên>.example`) → chặn, trừ đoạn bắt đầu bằng `ff` **không** chứa `$(`, backtick, `<(`. Tool có `file` trỏ đúng file secret (Read, Grep, Edit, Write…) → chặn.
-  2. **`.ff/`** do hook và CLI `ff` ghi: tool sửa file trong `.ff/` → chặn; Bash nhắc `.ff/` kèm động từ ghi, redirect hoặc trình thông dịch (`python`, `node`, `perl`, `ruby`, `deno`, `bun`) mà không phải lệnh `ff` → chặn. Đọc (`cat .ff/doctor.json`) được.
-  3. **Artifact Gate** (`brief.md`, `03-design.md`, `05-verify-report.md` dưới `cards_dir`): Bash nhắc tên các file này kèm động từ ghi, redirect hoặc trình thông dịch → chặn ("sửa bằng Edit/Write").
+  2. **Đích ghi của Bash** (ước lượng bằng `writeTargets`: đích redirect, đích `cp`/`mv`/`install`/`rsync`/`ln`, đối số `tee`/`rm`/`truncate`/`chmod`/`touch`, file của `sed -i`/`perl -i`, chuỗi `*.md`/`*.json` trong lệnh chạy `python`/`node`/`perl`/`ruby`/`deno`/`bun`), resolve theo cwd có tính `cd`:
+     - nằm trong `.ff/` → chặn (trừ lệnh `ff`);
+     - là artifact Gate (`brief.md`, `03-design.md`, `05-verify-report.md`) **dưới `cards_dir`** → chặn ("sửa bằng Edit/Write").
+     Chỉ nhắc tên file (đọc, `cp` từ artifact ra chỗ khác, `brief.md` ngoài `cards_dir`) không bị chặn. Tool sửa file trong `.ff/` → chặn.
   4. **Marker** (D21): Edit/Write/MultiEdit/NotebookEdit vào artifact Gate mà nội dung **sau khi sửa** có marker `Trạng thái: ĐÃ DUYỆT` trong 10 dòng đầu → chỉ cho qua khi `isApproved(root, cardId, gate, relPath, nội dung sau sửa)`. Áp cả khi marker đã có sẵn mà phần thân đổi.
-  5. Bash vừa chứa `ĐÃ DUYỆT` vừa ghi file → chặn.
 - Produces (`scripts/guard.mjs`): lệnh `ff ship-approve …`/`ff relock …` không bị chặn → in JSON `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}` và exit 0 (D23). `--format agy` giữ `force_ask` như cũ. Nếu Task 1 ghi nhận Claude Code không nhận `permissionDecision: "ask"` từ hook, ghi vào note và dựa vào `permissions.ask` do `/ff-init` sinh (Plan 4).
 
 - [ ] **Step 1: Viết test (fail)**
@@ -4086,6 +4194,17 @@ test('Edit: thêm marker cần Duyệt; marker có sẵn mà sửa thân thì b�
   assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'MultiEdit', input: { edits: [{ old_string: 'Thân', new_string: 'Khác' }] } }), null)
 })
 
+test('sau khi Duyệt: chèn dòng "Trạng thái: …" khác khuôn hoặc sửa ledger → chặn ghi marker', (t) => {
+  const { root, ev, approve } = setup(t)
+  fs.writeFileSync(path.join(root, CARD, '01b-ledger.md'), '| D-01 | Thân | Mô tả | |\n')
+  approve()
+  const write = (content) => ev({ file: `${CARD}/brief.md`, tool: 'Write', input: { content } })
+  assert.equal(write(APPROVED), null)
+  assert.notEqual(write(APPROVED.replace('# Brief', 'Trạng thái: thêm quyền xoá DB\n# Brief')), null)
+  fs.appendFileSync(path.join(root, CARD, '01b-ledger.md'), '| D-02 | thêm | Mô tả | |\n')
+  assert.notEqual(write(APPROVED), null)
+})
+
 test('marker không có ">", qua NotebookEdit, NFD đều bị nhận ra', (t) => {
   const { ev } = setup(t)
   assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'Write', input: { content: 'Trạng thái: ĐÃ DUYỆT\n# Brief\nThân\n' } }), null)
@@ -4109,8 +4228,25 @@ test('Bash ghi artifact Gate hoặc marker bị chặn, đọc thì qua', (t) =>
     `python3 -c "open('${CARD}/brief.md','w').write('x')"`,
     `node -e "require('fs').writeFileSync('${CARD}/03-design.md','x')"`,
   ]) assert.notEqual(ev({ cmd }), null, cmd)
-  for (const cmd of [`cat ${CARD}/brief.md`, `grep -c "ĐÃ DUYỆT" ${CARD}/brief.md 2>/dev/null`, `head -10 ${CARD}/brief.md`])
+  for (const cmd of [`cat ${CARD}/brief.md`, `grep -c "ĐÃ DUYỆT" ${CARD}/brief.md 2>/dev/null`, `head -10 ${CARD}/brief.md`, `sed -n 1,10p ${CARD}/brief.md`])
     assert.equal(ev({ cmd }), null, cmd)
+  assert.notEqual(ev({ cmd: `cd ${CARD} && echo x >> brief.md` }), null)
+  assert.notEqual(ev({ cmd: 'tee .ff/gates/x.json' }), null)
+})
+
+test('không chặn nhầm: chỉ nhắc tên file, hoặc file trùng tên ngoài cards_dir', (t) => {
+  const { ev } = setup(t)
+  for (const cmd of [
+    `cp ${CARD}/brief.md /tmp/b.md`,
+    'mv docs/brief.md docs/old/brief.md',
+    'node scripts/lint.js docs/brief.md',
+    'python3 check.py 03-design.md',
+    'rm -f src/brief.md',
+    'echo ".ff/" >> .gitignore',
+    'ls .ff/ > /tmp/l',
+    'git mv a.md brief.md',
+    'echo "Trạng thái: ĐÃ DUYỆT" > notes.md',
+  ]) assert.equal(ev({ cmd }), null, cmd)
 })
 
 test('guard no-op ngoài workspace', () => {
@@ -4164,15 +4300,29 @@ import { ARTIFACT_GATE, hasMarker, isApproved } from './gates.mjs'
 Thêm hằng số dưới `FF_ASK_RE`:
 
 ```js
-const REDIRECT_RE = /(?<![\d&=-])>>?\s*\S/
 const INTERP_RE = /(?:^|[\s/])(?:python3?|node|perl|ruby|deno|bun)(?=\s|$)/
 const SUBST_RE = /\$\(|`|<\(/
-const ARTIFACT_RE = new RegExp(`(^|[\\s<>='"/])(${Object.keys(ARTIFACT_GATE).map((n) => n.replace(/[.]/g, '\\.')).join('|')})(?![\\w.-])`)
-const FF_DIR_RE = /(^|[\s<>='"/])\.ff\//
-const writesSomething = (seg) => WRITE_VERB_RE.test(seg) || REDIRECT_RE.test(seg) || INTERP_RE.test(seg)
+const REDIRECT_TARGET_RE = /(?<![\d&=-])>>?\s*(['"]?)([^\s'"]+)\1/g
+const PATHLIKE_RE = /[\w.~/-]+\.(?:md|json)\b/g
+const COPY_LIKE = new Set(['cp', 'mv', 'install', 'rsync', 'ln'])
+const EDIT_LIKE = new Set(['tee', 'truncate', 'rm', 'chmod', 'chflags', 'touch'])
+const INPLACE = new Set(['sed', 'perl'])
 const isFfCall = (seg) => {
-  const head = stripPrefix(tokenize(seg))[0] ?? ''
+  const head = headTokens(seg)[0] ?? ''
   return (head === 'ff' || head.endsWith('/ff')) && !SUBST_RE.test(seg)
+}
+
+// Đường dẫn mà 1 đoạn lệnh GHI vào (ước lượng): đích redirect, đích cp/mv, đối số tee/rm/…, file của sed -i/perl -i,
+// và chuỗi giống đường dẫn .md/.json trong lệnh chạy trình thông dịch. Chỉ nhắc tên file thì không tính là ghi.
+function writeTargets(seg, tokens) {
+  const out = [...seg.matchAll(REDIRECT_TARGET_RE)].map((m) => m[2])
+  const [head, ...rest] = tokens
+  const args = rest.filter((t) => !t.startsWith('-'))
+  if (COPY_LIKE.has(head) && args.length) out.push(args[args.length - 1])
+  if (EDIT_LIKE.has(head)) out.push(...args)
+  if (INPLACE.has(head) && rest.some((t) => /^-\w*i/.test(t) || t === '--in-place')) out.push(...args)
+  if (INTERP_RE.test(seg)) out.push(...(seg.match(PATHLIKE_RE) ?? []))
+  return out
 }
 ```
 
@@ -4186,14 +4336,22 @@ Trong `makeGuard`, ngay trước `function checkLockedFile`, thêm:
   const secretRes = secretFiles.map((f) => new RegExp(`(^|[\\s<>='"/])${escapeRe(path.basename(f))}(?![\\w.-])`))
   const secretMsg = `Không đọc, sửa hay chép file secret (${secretFiles.join(', ')}). Cần biết key có hay chưa → \`ff doctor\`.`
 
-  function checkBashNew(cmd) {
-    const c = cmd.normalize('NFC')
-    if (c.includes('ĐÃ DUYỆT') && (WRITE_VERB_RE.test(c) || REDIRECT_RE.test(c) || INTERP_RE.test(c)))
-      return 'Ghi marker ĐÃ DUYỆT bằng Edit/Write sau khi Gate được Duyệt, không ghi bằng Bash.'
+  function checkBashNew(cmd, cwd) {
+    let dir = cwd
     for (const seg of segments(cmd)) {
+      const tokens = headTokens(seg)
+      if (tokens[0] === 'cd') {
+        dir = resolveDir(dir, tokens[1] ?? os.homedir())
+        continue
+      }
       if (secretRes.some((re) => re.test(seg)) && !isFfCall(seg)) return secretMsg
-      if (FF_DIR_RE.test(seg) && writesSomething(seg) && !isFfCall(seg)) return '`.ff/` do hook và lệnh `ff` ghi; agent không sửa thư mục này.'
-      if (ARTIFACT_RE.test(seg) && writesSomething(seg)) return 'Sửa brief.md / 03-design.md / 05-verify-report.md bằng Edit/Write (để hook kiểm Gate), không ghi bằng Bash.'
+      if (isFfCall(seg)) continue
+      for (const t of writeTargets(seg, tokens)) {
+        const abs = realish(path.resolve(dir, expandHome(t)))
+        if (abs === ffDirAbs || under(abs, ffDirAbs)) return '`.ff/` do hook và lệnh `ff` ghi; agent không sửa thư mục này.'
+        if (under(abs, cardsDir) && ARTIFACT_GATE[path.basename(abs)])
+          return 'Sửa brief.md / 03-design.md / 05-verify-report.md trong thư mục thẻ bằng Edit/Write (để hook kiểm Gate), không ghi bằng Bash.'
+      }
     }
     return null
   }
@@ -4224,7 +4382,9 @@ Trong `makeGuard`, ngay trước `function checkLockedFile`, thêm:
     if (!hasMarker(next)) return null
     const rel = path.relative(cardsDir, abs).split(path.sep)
     const cardId = rel[0].split('-')[0]
-    if (isApproved(root, cardId, gate, rel.slice(1).join('/'), next)) return null
+    let ledger = null
+    try { ledger = fs.readFileSync(path.join(cardsDir, rel[0], '01b-ledger.md'), 'utf8') } catch {}
+    if (isApproved(root, cardId, gate, rel.slice(1).join('/'), next, ledger)) return null
     return `Chưa có câu trả lời "Duyệt" cho ${gate} của thẻ #${cardId} khớp nội dung hiện tại. Trình Gate bằng AskUserQuestion (header ${gate}, câu hỏi bắt đầu "[#${cardId}]", lựa chọn "Duyệt"/"Cần sửa") rồi mới ghi marker ĐÃ DUYỆT; sửa nội dung sau khi duyệt thì phải bỏ marker và trình lại.`
   }
 ```
@@ -4236,7 +4396,7 @@ Thay thân `evaluate` bằng:
     const c = realish(cwd)
     const abs = file ? realish(path.resolve(c, expandHome(file))) : null
     let reason = null
-    if (cmd) reason = checkBashNew(cmd) ?? checkLockedBash(cmd, c) ?? checkBash(cmd, c, mode)
+    if (cmd) reason = checkBashNew(cmd, c) ?? checkLockedBash(cmd, c) ?? checkBash(cmd, c, mode)
     if (!reason && abs) reason = checkFileNew(tool, input ?? {}, abs) ?? checkLockedFile(tool, abs) ?? checkAllowlist(tool, abs)
     if (!reason && mode === 'feature-flow' && abs) reason = checkMirrorFile(tool, abs)
     return reason
