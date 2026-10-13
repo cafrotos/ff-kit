@@ -1,0 +1,13 @@
+{
+  "session_id": "spike",
+  "transcript_path": "/tmp/transcript.jsonl",
+  "cwd": "/tmp",
+  "permission_mode": "default",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      { "question": "[#123] Duyệt Brief?", "header": "GATE_A", "options": [{ "label": "Duyệt", "description": "Đồng ý Brief" }, { "label": "Cần sửa", "description": "Yêu cầu sửa" }], "multiSelect": false }
+    ]
+  }
+}
