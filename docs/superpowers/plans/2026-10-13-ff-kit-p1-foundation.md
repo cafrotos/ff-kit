@@ -4,7 +4,7 @@
 
 **Goal:** Dựng plugin ff-kit chạy được với CLI `ff` (`cfg get`, `doctor`, `env-example`, `trace-check`, `notify`), guard chặn luật cũ và luật mới, và các hook ghi/kiểm Gate qua `AskUserQuestion`.
 
-**Architecture:** Mã nguồn Node ESM trong `scripts/` (thư viện ở `scripts/lib/`, lệnh ở `scripts/cli/`, hook ở `scripts/hooks/`). esbuild bundle ra `dist/` (commit vào git), vì plugin cài từ marketplace không chạy `npm install`. `bin/ff` và `hooks/hooks.json` chỉ gọi `dist/`. Mọi lệnh đọc `ff.config.yaml` qua một loader dùng chung. Validator dùng chung giữa `doctor`, `cfg`, guard và (ở Plan 3) worker.
+**Architecture:** Mã nguồn Node ESM trong `scripts/` (thư viện ở `scripts/lib/`, lệnh ở `scripts/cli/`, hook ở `scripts/hooks/`). esbuild bundle ra `dist/` (commit vào git) để plugin chạy được ngay sau khi cài, không phụ thuộc bước cài dependency của plugin (docs Claude Code có nhắc trường hợp plugin không có `node_modules` sau khi cài). `bin/ff` và `hooks/hooks.json` chỉ gọi `dist/`. Mọi lệnh đọc `ff.config.yaml` qua một loader dùng chung. Validator dùng chung giữa `doctor`, `cfg`, guard và (ở Plan 3) worker.
 
 **Tech Stack:** Node ≥ 20.10, `yaml` 2.x, `ajv` 8.x, `esbuild` (dev), test bằng `node:test`.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Node `>=20.10`. ESM, file `.mjs`. Test: `node --test tests/*.test.mjs`.
+- Node `>=20.10`. ESM, file `.mjs`. Test: `node --test tests/*.test.mjs`. Không dùng import JSON module (Node 20 in cảnh báo ra stderr); schema để dạng `schema/ff.config.schema.mjs`.
 - Runtime deps chỉ `yaml` và `ajv`; dev dep chỉ `esbuild`.
 - `dist/` commit vào git. Build bằng `npm run build`. `bin/ff` và hooks chạy từ `dist/`, không chạy từ `scripts/`.
 - Không đọc, in hay log giá trị trong `.ff.env`, kể cả trong output test. Chỉ báo key có/thiếu.
@@ -29,7 +29,7 @@
 1. **Plugin cài toàn cục, mở project không có `ff.config.yaml`** → mọi hook và guard thoát `0`, không in gì. Test: Task 11 (`guard no-op ngoài workspace`), Task 12 (`hooks no-op ngoài workspace`).
 2. **Workspace qua symlink** (macOS `/var` → `/private/var`, thư mục link) → guard vẫn nhận đúng repo/worktree. Test: Task 8 (`guard qua đường dẫn symlink`).
 3. **Dossier/ledger có Unicode NFD (copy từ macOS), CRLF hoặc BOM** → trace-check và lock không báo lệch giả. Test: Task 6 (`lock NFD`), Task 9 (`trace NFD/CRLF/BOM`).
-4. **`ff.config.yaml` hỏng cú pháp giữa chừng** → doctor in dòng lỗi, `cfg get` exit 4, guard vẫn chặn luật cơ bản và `.ff.env`. Test: Task 3, Task 4, Task 11.
+4. **`ff.config.yaml` hỏng cú pháp hoặc sai schema** (thiếu `repos`, regex hỏng, `workspace: null`) → doctor in lỗi, `cfg get` exit 4, guard vẫn chặn luật cơ bản và file secret bằng exit 2. Test: Task 3, Task 4, Task 11.
 5. **Worker không chạy hoặc treo** → hook `AskUserQuestion` trả về trong thời gian timeout, không chặn câu hỏi. Test: Task 10 (`notify timeout`).
 
 ## File Structure
@@ -71,7 +71,7 @@ ff-kit/
 │   │   ├── ask-post.mjs            # Task 12
 │   │   └── notification.mjs        # Task 12
 │   └── guard.mjs                   # Task 8 — CLI wrapper của guard-rules
-├── schema/ff.config.schema.json    # Task 3
+├── schema/ff.config.schema.mjs     # Task 3
 ├── hooks/hooks.json                # Task 12
 ├── dist/                           # Task 2, 12 — output build, commit
 ├── docs/notes/2026-10-13-spike-claude-code.md   # Task 1
@@ -396,13 +396,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 3: Config loader + JSON Schema
 
 **Files:**
-- Create: `scripts/lib/config.mjs`, `scripts/lib/schema.mjs`, `schema/ff.config.schema.json`, `tests/helpers/fixture.mjs`
+- Create: `scripts/lib/config.mjs`, `scripts/lib/schema.mjs`, `schema/ff.config.schema.mjs`, `tests/helpers/fixture.mjs`
 - Modify: `docs/superpowers/specs/2026-10-12-ff-kit-packaging-design.md` (§4.1: thêm `guard.migration_script_re`, `guard.forbidden_script_re`)
 - Test: `tests/config.test.mjs`
 
 **Interfaces:**
-- Produces (`scripts/lib/config.mjs`): `CONFIG_FILE = 'ff.config.yaml'`, `LOCK_FILE = 'ff.config.lock.json'`, `class ConfigError extends Error`, `DEFAULTS`, `findRoot(start: string): string | null` (realpath), `parseConfigText(text): { config, raw }`, `loadConfig(root): { config, raw }` (ném `ConfigError`), `loadConfigOrDefaults(root): { config, raw, broken: boolean }`, `getKey(obj, key: string): { found: boolean, value?: any }` (khóa chấm; mảng object tra theo `name`).
-- Produces (`scripts/lib/schema.mjs`): `validate(config): string[]` (rỗng = hợp lệ).
+- Produces (`scripts/lib/config.mjs`): `CONFIG_FILE = 'ff.config.yaml'`, `LOCK_FILE = 'ff.config.lock.json'`, `class ConfigError extends Error`, `DEFAULTS`, `findRoot(start: string): string | null` (realpath), `parseConfigText(text): { config, raw }`, `loadConfig(root): { config, raw }` (ném `ConfigError`), `loadConfigOrDefaults(root): { config, raw, broken: boolean }` (YAML hỏng **hoặc sai schema** → mặc định, `repos: []`; guard dùng hàm này nên vẫn chặn luật cơ bản), `getKey(obj, key: string): { found: boolean, value?: any }` (khóa chấm; mảng object tra theo `name`).
+- Produces (`scripts/lib/schema.mjs`): `validate(config): string[]` (rỗng = hợp lệ; gồm cả lỗi regex không biên dịch được trong `guard.*`).
 - Produces (`tests/helpers/fixture.mjs`): `baseConfig()`, `makeWorkspace({ config?, files?, gitRepos? }): { root, cleanup }`, `git(cwd, ...args): string`.
 
 - [ ] **Step 1: Viết fixture**
@@ -426,9 +426,10 @@ export function baseConfig() {
   return {
     version: 1,
     workspace: { root: '.', cards_dir: 'trellocards', worktrees_dir: 'worktrees' },
-    repos: [{ name: 'web', path: 'web', base_branch: 'dev', commands: { install: 'node -v', build: 'node -v' } }],
+    repos: [{ name: 'web', path: 'web', base_branch: 'dev', ship_branch: 'dev', commands: { install: 'node -v', build: 'node -v' } }],
     worker: {
-      task_source: { adapter: 'trello', trello: { board_id: 'b1', lists: { todo: 'Todo', doing: 'Doing', review: 'Review', done: 'Done' } } },
+      max_concurrent_tasks: 2,
+      task_source: { adapter: 'trello', trello: { board_id: 'b1', poll_lists: ['Doing', 'QA Fail'], done_list: 'Ready For QA' } },
       channel: { adapter: 'console' },
     },
     secrets: { env_file: '.ff.env' },
@@ -519,7 +520,7 @@ test('validate khối e2e: form-login cần login_url, jwt-mint cần jwt, base_
       secret: { file: 'api/.env', key: 'JWT_SECRET' },
       algorithm: 'HS256',
       payload: { sub: '{user.id}', email: '{user.email}' },
-      deliver: { via: 'query', name: 'token' },
+      deliver: [{ via: 'query', name: 'token' }, { via: 'local_storage', name: 'authToken' }],
       verify: { url: 'http://localhost:8080/me', expect_status: 200 },
     },
   }
@@ -529,6 +530,17 @@ test('validate khối e2e: form-login cần login_url, jwt-mint cần jwt, base_
   c.e2e.auth = { strategy: 'none' }
   c.e2e.apps[0].base_url = 'localhost:3001'
   assert.ok(validate(parseConfigText(YAML.stringify(c)).config).some((e) => /base_url/.test(e)))
+})
+
+test('task_source là tùy chọn; ship_branch bắt buộc; regex hỏng bị báo', () => {
+  const noWorker = baseConfig()
+  delete noWorker.worker.task_source
+  assert.deepEqual(validate(parseConfigText(YAML.stringify(noWorker)).config), [])
+  const noShip = baseConfig()
+  delete noShip.repos[0].ship_branch
+  assert.ok(validate(parseConfigText(YAML.stringify(noShip)).config).some((e) => /ship_branch/.test(e)))
+  const badRe = { ...baseConfig(), guard: { migration_script_re: '(' } }
+  assert.ok(validate(parseConfigText(YAML.stringify(badRe)).config).some((e) => /regex không hợp lệ/.test(e)))
 })
 
 test('getKey tra theo chấm và theo name trong mảng', () => {
@@ -545,6 +557,14 @@ test('findRoot đi ngược lên, ngoài workspace trả null', (t) => {
   fs.mkdirSync(nested, { recursive: true })
   assert.equal(findRoot(nested), ws.root)
   assert.equal(findRoot(path.dirname(ws.root)), null)
+})
+
+test('loadConfigOrDefaults: sai schema → broken + mặc định', (t) => {
+  const ws = makeWorkspace({ files: { 'ff.config.yaml': YAML.stringify({ ...baseConfig(), workspace: null }) } })
+  t.after(ws.cleanup)
+  const r = loadConfigOrDefaults(ws.root)
+  assert.equal(r.broken, true)
+  assert.equal(r.config.workspace.cards_dir, 'trellocards')
 })
 
 test('loadConfigOrDefaults: file hỏng → broken + mặc định', (t) => {
@@ -568,6 +588,7 @@ Expected: FAIL — không tìm thấy `scripts/lib/config.mjs`.
 import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
+import { validate } from './schema.mjs'
 
 export const CONFIG_FILE = 'ff.config.yaml'
 export const LOCK_FILE = 'ff.config.lock.json'
@@ -631,13 +652,13 @@ export function loadConfig(root) {
   return parseConfigText(text)
 }
 
-// Guard cần chạy được kể cả khi config hỏng: rơi về mặc định, không repo nào.
+// Guard cần chạy được kể cả khi config hỏng hoặc sai schema: rơi về mặc định, không repo nào.
 export function loadConfigOrDefaults(root) {
   try {
-    return { ...loadConfig(root), broken: false }
-  } catch {
-    return { ...parseConfigText('repos: []\n'), broken: true }
-  }
+    const loaded = loadConfig(root)
+    if (!validate(loaded.config).length) return { ...loaded, broken: false }
+  } catch {}
+  return { ...parseConfigText('repos: []\n'), broken: true }
 }
 
 export function getKey(obj, key) {
@@ -652,28 +673,55 @@ export function getKey(obj, key) {
 }
 ```
 
-- [ ] **Step 4: Viết `schema/ff.config.schema.json`**
+- [ ] **Step 4: Viết `schema/ff.config.schema.mjs`**
 
-```json
-{
+Schema để dạng module JS (`export default`) thay vì file JSON: import được trên Node 20.10 mà không phát cảnh báo "Importing JSON modules is an experimental feature", và esbuild bundle thẳng.
+
+```js
+// JSON Schema (draft-07) của ff.config.yaml. Sửa ở đây; không tách file .json.
+export default {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["version", "workspace", "repos", "worker", "secrets"],
+  "required": [
+    "version",
+    "workspace",
+    "repos",
+    "worker",
+    "secrets"
+  ],
   "additionalProperties": false,
   "definitions": {
-    "cmd": { "type": "string", "minLength": 1 },
-    "relpath": { "type": "string", "minLength": 1 }
+    "cmd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "relpath": {
+      "type": "string",
+      "minLength": 1
+    }
   },
   "properties": {
-    "version": { "const": 1 },
+    "version": {
+      "const": 1
+    },
     "workspace": {
       "type": "object",
-      "required": ["root", "cards_dir", "worktrees_dir"],
+      "required": [
+        "root",
+        "cards_dir",
+        "worktrees_dir"
+      ],
       "additionalProperties": false,
       "properties": {
-        "root": { "$ref": "#/definitions/relpath" },
-        "cards_dir": { "$ref": "#/definitions/relpath" },
-        "worktrees_dir": { "$ref": "#/definitions/relpath" }
+        "root": {
+          "$ref": "#/definitions/relpath"
+        },
+        "cards_dir": {
+          "$ref": "#/definitions/relpath"
+        },
+        "worktrees_dir": {
+          "$ref": "#/definitions/relpath"
+        }
       }
     },
     "repos": {
@@ -681,211 +729,508 @@ export function getKey(obj, key) {
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["name", "path", "base_branch", "commands"],
+        "required": [
+          "name",
+          "path",
+          "base_branch",
+          "ship_branch",
+          "commands"
+        ],
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
-          "path": { "$ref": "#/definitions/relpath" },
-          "base_branch": { "type": "string", "minLength": 1 },
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "path": {
+            "$ref": "#/definitions/relpath"
+          },
+          "base_branch": {
+            "type": "string",
+            "minLength": 1
+          },
+          "ship_branch": {
+            "type": "string",
+            "minLength": 1
+          },
           "commands": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "install": { "$ref": "#/definitions/cmd" },
-              "lint": { "$ref": "#/definitions/cmd" },
-              "typecheck": { "$ref": "#/definitions/cmd" },
-              "build": { "$ref": "#/definitions/cmd" },
-              "test": { "$ref": "#/definitions/cmd" },
-              "migrate": { "$ref": "#/definitions/cmd" },
-              "migrate_create": { "$ref": "#/definitions/cmd" }
+              "install": {
+                "$ref": "#/definitions/cmd"
+              },
+              "lint": {
+                "$ref": "#/definitions/cmd"
+              },
+              "typecheck": {
+                "$ref": "#/definitions/cmd"
+              },
+              "build": {
+                "$ref": "#/definitions/cmd"
+              },
+              "test": {
+                "$ref": "#/definitions/cmd"
+              },
+              "migrate": {
+                "$ref": "#/definitions/cmd"
+              },
+              "migrate_create": {
+                "$ref": "#/definitions/cmd"
+              }
             }
           },
-          "env_files": { "type": "array", "items": { "$ref": "#/definitions/relpath" } }
+          "env_files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/relpath"
+            }
+          }
         }
       }
     },
     "e2e": {
       "type": "object",
-      "required": ["dir"],
+      "required": [
+        "dir"
+      ],
       "additionalProperties": false,
       "properties": {
-        "dir": { "$ref": "#/definitions/relpath" },
-        "playwright_config": { "$ref": "#/definitions/relpath" },
-        "tests_dir": { "$ref": "#/definitions/relpath" },
-        "done_tests_dir": { "$ref": "#/definitions/relpath" },
-        "auth_storage": { "$ref": "#/definitions/relpath" },
+        "dir": {
+          "$ref": "#/definitions/relpath"
+        },
+        "playwright_config": {
+          "$ref": "#/definitions/relpath"
+        },
+        "tests_dir": {
+          "$ref": "#/definitions/relpath"
+        },
+        "done_tests_dir": {
+          "$ref": "#/definitions/relpath"
+        },
+        "auth_storage": {
+          "$ref": "#/definitions/relpath"
+        },
         "apps": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["name", "base_url"],
+            "required": [
+              "name",
+              "base_url"
+            ],
             "additionalProperties": false,
             "properties": {
-              "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$" },
-              "base_url": { "type": "string", "pattern": "^https?://" }
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9_-]*$"
+              },
+              "base_url": {
+                "type": "string",
+                "pattern": "^https?://"
+              }
             }
           }
         },
-        "health_urls": { "type": "array", "items": { "type": "string", "pattern": "^https?://" } },
+        "health_urls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^https?://"
+          }
+        },
         "auth": {
           "type": "object",
-          "required": ["strategy"],
+          "required": [
+            "strategy"
+          ],
           "additionalProperties": false,
           "properties": {
-            "strategy": { "enum": ["storage-state", "form-login", "jwt-mint", "none"] },
-            "login_url": { "type": "string", "pattern": "^https?://" },
+            "strategy": {
+              "enum": [
+                "storage-state",
+                "form-login",
+                "jwt-mint",
+                "none"
+              ]
+            },
+            "login_url": {
+              "type": "string",
+              "pattern": "^https?://"
+            },
             "jwt": {
               "type": "object",
-              "required": ["secret", "algorithm", "payload", "deliver"],
+              "required": [
+                "secret",
+                "algorithm",
+                "payload",
+                "deliver"
+              ],
               "additionalProperties": false,
               "properties": {
                 "secret": {
                   "type": "object",
-                  "required": ["file", "key"],
+                  "required": [
+                    "file",
+                    "key"
+                  ],
                   "additionalProperties": false,
-                  "properties": { "file": { "$ref": "#/definitions/relpath" }, "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" } }
+                  "properties": {
+                    "file": {
+                      "$ref": "#/definitions/relpath"
+                    },
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                    }
+                  }
                 },
                 "expires_in": {
                   "type": "object",
                   "additionalProperties": false,
-                  "properties": { "key": { "type": "string" }, "default": { "type": "string", "pattern": "^[0-9]+[smhd]$" } }
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "default": {
+                      "type": "string",
+                      "pattern": "^[0-9]+[smhd]$"
+                    }
+                  }
                 },
-                "algorithm": { "enum": ["HS256", "HS384", "HS512"] },
-                "payload": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } },
-                "deliver": {
+                "algorithm": {
+                  "enum": [
+                    "HS256",
+                    "HS384",
+                    "HS512"
+                  ]
+                },
+                "payload": {
                   "type": "object",
-                  "required": ["via", "name"],
-                  "additionalProperties": false,
-                  "properties": { "via": { "enum": ["query", "local_storage", "cookie"] }, "name": { "type": "string", "minLength": 1 } }
+                  "minProperties": 1,
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "deliver": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "via",
+                      "name"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "via": {
+                        "enum": [
+                          "query",
+                          "local_storage",
+                          "cookie"
+                        ]
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  }
                 },
                 "verify": {
                   "type": "object",
-                  "required": ["url"],
+                  "required": [
+                    "url"
+                  ],
                   "additionalProperties": false,
-                  "properties": { "url": { "type": "string", "pattern": "^https?://" }, "expect_status": { "type": "integer" } }
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "pattern": "^https?://"
+                    },
+                    "expect_status": {
+                      "type": "integer"
+                    }
+                  }
                 },
-                "user_lookup": { "type": "string", "minLength": 1 }
+                "user_lookup": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           },
           "allOf": [
-            { "if": { "properties": { "strategy": { "const": "form-login" } } }, "then": { "required": ["login_url"] } },
-            { "if": { "properties": { "strategy": { "const": "jwt-mint" } } }, "then": { "required": ["jwt"] } }
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "form-login"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "login_url"
+                ]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "strategy": {
+                    "const": "jwt-mint"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "jwt"
+                ]
+              }
+            }
           ]
         },
-        "up_cmd": { "$ref": "#/definitions/cmd" },
-        "down_cmd": { "$ref": "#/definitions/cmd" },
-        "test_cmd": { "$ref": "#/definitions/cmd" }
+        "up_cmd": {
+          "$ref": "#/definitions/cmd"
+        },
+        "down_cmd": {
+          "$ref": "#/definitions/cmd"
+        },
+        "test_cmd": {
+          "$ref": "#/definitions/cmd"
+        }
       }
     },
     "project_docs": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "roles_file": { "$ref": "#/definitions/relpath" },
-        "verification_queries_dir": { "$ref": "#/definitions/relpath" }
+        "roles_file": {
+          "$ref": "#/definitions/relpath"
+        },
+        "verification_queries_dir": {
+          "$ref": "#/definitions/relpath"
+        }
       }
     },
     "db": {
       "type": "object",
-      "required": ["driver", "env_file"],
+      "required": [
+        "driver",
+        "env_file"
+      ],
       "additionalProperties": false,
       "properties": {
-        "driver": { "enum": ["postgres", "mysql"] },
-        "env_file": { "$ref": "#/definitions/relpath" }
+        "driver": {
+          "enum": [
+            "postgres",
+            "mysql"
+          ]
+        },
+        "env_file": {
+          "$ref": "#/definitions/relpath"
+        }
       }
     },
     "guard": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "protected_paths": { "type": "array", "items": { "$ref": "#/definitions/relpath" } },
-        "allowed_bash": { "type": "array", "items": { "type": "string" } },
-        "migration_script_re": { "type": "string", "minLength": 1 },
-        "forbidden_script_re": { "type": "string", "minLength": 1 }
+        "protected_paths": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/relpath"
+          }
+        },
+        "allowed_bash": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "migration_script_re": {
+          "type": "string",
+          "minLength": 1
+        },
+        "forbidden_script_re": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "engine": {
       "type": "object",
-      "required": ["default"],
+      "required": [
+        "default"
+      ],
       "additionalProperties": false,
       "properties": {
-        "default": { "type": "string", "minLength": 1 },
-        "commands": { "type": "object", "additionalProperties": { "type": "string" } }
+        "default": {
+          "type": "string",
+          "minLength": 1
+        },
+        "commands": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
       }
     },
     "worker": {
       "type": "object",
-      "required": ["max_concurrent_tasks", "task_source", "channel"],
+      "required": [
+        "max_concurrent_tasks",
+        "channel"
+      ],
       "additionalProperties": false,
       "properties": {
-        "max_concurrent_tasks": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "max_concurrent_tasks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
         "task_source": {
           "type": "object",
-          "required": ["adapter"],
+          "required": [
+            "adapter"
+          ],
           "additionalProperties": false,
           "properties": {
-            "adapter": { "enum": ["trello"] },
+            "adapter": {
+              "enum": [
+                "trello"
+              ]
+            },
             "trello": {
               "type": "object",
-              "required": ["board_id", "lists"],
+              "required": [
+                "board_id",
+                "poll_lists",
+                "done_list"
+              ],
               "additionalProperties": false,
               "properties": {
-                "board_id": { "type": "string", "minLength": 1 },
-                "lists": {
-                  "type": "object",
-                  "required": ["todo", "doing", "review", "done"],
-                  "additionalProperties": false,
-                  "properties": {
-                    "todo": { "type": "string", "minLength": 1 },
-                    "doing": { "type": "string", "minLength": 1 },
-                    "review": { "type": "string", "minLength": 1 },
-                    "done": { "type": "string", "minLength": 1 }
+                "board_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "poll_lists": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
                   }
+                },
+                "done_list": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "poll_interval_sec": {
+                  "type": "integer",
+                  "minimum": 5
+                },
+                "filter_assigned_only": {
+                  "type": "boolean"
+                },
+                "assignee": {
+                  "type": "string",
+                  "minLength": 1
                 }
               }
             }
           },
-          "if": { "properties": { "adapter": { "const": "trello" } } },
-          "then": { "required": ["trello"] }
+          "if": {
+            "properties": {
+              "adapter": {
+                "const": "trello"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "trello"
+            ]
+          }
         },
         "channel": {
           "type": "object",
-          "required": ["adapter"],
+          "required": [
+            "adapter"
+          ],
           "additionalProperties": false,
-          "properties": { "adapter": { "enum": ["console", "rocketchat"] } }
+          "properties": {
+            "adapter": {
+              "enum": [
+                "console",
+                "rocketchat"
+              ]
+            }
+          }
         },
         "tmux": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "session_name": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-            "session_prefix": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" },
-            "cleanup_on_success": { "type": "boolean" },
-            "cleanup_on_failure": { "type": "boolean" },
-            "max_session_lifetime_hours": { "type": "number", "exclusiveMinimum": 0 }
+            "session_name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "session_prefix": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "cleanup_on_success": {
+              "type": "boolean"
+            },
+            "cleanup_on_failure": {
+              "type": "boolean"
+            },
+            "max_session_lifetime_hours": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
           }
         },
         "http": {
           "type": "object",
           "additionalProperties": false,
-          "properties": { "port": { "type": "integer", "minimum": 0, "maximum": 65535 } }
+          "properties": {
+            "port": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          }
         },
         "reload": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "watch": { "type": "boolean" },
-            "debounce_ms": { "type": "integer", "minimum": 0 }
+            "watch": {
+              "type": "boolean"
+            },
+            "debounce_ms": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         }
       }
     },
     "secrets": {
       "type": "object",
-      "required": ["env_file"],
+      "required": [
+        "env_file"
+      ],
       "additionalProperties": false,
-      "properties": { "env_file": { "$ref": "#/definitions/relpath" } }
+      "properties": {
+        "env_file": {
+          "$ref": "#/definitions/relpath"
+        }
+      }
     }
   }
 }
@@ -895,7 +1240,7 @@ export function getKey(obj, key) {
 
 ```js
 import Ajv from 'ajv'
-import schema from '../../schema/ff.config.schema.json' with { type: 'json' }
+import schema from '../../schema/ff.config.schema.mjs'
 
 const ajv = new Ajv({ allErrors: true })
 const check = ajv.compile(schema)
@@ -907,6 +1252,10 @@ export function validate(config) {
       const extra = e.params?.additionalProperty ? `: ${e.params.additionalProperty}` : ''
       errs.push(`${e.instancePath || '/'} ${e.message}${extra}`)
     }
+  }
+  for (const [key, re] of [['guard.migration_script_re', config.guard?.migration_script_re], ['guard.forbidden_script_re', config.guard?.forbidden_script_re], ...(config.guard?.allowed_bash ?? []).map((r, i) => [`guard.allowed_bash[${i}]`, r])]) {
+    if (typeof re !== 'string') continue
+    try { new RegExp(re) } catch (e) { errs.push(`/${key.replace(/\./g, '/')} regex không hợp lệ: ${e.message}`) }
   }
   const names = (Array.isArray(config.repos) ? config.repos : []).map((r) => r?.name).filter(Boolean)
   for (const n of new Set(names.filter((n, i) => names.indexOf(n) !== i))) errs.push(`/repos tên repo trùng: ${n}`)
@@ -1248,10 +1597,10 @@ test('mergeEnvExample chỉ thêm key thiếu, giữ nguyên dòng cũ, giữ CR
 
 test('ff env-example không đọc .ff.env', async (t) => {
   const ws = makeWorkspace({ files: { '.ff.env': 'TRELLO_API_KEY=SECRET123\n' } })
-  t.after(ws.cleanup)
+  // Hook t.after chạy theo thứ tự đăng ký: trả quyền rồi mới xoá thư mục.
+  t.after(() => { fs.chmodSync(path.join(ws.root, '.ff.env'), 0o600); ws.cleanup() })
   const secret = path.join(ws.root, '.ff.env')
   fs.chmodSync(secret, 0o000)
-  t.after(() => fs.chmodSync(secret, 0o600))
   const { ctx, buf } = capture(ws.root)
   assert.equal(await main(['env-example'], ctx), 0)
   assert.match(buf.out, /TRELLO_API_TOKEN/)
@@ -1424,7 +1773,8 @@ test('leafKeys theo name, bỏ version và name', () => {
   const keys = leafKeys(baseConfig()).map((l) => l.key)
   assert.ok(keys.includes('repos.web.path'))
   assert.ok(keys.includes('repos.web.commands.install'))
-  assert.ok(keys.includes('worker.task_source.trello.lists.todo'))
+  assert.ok(keys.includes('worker.task_source.trello.done_list'))
+  assert.ok(keys.includes('worker.task_source.trello.poll_lists'))
   assert.ok(!keys.includes('version'))
   assert.ok(!keys.some((k) => k.endsWith('.name')))
 })
@@ -1615,7 +1965,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `validate` (Task 3), `presentKeys`, `requiredKeys` (Task 5), `checkLock` (Task 6), `writeDoctorState` (Task 4).
-- Produces (`scripts/lib/shell.mjs`): `tokenize(seg): string[]`, `stripHeredocs(cmd): string`, `segments(cmd): string[]`, `stripPrefix(tokens): string[]`, `commandBinaries(cmd): string[]`.
+- Produces (`scripts/lib/shell.mjs`): `tokenize(seg): string[]` (nháy giữa token, `\"` trong nháy kép), `stripHeredocs(cmd): string`, `segments(cmd): string[]` (không tách `2>&1`, `&>`), `stripPrefix(tokens): string[]`, `headTokens(seg): string[]` (bỏ `(`/`{` đầu), `commandBinaries(cmd): string[]` (bỏ builtin `cd export set unset source . pushd popd true : exit trap`, bỏ token redirect).
 - Produces (`scripts/lib/doctor.mjs`): `runDoctor(root, { config, raw }, { which? }): { ok: boolean, groups: { core, worker, e2e }: boolean, checks: { ok: boolean, msg: string, group: 'core' | 'worker' | 'e2e' }[] }`; `whichInPath(bin, cwd): boolean`. Nhóm theo D20: key adapter → `worker`; key `form-login` → `e2e` (Plan 2 thêm kiểm bộ Playwright, secret `jwt-mint` vào nhóm `e2e`); còn lại → `core`.
 - Produces (CLI): `ff doctor [--schema-only] [--json]` — exit `0` xanh, `1` đỏ, `4` không có workspace. Ghi `.ff/doctor.json` (trừ `--schema-only`).
 
@@ -1626,22 +1976,37 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```js
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { tokenize, segments, stripHeredocs, commandBinaries } from '../scripts/lib/shell.mjs'
+import { tokenize, segments, stripHeredocs, commandBinaries, headTokens } from '../scripts/lib/shell.mjs'
 
-test('tokenize tôn trọng nháy', () => {
+test('tokenize tôn trọng nháy, kể cả nháy giữa token và \\" trong nháy kép', () => {
   assert.deepEqual(tokenize(`git commit -m "a b" 'c d'`), ['git', 'commit', '-m', 'a b', 'c d'])
+  assert.deepEqual(tokenize(`FOO="a b" yarn build`), ['FOO=a b', 'yarn', 'build'])
+  assert.deepEqual(tokenize('echo "x\\"y"'), ['echo', 'x"y'])
 })
 
-test('segments tách theo && | ; xuống dòng, bỏ qua trong nháy', () => {
+test('segments tách theo && | ; xuống dòng, không tách >&, &>, 2>&1', () => {
   assert.deepEqual(segments(`cd a && echo "x;y" | grep x; ls`), ['cd a', 'echo "x;y"', 'grep x', 'ls'])
+  assert.deepEqual(segments(`yarn build 2>&1 | tee x`), ['yarn build 2>&1', 'tee x'])
+  assert.deepEqual(segments(`make &> log`), ['make &> log'])
 })
 
 test('stripHeredocs bỏ thân heredoc', () => {
   assert.equal(stripHeredocs(`cat <<'EOF'\ngit push\nEOF\nls`), `cat <<'EOF'\nls`)
 })
 
-test('commandBinaries bỏ cd, env, sudo', () => {
+test('headTokens bỏ ( đầu subshell và tiền tố env/sudo', () => {
+  assert.deepEqual(headTokens('(cd web '), ['cd', 'web'])
+  assert.deepEqual(headTokens('sudo FOO=1 make x'), ['make', 'x'])
+})
+
+test('commandBinaries bỏ builtin, subshell, redirect', () => {
   assert.deepEqual(commandBinaries('cd web && FOO=1 yarn build && sudo make x'), ['yarn', 'make'])
+  assert.deepEqual(commandBinaries('export NODE_ENV=test && yarn test'), ['yarn'])
+  assert.deepEqual(commandBinaries('source .venv/bin/activate && pytest'), ['pytest'])
+  assert.deepEqual(commandBinaries('. ./env.sh; set -e; make test'), ['make'])
+  assert.deepEqual(commandBinaries('(cd web && yarn build)'), ['yarn'])
+  assert.deepEqual(commandBinaries('FOO="a b" yarn build'), ['yarn'])
+  assert.deepEqual(commandBinaries('yarn build 2>&1 | tee x'), ['yarn', 'tee'])
 })
 ```
 
@@ -1652,9 +2017,32 @@ test('commandBinaries bỏ cd, env, sudo', () => {
 
 export function tokenize(seg) {
   const out = []
-  const re = /"((?:\\.|[^"\\])*)"|'([^']*)'|(\S+)/g
-  let m
-  while ((m = re.exec(seg))) out.push(m[1] ?? m[2] ?? m[3])
+  let cur = ''
+  let has = false
+  let q = null
+  for (let i = 0; i < seg.length; i++) {
+    const c = seg[i]
+    if (q) {
+      if (c === q) q = null
+      else if (q === '"' && c === '\\' && i + 1 < seg.length) cur += seg[++i]
+      else cur += c
+      continue
+    }
+    if (c === '"' || c === "'") {
+      q = c
+      has = true
+      continue
+    }
+    if (/\s/.test(c)) {
+      if (has) out.push(cur)
+      cur = ''
+      has = false
+      continue
+    }
+    cur += c
+    has = true
+  }
+  if (has) out.push(cur)
   return out
 }
 
@@ -1674,12 +2062,14 @@ export function stripHeredocs(cmd) {
   return out.join('\n')
 }
 
+// Tách theo ; | & xuống dòng (ngoài nháy). `&` thuộc redirect (`2>&1`, `&>`, `>&`) không tách.
 export function segments(cmd) {
   const src = stripHeredocs(cmd)
   const segs = []
   let cur = ''
   let q = null
-  for (const c of src) {
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i]
     if (q) {
       cur += c
       if (c === q) q = null
@@ -1687,6 +2077,10 @@ export function segments(cmd) {
     }
     if (c === '"' || c === "'") {
       q = c
+      cur += c
+      continue
+    }
+    if (c === '&' && (src[i - 1] === '>' || src[i - 1] === '<' || src[i + 1] === '>')) {
       cur += c
       continue
     }
@@ -1708,11 +2102,17 @@ export function stripPrefix(tokens) {
   return tokens.slice(i)
 }
 
+// Token của 1 đoạn lệnh, bỏ `(`/`{` mở và `)`/`}` đóng subshell, bỏ tiền tố.
+export const headTokens = (seg) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, '').replace(/\s*[)}]+\s*$/, '')))
+
+const BUILTINS = new Set(['cd', 'export', 'set', 'unset', 'source', '.', 'pushd', 'popd', 'true', ':', 'exit', 'trap'])
+
 export function commandBinaries(cmd) {
   const bins = []
   for (const seg of segments(cmd)) {
-    const toks = stripPrefix(tokenize(seg))
-    if (toks.length && toks[0] !== 'cd') bins.push(toks[0])
+    const toks = headTokens(seg).filter((t) => !/^\d*[<>]/.test(t))
+    const head = (toks[0] ?? '').replace(/\)+$/, '')
+    if (head && !BUILTINS.has(head)) bins.push(head)
   }
   return [...new Set(bins)]
 }
@@ -1788,6 +2188,25 @@ test('thiếu file .ff.env và thiếu key → chỉ nhóm worker đỏ', (t) =>
   const msg = fails(doctor(ws.root))
   assert.match(msg, /thiếu key: TRELLO_API_TOKEN/)
   assert.doesNotMatch(msg, /SECRET/)
+})
+
+test('thiếu thư mục e2e → chỉ nhóm e2e đỏ; không có task_source → chỉ nhóm worker đỏ', (t) => {
+  const config = baseConfig()
+  config.e2e = { dir: 'ff-e2e' }
+  delete config.worker.task_source
+  const ws = green(t, { config })
+  const r = doctor(ws.root)
+  assert.deepEqual(r.groups, { core: true, worker: false, e2e: false })
+  assert.match(fails(r), /e2e\.dir không tồn tại/)
+  assert.match(fails(r), /chưa cấu hình worker\.task_source/)
+})
+
+test('lệnh có export/subshell/redirect không bị báo thiếu binary', (t) => {
+  const config = baseConfig()
+  config.repos[0].commands = { test: 'export NODE_ENV=test && node -v', build: '(cd . && node -v) 2>&1 | cat' }
+  const ws = green(t, { config })
+  const r = doctor(ws.root)
+  assert.equal(r.groups.core, true, fails(r))
 })
 
 test('thiếu cards_dir', (t) => {
@@ -1906,10 +2325,10 @@ export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
     fs.existsSync(path.resolve(root, rel)) ? ok(`workspace.${k} có: ${rel}`) : bad(`workspace.${k} không tồn tại: ${rel}`)
   }
 
-  const checkCmds = (label, cmds, cwd) => {
+  const checkCmds = (label, cmds, cwd, group = 'core') => {
     for (const [name, cmd] of Object.entries(cmds)) {
       if (!cmd) continue
-      for (const bin of commandBinaries(cmd)) if (!which(bin, cwd)) bad(`${label}: lệnh ${name} cần "${bin}" nhưng không thấy trong PATH`)
+      for (const bin of commandBinaries(cmd)) if (!which(bin, cwd)) bad(`${label}: lệnh ${name} cần "${bin}" nhưng không thấy trong PATH`, group)
     }
   }
 
@@ -1924,20 +2343,22 @@ export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
     checkCmds(`repo ${r.name}`, r.commands ?? {}, p)
   }
 
+  // Nhóm e2e (D20): chỉ chặn ff-verify, không chặn skill.
   if (config.e2e) {
     const dir = path.resolve(root, config.e2e.dir)
-    if (!fs.existsSync(dir)) bad(`e2e.dir không tồn tại: ${config.e2e.dir}`)
+    if (!fs.existsSync(dir)) bad(`e2e.dir không tồn tại: ${config.e2e.dir}`, 'e2e')
     else {
       for (const k of ['playwright_config', 'tests_dir']) {
-        if (config.e2e[k] && !fs.existsSync(path.resolve(root, config.e2e[k]))) bad(`e2e.${k} không tồn tại: ${config.e2e[k]}`)
+        if (config.e2e[k] && !fs.existsSync(path.resolve(root, config.e2e[k]))) bad(`e2e.${k} không tồn tại: ${config.e2e[k]}`, 'e2e')
       }
-      checkCmds('e2e', { up_cmd: config.e2e.up_cmd, down_cmd: config.e2e.down_cmd, test_cmd: config.e2e.test_cmd }, dir)
+      checkCmds('e2e', { up_cmd: config.e2e.up_cmd, down_cmd: config.e2e.down_cmd, test_cmd: config.e2e.test_cmd }, dir, 'e2e')
     }
   }
+  if (config.db && !fs.existsSync(path.resolve(root, config.db.env_file))) bad(`db.env_file không tồn tại: ${config.db.env_file}`, 'e2e')
   for (const [k, rel] of Object.entries(config.project_docs ?? {})) {
     if (!fs.existsSync(path.resolve(root, rel))) bad(`project_docs.${k} không tồn tại: ${rel}`)
   }
-  if (config.db && !fs.existsSync(path.resolve(root, config.db.env_file))) bad(`db.env_file không tồn tại: ${config.db.env_file}`)
+  if (!config.worker.task_source) bad('chưa cấu hình worker.task_source — chỉ dùng skill tay được, /ff-worker start sẽ từ chối', 'worker')
 
   const envName = config.secrets.env_file
   const keys = presentKeys(path.resolve(root, envName))
@@ -2156,6 +2577,9 @@ test('lệnh bọc', (t) => {
   check(0, 'base', WT, 'M=$(git rev-parse HEAD)')
   check(0, 'base', WT, 'bash -c "echo hello"')
   check(0, 'base', WT, 'echo $(git add ./src/a.ts)')
+  check(0, 'base', WT, 'git log -1 --format=%B | grep -qxF "$T"')
+  check(0, 'base', WT, 'echo skill')
+  check(2, 'base', '.', '(cd api && git stash)')
 })
 
 test('feature-flow: repo gốc là bản gương', (t) => {
@@ -2195,6 +2619,9 @@ test('khóa test', (t) => {
   checkFile(2, 'base', 'MultiEdit', 'e2e', `tests/${slug}/task-1-a.spec.ts`)
   checkFile(0, 'base', 'Read', '.', rel)
   checkFile(0, 'base', 'Edit', '.', `e2e/tests/${slug}/task-1-b.spec.ts`)
+  checkFile(0, 'feature-flow', 'Edit', '.', `e2e/tests/${slug}/task-1-b.spec.ts`)
+  checkFile(0, 'base', 'Edit', '.', 'web/apps/recruit/src/a.tsx')
+  checkFile(0, 'base', 'Write', 'api', 'src/x.ts')
   check(2, 'base', '.', `sed -i '' 's/x/y/' ${rel}`)
   check(2, 'base', 'e2e', `echo hi >> tests/${slug}/task-1-a.spec.ts`)
   check(2, 'base', '.', `rm ${rel}`)
@@ -2216,7 +2643,9 @@ test('allowlist đợt', (t) => {
   checkFile(0, 'base', 'Edit', '.', `worktrees/${slug}/web/src/a.ts`)
   checkFile(0, 'feature-flow', 'Write', '.', at(`worktrees/${slug}/web/src/b.ts`))
   checkFile(2, 'base', 'Edit', '.', `worktrees/${slug}/web/src/c.ts`)
+  checkFile(2, 'feature-flow', 'Write', '.', at(`worktrees/${slug}/web/src/c.ts`))
   checkFile(2, 'base', 'MultiEdit', `worktrees/${slug}/web`, 'src/c.ts')
+  checkFile(0, 'base', 'Edit', '.', 'web/CLAUDE.md')
   checkFile(0, 'base', 'Read', '.', `worktrees/${slug}/web/src/c.ts`)
   checkFile(0, 'base', 'Edit', '.', `trellocards/${slug}/04-plan.md`)
   checkFile(0, 'base', 'Write', '.', `${WT}/api/src/x.ts`)
@@ -2269,7 +2698,7 @@ export function realish(p) {
 import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
-import { tokenize, stripHeredocs, segments, stripPrefix } from './shell.mjs'
+import { tokenize, stripHeredocs, segments, stripPrefix, headTokens } from './shell.mjs'
 import { realish } from './paths.mjs'
 
 const SHIP_MARKER_TTL_S = 2 * 60 * 60
@@ -2404,7 +2833,7 @@ export function makeGuard(rootIn, config) {
     if (wrapped) return wrapped
     let dir = cwd
     for (const seg of segments(cmd)) {
-      const tokens = stripPrefix(tokenize(seg))
+      const tokens = headTokens(seg)
       if (!tokens.length) continue
       const [head] = tokens
       if (head === 'cd') {
@@ -2543,6 +2972,27 @@ test('kiểu agy: deny, cho qua, force_ask', (t) => {
   assert.match(ask.stdout, /"decision":"force_ask"/)
 })
 
+test('kiểu agy: đủ 9 ca tool sửa file (TargetFile) của test-guard.sh', (t) => {
+  const root = ws(t)
+  fs.appendFileSync(path.join(root, 'ff.config.yaml'), 'e2e:\n  dir: e2e\n  tests_dir: e2e/tests\n')
+  const slug = '991-agy'
+  const rel = `e2e/tests/${slug}/a.spec.ts`
+  fs.mkdirSync(path.join(root, `e2e/tests/${slug}`), { recursive: true })
+  fs.mkdirSync(path.join(root, `worktrees/${slug}/web/src`), { recursive: true })
+  fs.writeFileSync(path.join(root, `worktrees/${slug}/.ff-test-lock`), `${'0'.repeat(64)}  ${rel}\n`)
+  const agy = (tool, file) => run(['--format', 'agy'], JSON.stringify({ toolCall: { name: tool, args: { TargetFile: path.join(root, file) } }, cwd: root })).stdout
+  assert.match(agy('write_to_file', rel), /"decision":"deny"/)
+  assert.match(agy('replace_file_content', rel), /"decision":"deny"/)
+  assert.match(agy('multi_replace_file_content', rel), /"decision":"deny"/)
+  assert.equal(agy('write_to_file', `e2e/tests/${slug}/b.spec.ts`), '')
+  assert.equal(agy('view_file', rel), '')
+  fs.writeFileSync(path.join(root, `worktrees/${slug}/.ff-allow`), `ts=${Math.floor(Date.now() / 1000)}\nweb/src/a.ts\n`)
+  assert.equal(agy('replace_file_content', `worktrees/${slug}/web/src/a.ts`), '')
+  assert.match(agy('replace_file_content', `worktrees/${slug}/web/src/c.ts`), /"decision":"deny"/)
+  assert.match(agy('multi_replace_file_content', `worktrees/${slug}/web/src/c.ts`), /"decision":"deny"/)
+  assert.equal(agy('write_to_file', `trellocards/${slug}/04-plan.md`), '')
+})
+
 test('kiểu agy: write_to_file vào file test đã khóa → deny', (t) => {
   const root = ws(t)
   const rel = 'e2e/tests/991-agy/a.spec.ts'
@@ -2678,20 +3128,24 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 9: Ledger dossier + `ff trace-check`
 
 **Files:**
-- Create: `scripts/lib/cards.mjs`, `scripts/lib/trace.mjs`, `scripts/cli/trace-check.mjs`
+- Create: `scripts/lib/cards.mjs`, `scripts/lib/trace.mjs`, `scripts/cli/trace-check.mjs`, `templates/dossier.md`
 - Modify: `scripts/cli/main.mjs` (đăng ký `trace-check`)
 - Test: `tests/trace.test.mjs`
 
 **Interfaces:**
 - Consumes: `findRoot`, `loadConfig`, `ConfigError` (Task 3).
 - Produces (`scripts/lib/cards.mjs`): `CARD_ID_RE = /^[A-Za-z0-9]+$/`; `findCardDir(root, config, id): { dir: string } | { error: string }`.
-- Produces (`scripts/lib/trace.mjs`): `parseTables(text): { header: string[], rows: { cells: string[], line: number }[], line: number }[]`; `parseLedger(text): { D: Map<code, { quote, where, note, line }>, U: Map<code, { question, answer, date, line }>, errors: string[] }`; `traceCheck(cardDir): { ok: boolean, errors: string[], counts: { D: number, U: number } }`.
+- Produces (`scripts/lib/trace.mjs`): `parseTables(text): { header: string[], rows: { cells: string[], line: number }[], line: number, inAppendix: boolean }[]`; `dossierUnits(text): { line, sentences, section, lineNo }[]`; `parseLedger(text): { D: Map<code, { quote, where, note, line }>, U: Map<code, { question, answer, date, line }>, errors: string[] }`; `traceCheck(cardDir): { ok: boolean, errors: string[], counts: { D: number, U: number } }`.
 - Produces (CLI): `ff trace-check <id> [--json]` — exit `0` xanh, `1` đỏ, `2` id sai/không thấy thẻ, `4` config chưa sẵn sàng.
 - Quy ước file (Plan 4 viết skill theo đúng quy ước này):
   - Ledger `<thẻ>/01b-ledger.md`: dòng bảng có ô đầu `D-<số>` = `| D-xx | trích nguyên văn | vị trí | ghi chú |` (ghi chú bắt đầu `bỏ:` = loại khỏi yêu cầu phủ); ô đầu `U-<số>` = `| U-xx | câu hỏi | đáp án | ngày |`.
   - Artifact được kiểm: `brief.md`, `brief-chi-tiet.md`, `02-spec.md`, `03-design.md` ở thư mục thẻ và thư mục con (trừ thư mục bắt đầu bằng `.` và `observe`).
   - Bảng nào có cột tiêu đề `Nguồn` thì mọi dòng phải chứa ≥ 1 mã `D-xx`/`U-xx` có trong ledger.
   - Mục `## Ngoài phạm vi` (cấp 2–4) ở ledger hoặc artifact: mã `D-xx` nhắc trong mục này được coi là đã xử lý.
+  - Dossier theo khuôn `templates/dossier.md`. "Đơn vị" dossier = 1 dòng (bỏ tiền tố `- `, `- [ ] `, `1. `, `> `) hoặc 1 câu trong dòng đó; bỏ heading và khối code. Trích `D-xx` phải trùng nguyên 1 đơn vị (không nhận trích rỗng hay mẩu ngắn).
+  - Mọi dòng thuộc mục bắt đầu bằng `Mô tả`, `IT Note`, `Checklist`, `Acceptance Criteria` phải có trong ledger (cả dòng, hoặc đủ mọi câu của dòng).
+  - Ghi chú `bỏ: …` chỉ hợp lệ cho đơn vị thuộc mục `Comments`.
+  - Bảng trong artifact không có cột `Nguồn` → lỗi, trừ bảng nằm dưới heading có chữ `Phụ lục`.
 
 - [ ] **Step 1: Viết test (fail)**
 
@@ -2791,13 +3245,38 @@ test('thiếu ledger → đỏ', (t) => {
   assert.match(r.errors.join('\n'), /thiếu 01b-ledger\.md/)
 })
 
-test('bảng không có cột Nguồn bị bỏ qua; ô có \\| vẫn khớp', (t) => {
+test('bảng không có cột Nguồn: dưới Phụ lục thì bỏ qua; ô có \\| vẫn khớp', (t) => {
   const r = traceCheck(card(t, {
-    [`${CARD}/01-dossier.md`]: DOSSIER + 'Lọc theo A | B\n',
+    [`${CARD}/01-dossier.md`]: DOSSIER + '- Lọc theo A | B\n',
     [`${CARD}/01b-ledger.md`]: LEDGER.replace('| D-04 |', '| D-05 | Lọc theo A \\| B | Comment 2 | bỏ: trùng D-01 |\n| D-04 |'),
-    [`${CARD}/brief.md`]: BRIEF + '\n| a | b |\n|---|---|\n| 1 | 2 |\n',
+    [`${CARD}/brief.md`]: BRIEF + '\n## Phụ lục\n| a | b |\n|---|---|\n| 1 | 2 |\n',
   }).dir)
   assert.deepEqual(r.errors, [])
+})
+
+test('bảng không có cột Nguồn ngoài Phụ lục → đỏ', (t) => {
+  const r = traceCheck(card(t, { [`${CARD}/brief.md`]: BRIEF.replace('## Ngoài phạm vi', '| tất cả | ghi chú |\n|---|---|\n| x | y |\n\n## Ngoài phạm vi') }).dir)
+  assert.match(r.errors.join('\n'), /bảng không có cột Nguồn/)
+})
+
+test('trích rỗng hoặc mẩu ngắn → đỏ', (t) => {
+  const empty = traceCheck(card(t, { [`${CARD}/01b-ledger.md`]: LEDGER.replace('| D-01 | Cho phép lọc ứng viên theo trạng thái. |', '| D-01 |  |') }).dir)
+  assert.match(empty.errors.join('\n'), /D-01: trích rỗng/)
+  const frag = traceCheck(card(t, { [`${CARD}/01b-ledger.md`]: LEDGER.replace('| D-01 | Cho phép lọc ứng viên theo trạng thái. |', '| D-01 | lọc ứng viên |') }).dir)
+  assert.match(frag.errors.join('\n'), /D-01: trích không khớp nguyên 1 dòng hoặc 1 câu/)
+})
+
+test('dòng Checklist không có trong ledger → đỏ (bỏ sót)', (t) => {
+  const r = traceCheck(card(t, {
+    [`${CARD}/01b-ledger.md`]: LEDGER.replace(/\| D-03 \|.*\n/, ''),
+    [`${CARD}/brief.md`]: BRIEF.replace('- D-03: để thẻ sau\n', ''),
+  }).dir)
+  assert.match(r.errors.join('\n'), /01-dossier\.md:\d+ chưa có trong ledger: "Giữ bộ lọc khi chuyển trang"/)
+})
+
+test('bỏ: chỉ hợp lệ cho dòng trong Comments', (t) => {
+  const r = traceCheck(card(t, { [`${CARD}/01b-ledger.md`]: LEDGER.replace('| Checklist #2 | |', '| Checklist #2 | bỏ: không làm |') }).dir)
+  assert.match(r.errors.join('\n'), /D-03: "bỏ:" chỉ dùng cho dòng trong mục Comments/)
 })
 
 test('design ở thư mục task con được tính', (t) => {
@@ -2808,10 +3287,12 @@ test('design ở thư mục task con được tính', (t) => {
   assert.deepEqual(r.errors, [])
 })
 
-test('parseTables trả số dòng 1-based', () => {
-  const [tb] = parseTables('x\n| a | b |\n|---|---|\n| 1 | 2 |\n')
+test('parseTables trả số dòng 1-based và biết bảng nằm dưới Phụ lục', () => {
+  const [tb, ap] = parseTables('x\n| a | b |\n|---|---|\n| 1 | 2 |\n## Phụ lục\n### Chi tiết\n| c |\n|---|\n| 3 |\n')
   assert.deepEqual(tb.header, ['a', 'b'])
   assert.deepEqual(tb.rows, [{ cells: ['1', '2'], line: 4 }])
+  assert.equal(tb.inAppendix, false)
+  assert.equal(ap.inAppendix, true)
 })
 
 test('findCardDir: không thấy, trùng, id sai', (t) => {
@@ -2838,7 +3319,31 @@ test('CLI: xanh exit 0, đỏ exit 1, không thấy thẻ exit 2', async (t) => 
 Run: `npm test`
 Expected: FAIL — không tìm thấy `scripts/lib/trace.mjs`.
 
-- [ ] **Step 2: Viết `scripts/lib/cards.mjs`**
+- [ ] **Step 2: Viết `templates/dossier.md`** (khuôn worker ghi và người tạo tay làm theo; heading khớp dossier tiniweb hiện tại)
+
+````markdown
+# Thẻ <id>: <tiêu đề>
+
+## 🌿 Branch
+```text
+feature/<id>-<slug>
+```
+
+## Mô tả
+<mỗi ý 1 dòng hoặc 1 câu>
+
+## IT Note
+<ghi chú kỹ thuật từ người giao, nếu có>
+
+## Checklist
+### Acceptance Criteria
+- [ ] <mỗi tiêu chí 1 dòng>
+
+## Comments
+- <tác giả> · <ngày>: <nội dung>
+````
+
+- [ ] **Step 2b: Viết `scripts/lib/cards.mjs`**
 
 ```js
 import fs from 'node:fs'
@@ -2882,15 +3387,43 @@ function splitRow(line) {
 export function parseTables(text) {
   const lines = norm(text).split(/\r?\n/)
   const tables = []
-  for (let i = 0; i < lines.length - 1; i++) {
-    if (!lines[i].trim().startsWith('|') || !/^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) continue
+  let heads = []
+  for (let i = 0; i < lines.length; i++) {
+    const h = lines[i].match(/^(#{1,6})\s+(.*)$/)
+    if (h) {
+      heads = heads.slice(0, h[1].length - 1)
+      heads[h[1].length - 1] = h[2]
+      continue
+    }
+    if (i === lines.length - 1 || !lines[i].trim().startsWith('|') || !/^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) continue
     const rows = []
     let j = i + 2
     for (; j < lines.length && lines[j].trim().startsWith('|'); j++) rows.push({ cells: splitRow(lines[j]), line: j + 1 })
-    tables.push({ header: splitRow(lines[i]), rows, line: i + 1 })
+    tables.push({ header: splitRow(lines[i]), rows, line: i + 1, inAppendix: heads.some((x) => x && /phụ lục/i.test(x)) })
     i = j - 1
   }
   return tables
+}
+
+const REQUIRED_SECTION_RE = /^(Mô tả|IT Note|Checklist|Acceptance Criteria)/i
+const COMMENT_SECTION_RE = /^Comments?\b/i
+const stripLinePrefix = (l) => l.replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|>\s+)/, '').trim()
+
+// Đơn vị dossier: mỗi dòng nội dung (bỏ tiền tố danh sách) và từng câu trong dòng; bỏ heading, khối code.
+export function dossierUnits(text) {
+  const units = []
+  let section = ''
+  let fence = false
+  norm(text).split(/\r?\n/).forEach((raw, i) => {
+    if (/^\s*```/.test(raw)) { fence = !fence; return }
+    if (fence) return
+    const h = raw.match(/^#{1,6}\s+(.*)$/)
+    if (h) { section = h[1].replace(/^[^\p{L}]+/u, '').trim(); return }
+    const body = stripLinePrefix(raw)
+    if (!body) return
+    units.push({ line: squash(body), sentences: body.split(/(?<=[.!?…])\s+/).map(squash).filter(Boolean), section, lineNo: i + 1 })
+  })
+  return units
 }
 
 export function outOfScopeCodes(text) {
@@ -2950,9 +3483,22 @@ export function traceCheck(cardDir) {
   const ledger = parseLedger(ledgerText)
   errors.push(...ledger.errors)
   if (dossier !== null) {
-    const d = squash(dossier)
+    const units = dossierUnits(dossier)
+    const index = new Map()
+    for (const u of units) for (const k of [u.line, ...u.sentences]) if (!index.has(k)) index.set(k, u)
+    const quotes = new Set()
     for (const [code, e] of ledger.D) {
-      if (!d.includes(squash(e.quote))) errors.push(`01b-ledger.md:${e.line} ${code}: trích không khớp nguyên văn trong 01-dossier.md`)
+      const q = squash(stripLinePrefix(e.quote))
+      if (!q) { errors.push(`01b-ledger.md:${e.line} ${code}: trích rỗng`); continue }
+      quotes.add(q)
+      const u = index.get(q)
+      if (!u) { errors.push(`01b-ledger.md:${e.line} ${code}: trích không khớp nguyên 1 dòng hoặc 1 câu trong 01-dossier.md`); continue }
+      if (e.note.startsWith('bỏ:') && !COMMENT_SECTION_RE.test(u.section)) errors.push(`01b-ledger.md:${e.line} ${code}: "bỏ:" chỉ dùng cho dòng trong mục Comments`)
+    }
+    for (const u of units) {
+      if (!REQUIRED_SECTION_RE.test(u.section)) continue
+      const covered = quotes.has(u.line) || (u.sentences.length > 0 && u.sentences.every((x) => quotes.has(x)))
+      if (!covered) errors.push(`01-dossier.md:${u.lineNo} chưa có trong ledger: "${u.line}"`)
     }
   }
   const known = new Set([...ledger.D.keys(), ...ledger.U.keys()])
@@ -2964,7 +3510,10 @@ export function traceCheck(cardDir) {
     for (const c of outOfScopeCodes(text)) outOfScope.add(c)
     for (const tb of parseTables(text)) {
       const col = tb.header.findIndex((h) => squash(h).toLowerCase() === 'nguồn')
-      if (col < 0) continue
+      if (col < 0) {
+        if (!tb.inAppendix) errors.push(`${rel}:${tb.line} bảng không có cột Nguồn (bảng tra cứu thì đặt dưới heading "Phụ lục")`)
+        continue
+      }
       for (const r of tb.rows) {
         const codes = [...(r.cells[col] ?? '').matchAll(CODE_RE)].map((m) => m[1])
         if (!codes.length) errors.push(`${rel}:${r.line} dòng thiếu nguồn (cần D-xx hoặc U-xx)`)
@@ -3042,7 +3591,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 10: Ghi Gate từ `AskUserQuestion` + client `ff notify`
+### Task 10: Bản ghi Gate (có hash artifact) + client `ff notify`
 
 **Files:**
 - Create: `scripts/lib/gates.mjs`, `scripts/lib/notify.mjs`, `scripts/cli/notify.mjs`
@@ -3050,11 +3599,17 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `tests/gates.test.mjs`, `tests/notify.test.mjs`
 
 **Interfaces:**
-- Consumes: `ffDir` (Task 4); fixture `tests/fixtures/hooks/ask-post.json` (Task 1).
-- Produces (`scripts/lib/gates.mjs`): `GATES`, `APPROVE_LABEL = 'Duyệt'`, `ARTIFACT_GATE = { 'brief.md': 'GATE_A', '03-design.md': 'GATE_B', '05-verify-report.md': 'GATE_C' }`, `GATE_TTL_MS = 86400000`; `gateQuestions(toolInput): { gate, cardId: string | null, question }[]`; `answerFor(toolResponse, question): string | null`; `recordGates(root, toolInput, toolResponse, now?: Date): GateRecord[]`; `isApproved(root, cardId, gate, nowMs?): boolean`. File: `.ff/gates/<cardId>-<gate>.json` = `{ gate, cardId, question, answer, approved, at }`.
-- Produces (`scripts/lib/notify.mjs`): `KINDS = ['info','gate','ask','attention','error','done']`; `makeEvent({ kind, taskId?, title, fields?, body? }): NotifyEvent` (ném lỗi khi `kind` sai hoặc thiếu `title`); `notify(root, event, { timeoutMs = 1500, log }): Promise<{ delivered: boolean }>`.
-- Hợp đồng HTTP (Plan 3 cài phía worker): đọc cổng từ `.ff/worker.json` `{ port }`; `POST http://127.0.0.1:<port>/notify`, body JSON `NotifyEvent`, worker trả `2xx`.
-- Produces (CLI): `ff notify --kind <kind> --title <tiêu đề> [--task <id>] [--body <nội dung>]` — exit `0` kể cả khi worker không chạy; `2` khi sai tham số.
+- Consumes: `ffDir` (Task 4); `findCardDir` (Task 9); fixture `tests/fixtures/hooks/ask-post.json` (Task 1).
+- Produces (`scripts/lib/gates.mjs`), theo D21 của spec (bản ghi Gate là nguồn sự thật, marker chỉ để đọc):
+  - `GATES`, `APPROVE_LABEL = 'Duyệt'`, `ARTIFACT_GATE = { 'brief.md': 'GATE_A', '03-design.md': 'GATE_B', '05-verify-report.md': 'GATE_C' }`.
+  - `MARKER_RE = /Trạng thái:\s*ĐÃ DUYỆT/` — khớp đúng bộ đọc `ff.sh:73` (`head -10 | grep -q 'Trạng thái: ĐÃ DUYỆT'`), không đòi `>`.
+  - `hasMarker(text): boolean` — có marker trong 10 dòng đầu.
+  - `bodyHash(text): string` — sha256 của nội dung sau khi bỏ mọi dòng chứa `Trạng thái:` trong 10 dòng đầu (chuẩn hóa NFC, bỏ BOM, CRLF → LF, bỏ khoảng trắng cuối).
+  - `gateQuestions(toolInput): { gate, cardId: string | null, question }[]`; `answerFor(toolResponse, question): string | null`.
+  - `recordGates(root, config, toolInput, toolResponse, now?: Date): GateRecord[]` — ghi `.ff/gates/<cardId>-<gate>.json` = `{ gate, cardId, question, answer, approved, at, hashes: { "<đường dẫn tương đối thư mục thẻ>": "<bodyHash>" } }`, `hashes` gồm mọi file tên artifact của Gate đó trong thư mục thẻ (kể cả `task-N/`).
+  - `isApproved(root, cardId, gate, relPath, content): boolean` — `approved === true` và `hashes[relPath] === bodyHash(content)`. Không còn hạn 24 giờ: sửa nội dung là tự mất duyệt.
+- Produces (`scripts/lib/notify.mjs`): `KINDS`; `makeEvent({ kind, taskId?, title, fields?, body? })`; `notify(root, event, { timeoutMs = 1500, log }): Promise<{ delivered }>`. Đọc `.ff/worker.json` `{ port, token }`, gửi `POST http://127.0.0.1:<port>/notify` kèm header `authorization: Bearer <token>` (Plan 3 cài phía worker, từ chối request thiếu token).
+- Produces (CLI): `ff notify --kind <kind> --title <t> [--task <id>] [--body <b>]` — exit `0` kể cả khi worker không chạy; `2` khi sai tham số.
 
 - [ ] **Step 1: Viết test gates (fail)**
 
@@ -3066,13 +3621,22 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { gateQuestions, answerFor, recordGates, isApproved } from '../scripts/lib/gates.mjs'
+import { gateQuestions, answerFor, recordGates, isApproved, bodyHash, hasMarker } from '../scripts/lib/gates.mjs'
+import { loadConfig } from '../scripts/lib/config.mjs'
 import { makeWorkspace } from './helpers/fixture.mjs'
 
 const fixture = JSON.parse(fs.readFileSync(fileURLToPath(new URL('./fixtures/hooks/ask-post.json', import.meta.url)), 'utf8'))
 const Q = '[#123] Duyệt Brief?'
-const input = { questions: [{ header: 'GATE_A', question: Q, options: [{ label: 'Duyệt' }, { label: 'Cần sửa' }], multiSelect: false }] }
-const respWith = (answer) => ({ ...fixture.tool_response, answers: { [Q]: answer } })
+const CARD = 'trellocards/123-loc'
+const BRIEF = '> Trạng thái: CHỜ DUYỆT\n# Brief 123\nNội dung\n'
+const input = (gate = 'GATE_A', q = Q) => ({ questions: [{ header: gate, question: q, options: [{ label: 'Duyệt' }, { label: 'Cần sửa' }], multiSelect: false }] })
+const respWith = (answer, q = Q) => ({ ...fixture.tool_response, answers: { [q]: answer } })
+
+function ws(t, files = {}) {
+  const w = makeWorkspace({ files: { [`${CARD}/brief.md`]: BRIEF, ...files } })
+  t.after(w.cleanup)
+  return { root: w.root, config: loadConfig(w.root).config }
+}
 
 test('fixture spike đọc được câu trả lời', () => {
   const q = fixture.tool_input.questions[0].question
@@ -3080,29 +3644,50 @@ test('fixture spike đọc được câu trả lời', () => {
 })
 
 test('gateQuestions lọc header GATE_* và lấy id thẻ', () => {
-  assert.deepEqual(gateQuestions(input), [{ gate: 'GATE_A', cardId: '123', question: Q }])
-  assert.deepEqual(gateQuestions({ questions: [{ header: 'Khác', question: Q }] }), [])
+  assert.deepEqual(gateQuestions(input()), [{ gate: 'GATE_A', cardId: '123', question: Q }])
+  assert.deepEqual(gateQuestions({ questions: [{ header: 'Q1', question: Q }] }), [])
   assert.equal(gateQuestions({ questions: [{ header: 'GATE_B', question: 'Duyệt design?' }] })[0].cardId, null)
 })
 
-test('Duyệt → approved; Cần sửa hoặc trả lời tự do → không', (t) => {
-  const ws = makeWorkspace()
-  t.after(ws.cleanup)
-  recordGates(ws.root, input, respWith('Duyệt'))
-  assert.equal(isApproved(ws.root, '123', 'GATE_A'), true)
-  const rec = JSON.parse(fs.readFileSync(path.join(ws.root, '.ff/gates/123-GATE_A.json'), 'utf8'))
-  assert.equal(rec.answer, 'Duyệt')
-  recordGates(ws.root, input, respWith('Cần sửa'))
-  assert.equal(isApproved(ws.root, '123', 'GATE_A'), false)
-  recordGates(ws.root, input, respWith('ok tùy bạn'))
-  assert.equal(isApproved(ws.root, '123', 'GATE_A'), false)
+test('hasMarker khớp bộ đọc ff.sh: không cần ">", chỉ 10 dòng đầu', () => {
+  assert.equal(hasMarker('> Trạng thái: ĐÃ DUYỆT 2026-10-13\n'), true)
+  assert.equal(hasMarker('Trạng thái: ĐÃ DUYỆT\n'), true)
+  assert.equal(hasMarker('- Trạng thái: ĐÃ DUYỆT\n'), true)
+  assert.equal(hasMarker('> Trạng thái: ĐÃ DUYỆT'.normalize('NFD')), true)
+  assert.equal(hasMarker('x\n'.repeat(10) + 'Trạng thái: ĐÃ DUYỆT\n'), false)
 })
 
-test('Gate quá 24 giờ hết hiệu lực', (t) => {
-  const ws = makeWorkspace()
-  t.after(ws.cleanup)
-  recordGates(ws.root, input, respWith('Duyệt'), new Date(Date.now() - 25 * 3600 * 1000))
-  assert.equal(isApproved(ws.root, '123', 'GATE_A'), false)
+test('bodyHash bỏ dòng trạng thái, giữ phần thân', () => {
+  assert.equal(bodyHash(BRIEF), bodyHash(BRIEF.replace('CHỜ DUYỆT', 'ĐÃ DUYỆT 2026-10-13')))
+  assert.equal(bodyHash(BRIEF), bodyHash(BRIEF.replace(/\n/g, '\r\n')))
+  assert.notEqual(bodyHash(BRIEF), bodyHash(BRIEF.replace('Nội dung', 'Nội dung khác')))
+})
+
+test('Duyệt → approved khi nội dung còn khớp; sửa thân → mất duyệt', (t) => {
+  const { root, config } = ws(t)
+  recordGates(root, config, input(), respWith('Duyệt'))
+  const withMarker = BRIEF.replace('CHỜ DUYỆT', 'ĐÃ DUYỆT 2026-10-13')
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', withMarker), true)
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', withMarker + 'thêm dòng\n'), false)
+  const rec = JSON.parse(fs.readFileSync(path.join(root, '.ff/gates/123-GATE_A.json'), 'utf8'))
+  assert.equal(rec.answer, 'Duyệt')
+  assert.deepEqual(Object.keys(rec.hashes), ['brief.md'])
+})
+
+test('Cần sửa hoặc trả lời tự do → không duyệt', (t) => {
+  const { root, config } = ws(t)
+  recordGates(root, config, input(), respWith('Cần sửa'))
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', BRIEF), false)
+  recordGates(root, config, input(), respWith('ok tùy bạn'))
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', BRIEF), false)
+})
+
+test('GATE_B hash mọi 03-design.md kể cả task-N/', (t) => {
+  const q = '[#123] Duyệt design?'
+  const { root, config } = ws(t, { [`${CARD}/03-design.md`]: 'A\n', [`${CARD}/task-1/03-design.md`]: 'B\n' })
+  const [rec] = recordGates(root, config, input('GATE_B', q), respWith('Duyệt', q))
+  assert.deepEqual(Object.keys(rec.hashes).sort(), ['03-design.md', 'task-1/03-design.md'])
+  assert.equal(isApproved(root, '123', 'GATE_B', 'task-1/03-design.md', 'B\n'), true)
 })
 
 test('answerFor chịu được mảng và thiếu dữ liệu', () => {
@@ -3117,16 +3702,29 @@ test('answerFor chịu được mảng và thiếu dữ liệu', () => {
 Nếu Task 1 ghi nhận field câu trả lời khác `tool_response.answers`, sửa `answerFor` cho khớp fixture trước khi chạy test.
 
 ```js
-// Ghi câu trả lời Gate từ hook PostToolUse(AskUserQuestion); guard đọc để cho/không cho ghi marker ĐÃ DUYỆT.
+// Bản ghi Gate là nguồn sự thật (D21). Hook PostToolUse(AskUserQuestion) ghi; guard và `ff state` đọc.
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { ffDir } from './state.mjs'
+import { findCardDir } from './cards.mjs'
 
 export const GATES = ['GATE_A', 'GATE_B', 'GATE_C']
 export const APPROVE_LABEL = 'Duyệt'
 export const ARTIFACT_GATE = { 'brief.md': 'GATE_A', '03-design.md': 'GATE_B', '05-verify-report.md': 'GATE_C' }
-export const GATE_TTL_MS = 24 * 60 * 60 * 1000
+const GATE_ARTIFACT = Object.fromEntries(Object.entries(ARTIFACT_GATE).map(([f, g]) => [g, f]))
+export const MARKER_RE = /Trạng thái:\s*ĐÃ DUYỆT/
+const STATUS_RE = /Trạng thái:/
 const CARD_PREFIX_RE = /^\s*\[#([A-Za-z0-9]+)\]/
+
+const lines = (text) => text.replace(/^\uFEFF/, '').normalize('NFC').split(/\r?\n/)
+
+export const hasMarker = (text) => typeof text === 'string' && lines(text).slice(0, 10).some((l) => MARKER_RE.test(l))
+
+export function bodyHash(text) {
+  const body = lines(text).filter((l, i) => !(i < 10 && STATUS_RE.test(l))).join('\n').replace(/\s+$/, '')
+  return crypto.createHash('sha256').update(body).digest('hex')
+}
 
 export function gateQuestions(toolInput) {
   const qs = Array.isArray(toolInput?.questions) ? toolInput.questions : []
@@ -3149,13 +3747,29 @@ export function answerFor(resp, question) {
   return null
 }
 
+function artifactHashes(cardDir, gate) {
+  const name = GATE_ARTIFACT[gate]
+  const out = {}
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.name.startsWith('.')) continue
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (e.name === name) out[path.relative(cardDir, p).split(path.sep).join('/')] = bodyHash(fs.readFileSync(p, 'utf8'))
+    }
+  }
+  walk(cardDir)
+  return out
+}
+
 const gateFile = (root, cardId, gate) => path.join(ffDir(root), 'gates', `${cardId}-${gate}.json`)
 
-export function recordGates(root, toolInput, toolResponse, now = new Date()) {
+export function recordGates(root, config, toolInput, toolResponse, now = new Date()) {
   const out = []
   for (const g of gateQuestions(toolInput)) {
     if (!g.cardId) continue
     const answer = answerFor(toolResponse, g.question)
+    const card = findCardDir(root, config, g.cardId)
     const rec = {
       gate: g.gate,
       cardId: g.cardId,
@@ -3163,6 +3777,7 @@ export function recordGates(root, toolInput, toolResponse, now = new Date()) {
       answer,
       approved: (answer ?? '').normalize('NFC').trim() === APPROVE_LABEL,
       at: now.toISOString(),
+      hashes: card.dir ? artifactHashes(card.dir, g.gate) : {},
     }
     const f = gateFile(root, g.cardId, g.gate)
     fs.mkdirSync(path.dirname(f), { recursive: true })
@@ -3172,10 +3787,10 @@ export function recordGates(root, toolInput, toolResponse, now = new Date()) {
   return out
 }
 
-export function isApproved(root, cardId, gate, nowMs = Date.now()) {
+export function isApproved(root, cardId, gate, relPath, content) {
   try {
     const r = JSON.parse(fs.readFileSync(gateFile(root, cardId, gate), 'utf8'))
-    return r.approved === true && nowMs - Date.parse(r.at) <= GATE_TTL_MS
+    return r.approved === true && r.hashes?.[relPath] === bodyHash(content)
   } catch {
     return false
   }
@@ -3206,9 +3821,9 @@ async function server(t, handler) {
   t.after(() => { s.closeAllConnections(); s.close() })
   return s.address().port
 }
-const writePort = (root, port) => {
+const writeWorker = (root, port) => {
   fs.mkdirSync(path.join(root, '.ff'), { recursive: true })
-  fs.writeFileSync(path.join(root, '.ff/worker.json'), JSON.stringify({ port }))
+  fs.writeFileSync(path.join(root, '.ff/worker.json'), JSON.stringify({ port, token: 'tok123' }), { mode: 0o600 })
 }
 const ws = (t) => { const w = makeWorkspace(); t.after(w.cleanup); return w.root }
 const ev = makeEvent({ kind: 'gate', taskId: '123', title: 'GATE_A thẻ #123 chờ duyệt' })
@@ -3226,28 +3841,28 @@ test('worker không chạy → delivered false, có log', async (t) => {
   assert.match(logs.join(), /worker không chạy/)
 })
 
-test('worker nhận đúng body', async (t) => {
+test('worker nhận đúng body và token', async (t) => {
   const root = ws(t)
   let got
   const port = await server(t, (req, res) => {
     let b = ''
     req.on('data', (c) => { b += c })
-    req.on('end', () => { got = { url: req.url, method: req.method, body: JSON.parse(b) }; res.writeHead(204).end() })
+    req.on('end', () => { got = { url: req.url, method: req.method, auth: req.headers.authorization, body: JSON.parse(b) }; res.writeHead(204).end() })
   })
-  writePort(root, port)
+  writeWorker(root, port)
   assert.equal((await notify(root, ev, { log: () => {} })).delivered, true)
-  assert.deepEqual(got, { url: '/notify', method: 'POST', body: ev })
+  assert.deepEqual(got, { url: '/notify', method: 'POST', auth: 'Bearer tok123', body: ev })
 })
 
 test('worker trả 500 → delivered false', async (t) => {
   const root = ws(t)
-  writePort(root, await server(t, (req, res) => res.writeHead(500).end()))
+  writeWorker(root, await server(t, (req, res) => res.writeHead(500).end()))
   assert.equal((await notify(root, ev, { log: () => {} })).delivered, false)
 })
 
 test('notify timeout: worker treo → trả trong thời hạn', async (t) => {
   const root = ws(t)
-  writePort(root, await server(t, () => {}))
+  writeWorker(root, await server(t, () => {}))
   const t0 = Date.now()
   const r = await notify(root, ev, { timeoutMs: 200, log: () => {} })
   assert.equal(r.delivered, false)
@@ -3281,18 +3896,18 @@ export function makeEvent({ kind, taskId = '', title, fields = {}, body = '' }) 
 }
 
 export async function notify(root, event, { timeoutMs = 1500, log = (s) => process.stderr.write(s) } = {}) {
-  let port
+  let w = {}
   try {
-    port = JSON.parse(fs.readFileSync(path.join(root, '.ff', 'worker.json'), 'utf8')).port
+    w = JSON.parse(fs.readFileSync(path.join(root, '.ff', 'worker.json'), 'utf8'))
   } catch {}
-  if (!port) {
+  if (!w.port) {
     log(`[ff notify] worker không chạy — bỏ qua: ${event.kind} ${event.title}\n`)
     return { delivered: false }
   }
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/notify`, {
+    const res = await fetch(`http://127.0.0.1:${w.port}/notify`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${w.token ?? ''}` },
       body: JSON.stringify(event),
       signal: AbortSignal.timeout(timeoutMs),
     })
@@ -3348,26 +3963,28 @@ Expected: PASS mọi test.
 
 ```bash
 git add scripts/lib/gates.mjs scripts/lib/notify.mjs scripts/cli/notify.mjs scripts/cli/main.mjs tests/gates.test.mjs tests/notify.test.mjs
-git commit -m "feat: ghi Gate từ AskUserQuestion và client ff notify
+git commit -m "feat: bản ghi Gate có hash artifact và client ff notify
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ---
 
-### Task 11: Guard — luật mới (`.ff.env`, marker `ĐÃ DUYỆT`, không làm gì ngoài workspace)
+### Task 11: Guard — luật mới (secret, `.ff/`, artifact Gate, marker theo hash, hỏi trước `ship-approve`/`relock`)
 
 **Files:**
-- Modify: `scripts/lib/guard-rules.mjs`
+- Modify: `scripts/lib/guard-rules.mjs`, `scripts/guard.mjs`
 - Test: `tests/guard-new.test.mjs`
 
 **Interfaces:**
-- Consumes: `ARTIFACT_GATE`, `isApproved`, `recordGates` (Task 10); `makeGuard` (Task 8).
-- Produces: `evaluate()` thêm 4 luật, chạy trước luật cũ:
-  1. Bash có tham chiếu file secret (`secrets.env_file`, `db.env_file`, `e2e.auth.jwt.secret.file`, `e2e.auth_storage`, so theo tên file, không khớp `<tên>.example`) mà lệnh đầu đoạn không phải `ff` → chặn.
-  2. Mọi tool có `file` trỏ đúng một file secret (Read, Grep, Edit, Write…) → chặn.
-  3. Edit/Write làm **xuất hiện** dòng `> Trạng thái: ĐÃ DUYỆT` trong `brief.md`/`03-design.md`/`05-verify-report.md` dưới `cards_dir` mà chưa có Gate tương ứng được duyệt trong 24 giờ → chặn.
-  4. Bash vừa chứa `ĐÃ DUYỆT` vừa ghi file (verb ghi hoặc redirect) → chặn (marker chỉ ghi bằng Edit/Write).
+- Consumes: `ARTIFACT_GATE`, `hasMarker`, `isApproved`, `recordGates` (Task 10); `makeGuard` (Task 8); `tokenize`, `segments`, `stripPrefix` (Task 7).
+- Produces: `evaluate()` thêm các luật sau, chạy trước luật cũ:
+  1. **File secret** = `secrets.env_file`, `db.env_file`, `e2e.auth.jwt.secret.file`, `e2e.auth_storage`, `.ff/worker.json` (chứa token HTTP của worker). Bash nhắc tên file (so theo tên, không khớp `<tên>.example`) → chặn, trừ đoạn bắt đầu bằng `ff` **không** chứa `$(`, backtick, `<(`. Tool có `file` trỏ đúng file secret (Read, Grep, Edit, Write…) → chặn.
+  2. **`.ff/`** do hook và CLI `ff` ghi: tool sửa file trong `.ff/` → chặn; Bash nhắc `.ff/` kèm động từ ghi, redirect hoặc trình thông dịch (`python`, `node`, `perl`, `ruby`, `deno`, `bun`) mà không phải lệnh `ff` → chặn. Đọc (`cat .ff/doctor.json`) được.
+  3. **Artifact Gate** (`brief.md`, `03-design.md`, `05-verify-report.md` dưới `cards_dir`): Bash nhắc tên các file này kèm động từ ghi, redirect hoặc trình thông dịch → chặn ("sửa bằng Edit/Write").
+  4. **Marker** (D21): Edit/Write/MultiEdit/NotebookEdit vào artifact Gate mà nội dung **sau khi sửa** có marker `Trạng thái: ĐÃ DUYỆT` trong 10 dòng đầu → chỉ cho qua khi `isApproved(root, cardId, gate, relPath, nội dung sau sửa)`. Áp cả khi marker đã có sẵn mà phần thân đổi.
+  5. Bash vừa chứa `ĐÃ DUYỆT` vừa ghi file → chặn.
+- Produces (`scripts/guard.mjs`): lệnh `ff ship-approve …`/`ff relock …` không bị chặn → in JSON `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"…"}}` và exit 0 (D23). `--format agy` giữ `force_ask` như cũ. Nếu Task 1 ghi nhận Claude Code không nhận `permissionDecision: "ask"` từ hook, ghi vào note và dựa vào `permissions.ask` do `/ff-init` sinh (Plan 4).
 
 - [ ] **Step 1: Viết test (fail)**
 
@@ -3381,6 +3998,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import YAML from 'yaml'
 import { makeGuard } from '../scripts/lib/guard-rules.mjs'
 import { loadConfig } from '../scripts/lib/config.mjs'
 import { recordGates } from '../scripts/lib/gates.mjs'
@@ -3388,54 +4006,47 @@ import { makeWorkspace, baseConfig } from './helpers/fixture.mjs'
 
 const GUARD = fileURLToPath(new URL('../scripts/guard.mjs', import.meta.url))
 const CARD = 'trellocards/123-loc'
-const MARK = '> Trạng thái: ĐÃ DUYỆT 2026-10-13\n# Brief\n'
+const PENDING = '> Trạng thái: CHỜ DUYỆT\n# Brief\nThân\n'
+const APPROVED = PENDING.replace('CHỜ DUYỆT', 'ĐÃ DUYỆT 2026-10-13')
 
 function setup(t, mut = (c) => c) {
-  const ws = makeWorkspace({ config: mut(baseConfig()), gitRepos: false, files: { [`${CARD}/brief.md`]: '> Trạng thái: CHỜ DUYỆT\n# Brief\n' } })
+  const ws = makeWorkspace({ config: mut(baseConfig()), gitRepos: false, files: { [`${CARD}/brief.md`]: PENDING } })
   t.after(ws.cleanup)
-  const G = makeGuard(ws.root, loadConfig(ws.root).config)
+  const config = loadConfig(ws.root).config
+  const G = makeGuard(ws.root, config)
   const ev = (o) => G.evaluate({ cwd: ws.root, mode: 'base', ...o })
-  const approve = (gate, answer = 'Duyệt', at = new Date()) => {
-    const q = `[#123] Duyệt ${gate}?`
-    recordGates(ws.root, { questions: [{ header: gate, question: q }] }, { answers: { [q]: answer } }, at)
+  const approve = (answer = 'Duyệt') => {
+    const q = '[#123] Duyệt GATE_A?'
+    recordGates(ws.root, config, { questions: [{ header: 'GATE_A', question: q }] }, { answers: { [q]: answer } })
   }
   return { root: ws.root, ev, approve }
 }
 
-test('Bash chạm .ff.env bị chặn, ff và .ff.env.example được qua', (t) => {
+test('Bash chạm .ff.env bị chặn; ff không kèm $(...) và .ff.env.example được qua', (t) => {
   const { ev } = setup(t)
-  for (const cmd of ['cat .ff.env', 'grep TOKEN .ff.env', 'source .ff.env', 'cat < .ff.env', 'cp .ff.env /tmp/x', 'base64 ./.ff.env', 'bash -c "cat .ff.env"', 'head -1 /abs/path/.ff.env'])
+  for (const cmd of ['cat .ff.env', 'grep TOKEN .ff.env', 'source .ff.env', 'cat < .ff.env', 'cp .ff.env /tmp/x', 'base64 ./.ff.env', 'bash -c "cat .ff.env"', 'head -1 /abs/path/.ff.env', 'ff notify --kind info --title x --body "$(cat .ff.env)"', 'ff notify --kind info --title x --body `cat .ff.env`'])
     assert.notEqual(ev({ cmd }), null, cmd)
   for (const cmd of ['ff doctor', 'cat .ff.env.example', 'echo ok', 'ls -la'])
     assert.equal(ev({ cmd }), null, cmd)
 })
 
-test('tool đọc/sửa file .ff.env bị chặn', (t) => {
+test('tool đọc/sửa file secret bị chặn', (t) => {
   const { ev } = setup(t)
-  assert.notEqual(ev({ file: '.ff.env', tool: 'Read' }), null)
-  assert.notEqual(ev({ file: '.ff.env', tool: 'Grep' }), null)
-  assert.notEqual(ev({ file: '.ff.env', tool: 'Edit' }), null)
+  for (const tool of ['Read', 'Grep', 'Edit']) assert.notEqual(ev({ file: '.ff.env', tool }), null, tool)
+  assert.notEqual(ev({ file: '.ff/worker.json', tool: 'Read' }), null)
   assert.equal(ev({ file: '.ff.env.example', tool: 'Read' }), null)
 })
 
-test('file secret của jwt-mint cũng bị chặn', (t) => {
+test('file secret của jwt-mint, db và auth_storage', (t) => {
   const { ev } = setup(t, (c) => ({
     ...c,
-    e2e: { dir: 'ff-e2e', auth: { strategy: 'jwt-mint', jwt: { secret: { file: 'api/.env', key: 'JWT_SECRET' }, algorithm: 'HS256', payload: { sub: '{user.id}' }, deliver: { via: 'query', name: 'token' } } } },
+    db: { driver: 'postgres', env_file: 'api/.env.DATABASE' },
+    e2e: { dir: 'ff-e2e', auth_storage: 'ff-e2e/.auth/state.json', auth: { strategy: 'jwt-mint', jwt: { secret: { file: 'api/.env', key: 'JWT_SECRET' }, algorithm: 'HS256', payload: { sub: '{user.id}' }, deliver: [{ via: 'query', name: 'token' }] } } },
   }))
-  assert.notEqual(ev({ cmd: 'cat api/.env' }), null)
-  assert.notEqual(ev({ cmd: 'cd api && grep JWT .env' }), null)
-  assert.notEqual(ev({ file: 'api/.env', tool: 'Read' }), null)
+  for (const cmd of ['cat api/.env', 'cd api && grep JWT .env', 'cat api/.env.DATABASE', 'cat ff-e2e/.auth/state.json'])
+    assert.notEqual(ev({ cmd }), null, cmd)
+  for (const file of ['api/.env', 'api/.env.DATABASE', 'ff-e2e/.auth/state.json']) assert.notEqual(ev({ file, tool: 'Read' }), null, file)
   assert.equal(ev({ cmd: 'cat api/.env.example' }), null)
-  assert.equal(ev({ file: 'api/.env.example', tool: 'Read' }), null)
-})
-
-test('db.env_file và e2e.auth_storage cũng bị chặn', (t) => {
-  const { ev } = setup(t, (c) => ({ ...c, db: { driver: 'postgres', env_file: 'api/.env.DATABASE' }, e2e: { dir: 'ff-e2e', auth_storage: 'ff-e2e/.auth/state.json' } }))
-  assert.notEqual(ev({ cmd: 'cat api/.env.DATABASE' }), null)
-  assert.notEqual(ev({ file: 'api/.env.DATABASE', tool: 'Read' }), null)
-  assert.notEqual(ev({ cmd: 'cat ff-e2e/.auth/state.json' }), null)
-  assert.notEqual(ev({ file: 'ff-e2e/.auth/state.json', tool: 'Read' }), null)
 })
 
 test('env_file tùy chỉnh', (t) => {
@@ -3445,37 +4056,61 @@ test('env_file tùy chỉnh', (t) => {
   assert.equal(ev({ cmd: 'cat .ff.env' }), null)
 })
 
-test('marker ĐÃ DUYỆT: chặn khi chưa có Gate, cho qua khi đã Duyệt', (t) => {
+test('.ff/ chỉ hook và ff được ghi', (t) => {
+  const { ev } = setup(t)
+  assert.notEqual(ev({ file: '.ff/gates/123-GATE_A.json', tool: 'Write', input: { content: '{"approved":true}' } }), null)
+  assert.notEqual(ev({ cmd: `echo '{"approved":true}' > .ff/gates/123-GATE_A.json` }), null)
+  assert.notEqual(ev({ cmd: `python3 -c "open('.ff/gates/x.json','w').write('{}')"` }), null)
+  assert.equal(ev({ cmd: 'cat .ff/doctor.json' }), null)
+})
+
+test('marker: chặn khi chưa Duyệt, qua khi Duyệt và thân không đổi', (t) => {
   const { ev, approve } = setup(t)
-  const write = { file: `${CARD}/brief.md`, tool: 'Write', input: { content: MARK } }
-  assert.match(ev(write), /GATE_A của thẻ #123/)
-  approve('GATE_A', 'Cần sửa')
-  assert.notEqual(ev(write), null)
-  approve('GATE_A', 'Duyệt', new Date(Date.now() - 25 * 3600 * 1000))
-  assert.notEqual(ev(write), null)
-  approve('GATE_A')
-  assert.equal(ev(write), null)
+  const write = (content) => ev({ file: `${CARD}/brief.md`, tool: 'Write', input: { content } })
+  assert.match(write(APPROVED), /GATE_A của thẻ #123/)
+  approve('Cần sửa')
+  assert.notEqual(write(APPROVED), null)
+  approve('Duyệt')
+  assert.equal(write(APPROVED), null)
+  assert.notEqual(write(APPROVED + 'Thêm sau khi duyệt\n'), null)
 })
 
-test('Edit thêm marker bị chặn; Edit giữ marker có sẵn thì qua', (t) => {
-  const { ev } = setup(t)
-  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'Edit', input: { old_string: '> Trạng thái: CHỜ DUYỆT', new_string: '> Trạng thái: ĐÃ DUYỆT 2026-10-13' } }), null)
-  assert.equal(ev({ file: `${CARD}/brief.md`, tool: 'Edit', input: { old_string: '> Trạng thái: ĐÃ DUYỆT 2026-10-13\n# Brief', new_string: '> Trạng thái: ĐÃ DUYỆT 2026-10-13\n# Brief 123' } }), null)
-  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'MultiEdit', input: { edits: [{ old_string: 'a', new_string: 'b' }, { old_string: 'CHỜ DUYỆT', new_string: '\n> Trạng thái: ĐÃ DUYỆT' }] } }), null)
+test('Edit: thêm marker cần Duyệt; marker có sẵn mà sửa thân thì bị chặn', (t) => {
+  const { root, ev, approve } = setup(t)
+  const addMarker = { file: `${CARD}/brief.md`, tool: 'Edit', input: { old_string: 'CHỜ DUYỆT', new_string: 'ĐÃ DUYỆT 2026-10-13' } }
+  assert.notEqual(ev(addMarker), null)
+  approve()
+  assert.equal(ev(addMarker), null)
+  fs.writeFileSync(path.join(root, CARD, 'brief.md'), APPROVED)
+  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'Edit', input: { old_string: 'Thân', new_string: 'Thân mới' } }), null)
+  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'MultiEdit', input: { edits: [{ old_string: 'Thân', new_string: 'Khác' }] } }), null)
 })
 
-test('marker NFD vẫn bị nhận ra; GATE B TỰ QUA và file ngoài cards_dir không bị chặn', (t) => {
+test('marker không có ">", qua NotebookEdit, NFD đều bị nhận ra', (t) => {
   const { ev } = setup(t)
-  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'Write', input: { content: MARK.normalize('NFD') } }), null)
+  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'Write', input: { content: 'Trạng thái: ĐÃ DUYỆT\n# Brief\nThân\n' } }), null)
+  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'Write', input: { content: '- Trạng thái: ĐÃ DUYỆT\n' } }), null)
+  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'Write', input: { content: APPROVED.normalize('NFD') } }), null)
+  assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'NotebookEdit', input: { new_source: 'Trạng thái: ĐÃ DUYỆT' } }), null)
+})
+
+test('GATE B TỰ QUA và file ngoài cards_dir không bị chặn', (t) => {
+  const { ev } = setup(t)
   assert.equal(ev({ file: `${CARD}/03-design.md`, tool: 'Write', input: { content: '> Trạng thái: GATE B TỰ QUA 2026-10-13\n' } }), null)
-  assert.equal(ev({ file: 'docs/brief.md', tool: 'Write', input: { content: MARK } }), null)
+  assert.equal(ev({ file: 'docs/brief.md', tool: 'Write', input: { content: APPROVED } }), null)
 })
 
-test('Bash ghi marker bị chặn, Bash đọc marker được qua', (t) => {
+test('Bash ghi artifact Gate hoặc marker bị chặn, đọc thì qua', (t) => {
   const { ev } = setup(t)
-  assert.notEqual(ev({ cmd: `sed -i '' '1s/.*/> Trạng thái: ĐÃ DUYỆT/' ${CARD}/brief.md` }), null)
-  assert.notEqual(ev({ cmd: `echo '> Trạng thái: ĐÃ DUYỆT' > ${CARD}/brief.md` }), null)
-  assert.equal(ev({ cmd: `grep -c "ĐÃ DUYỆT" ${CARD}/brief.md 2>/dev/null` }), null)
+  for (const cmd of [
+    `sed -i '' '1s/.*/> Trạng thái: ĐÃ DUYỆT/' ${CARD}/brief.md`,
+    `echo '> Trạng thái: ĐÃ DUYỆT' > ${CARD}/brief.md`,
+    `cp /tmp/b.md ${CARD}/brief.md`,
+    `python3 -c "open('${CARD}/brief.md','w').write('x')"`,
+    `node -e "require('fs').writeFileSync('${CARD}/03-design.md','x')"`,
+  ]) assert.notEqual(ev({ cmd }), null, cmd)
+  for (const cmd of [`cat ${CARD}/brief.md`, `grep -c "ĐÃ DUYỆT" ${CARD}/brief.md 2>/dev/null`, `head -10 ${CARD}/brief.md`])
+    assert.equal(ev({ cmd }), null, cmd)
 })
 
 test('guard no-op ngoài workspace', () => {
@@ -3486,79 +4121,111 @@ test('guard no-op ngoài workspace', () => {
   assert.equal(r.stdout + r.stderr, '')
 })
 
-test('config hỏng: vẫn chặn luật cơ bản và .ff.env', (t) => {
-  const ws = makeWorkspace({ files: { 'ff.config.yaml': 'repos: [\n' }, gitRepos: false })
-  t.after(ws.cleanup)
-  const run = (cmd) => spawnSync('node', [GUARD, '--cwd', ws.root, '--cmd', cmd], { encoding: 'utf8' }).status
-  assert.equal(run('git stash'), 2)
-  assert.equal(run('cat .ff.env'), 2)
-  assert.equal(run('git status'), 0)
+test('config hỏng cú pháp hoặc sai schema: vẫn chặn luật cơ bản bằng exit 2', (t) => {
+  const bad = {
+    'yaml hỏng': 'repos: [\n',
+    'thiếu repos': YAML.stringify({ version: 1, workspace: { root: '.', cards_dir: 'trellocards', worktrees_dir: 'worktrees' }, secrets: { env_file: '.ff.env' } }),
+    'regex hỏng': YAML.stringify({ ...baseConfig(), guard: { migration_script_re: '(' } }),
+    'workspace null': YAML.stringify({ ...baseConfig(), workspace: null }),
+  }
+  for (const [name, text] of Object.entries(bad)) {
+    const ws = makeWorkspace({ files: { 'ff.config.yaml': text }, gitRepos: false })
+    t.after(ws.cleanup)
+    const run = (cmd) => spawnSync('node', [GUARD, '--cwd', ws.root, '--cmd', cmd], { encoding: 'utf8' }).status
+    assert.equal(run('git stash'), 2, name)
+    assert.equal(run('cat .ff.env'), 2, name)
+    assert.equal(run('git status'), 0, name)
+  }
+})
+
+test('ff ship-approve / relock → hook trả permissionDecision ask', (t) => {
+  const { root } = setup(t)
+  for (const cmd of ['ff ship-approve 123', 'ff relock 123 --reason x']) {
+    const r = spawnSync('node', [GUARD, '--cwd', root, '--cmd', cmd], { encoding: 'utf8' })
+    assert.equal(r.status, 0, cmd)
+    assert.equal(JSON.parse(r.stdout).hookSpecificOutput.permissionDecision, 'ask', cmd)
+  }
+  const plain = spawnSync('node', [GUARD, '--cwd', root, '--cmd', 'ff doctor'], { encoding: 'utf8' })
+  assert.equal(plain.stdout, '')
 })
 ```
 
 Run: `node --test tests/guard-new.test.mjs`
-Expected: FAIL ở các test `.ff.env` và marker (`guard no-op` và `config hỏng: git stash` có thể đã PASS từ Task 8).
+Expected: FAIL ở các test secret, `.ff/`, artifact, marker, ask (test `guard no-op` và `config hỏng` có thể đã PASS từ Task 3 + Task 8).
 
 - [ ] **Step 2: Sửa `scripts/lib/guard-rules.mjs`**
 
 Thêm import đầu file:
 
 ```js
-import { ARTIFACT_GATE, isApproved } from './gates.mjs'
+import { ARTIFACT_GATE, hasMarker, isApproved } from './gates.mjs'
 ```
 
 Thêm hằng số dưới `FF_ASK_RE`:
 
 ```js
-const MARKER_RE = /^\s*>\s*Trạng thái:\s*ĐÃ DUYỆT/m
-const hasMarker = (s) => typeof s === 'string' && MARKER_RE.test(s.normalize('NFC'))
 const REDIRECT_RE = /(?<![\d&=-])>>?\s*\S/
+const INTERP_RE = /(?:^|[\s/])(?:python3?|node|perl|ruby|deno|bun)(?=\s|$)/
+const SUBST_RE = /\$\(|`|<\(/
+const ARTIFACT_RE = new RegExp(`(^|[\\s<>='"/])(${Object.keys(ARTIFACT_GATE).map((n) => n.replace(/[.]/g, '\\.')).join('|')})(?![\\w.-])`)
+const FF_DIR_RE = /(^|[\s<>='"/])\.ff\//
+const writesSomething = (seg) => WRITE_VERB_RE.test(seg) || REDIRECT_RE.test(seg) || INTERP_RE.test(seg)
+const isFfCall = (seg) => {
+  const head = stripPrefix(tokenize(seg))[0] ?? ''
+  return (head === 'ff' || head.endsWith('/ff')) && !SUBST_RE.test(seg)
+}
 ```
 
 Trong `makeGuard`, ngay trước `function checkLockedFile`, thêm:
 
 ```js
   const cardsDir = path.resolve(root, config.workspace.cards_dir)
-  const secretFiles = [config.secrets.env_file, config.db?.env_file, config.e2e?.auth?.jwt?.secret?.file, config.e2e?.auth_storage].filter(Boolean)
+  const ffDirAbs = path.join(root, '.ff')
+  const secretFiles = [config.secrets.env_file, config.db?.env_file, config.e2e?.auth?.jwt?.secret?.file, config.e2e?.auth_storage, '.ff/worker.json'].filter(Boolean)
   const secretAbs = new Set(secretFiles.map((f) => path.resolve(root, f)))
   const secretRes = secretFiles.map((f) => new RegExp(`(^|[\\s<>='"/])${escapeRe(path.basename(f))}(?![\\w.-])`))
   const secretMsg = `Không đọc, sửa hay chép file secret (${secretFiles.join(', ')}). Cần biết key có hay chưa → \`ff doctor\`.`
 
-  function checkSecretsBash(cmd) {
+  function checkBashNew(cmd) {
+    const c = cmd.normalize('NFC')
+    if (c.includes('ĐÃ DUYỆT') && (WRITE_VERB_RE.test(c) || REDIRECT_RE.test(c) || INTERP_RE.test(c)))
+      return 'Ghi marker ĐÃ DUYỆT bằng Edit/Write sau khi Gate được Duyệt, không ghi bằng Bash.'
     for (const seg of segments(cmd)) {
-      if (!secretRes.some((re) => re.test(seg))) continue
-      const head = stripPrefix(tokenize(seg))[0] ?? ''
-      if (head === 'ff' || head.endsWith('/ff')) continue
-      return secretMsg
+      if (secretRes.some((re) => re.test(seg)) && !isFfCall(seg)) return secretMsg
+      if (FF_DIR_RE.test(seg) && writesSomething(seg) && !isFfCall(seg)) return '`.ff/` do hook và lệnh `ff` ghi; agent không sửa thư mục này.'
+      if (ARTIFACT_RE.test(seg) && writesSomething(seg)) return 'Sửa brief.md / 03-design.md / 05-verify-report.md bằng Edit/Write (để hook kiểm Gate), không ghi bằng Bash.'
     }
     return null
   }
 
-  const checkSecretsFile = (abs) => (secretAbs.has(abs) ? secretMsg : null)
-
-  function introducesMarker(tool, input, abs) {
-    if (['Write', 'write', 'write_to_file'].includes(tool)) {
-      let old = ''
-      try { old = fs.readFileSync(abs, 'utf8') } catch {}
-      return hasMarker(input.content ?? input.CodeContent) && !hasMarker(old)
+  function resultingContent(tool, input, abs) {
+    let old = ''
+    try { old = fs.readFileSync(abs, 'utf8') } catch {}
+    if (['Write', 'write', 'write_to_file'].includes(tool)) return { old, next: String(input.content ?? input.CodeContent ?? '') }
+    if (tool === 'NotebookEdit') return { old, next: String(input.new_source ?? '') + '\n' + old }
+    let next = old
+    for (const e of Array.isArray(input.edits) ? input.edits : [input]) {
+      const o = String(e?.old_string ?? e?.oldString ?? e?.TargetContent ?? '')
+      const n = String(e?.new_string ?? e?.newString ?? e?.ReplacementContent ?? '')
+      if (!o) next = n + next
+      else next = e?.replace_all ? next.split(o).join(n) : next.replace(o, () => n)
     }
-    const edits = Array.isArray(input.edits) ? input.edits : [input]
-    return edits.some((e) => hasMarker(e?.new_string ?? e?.newString ?? e?.ReplacementContent) && !hasMarker(e?.old_string ?? e?.oldString ?? e?.TargetContent))
+    return { old, next }
   }
 
-  function checkMarker(tool, input, abs) {
-    if (!isEdit(tool) || !under(abs, cardsDir)) return null
+  function checkFileNew(tool, input, abs) {
+    if (secretAbs.has(abs)) return secretMsg
+    if (!isEdit(tool)) return null
+    if (under(abs, ffDirAbs)) return '`.ff/` do hook và lệnh `ff` ghi; agent không sửa thư mục này.'
+    if (!under(abs, cardsDir)) return null
     const gate = ARTIFACT_GATE[path.basename(abs)]
-    if (!gate || !introducesMarker(tool, input, abs)) return null
-    const cardId = path.relative(cardsDir, abs).split(path.sep)[0].split('-')[0]
-    if (isApproved(root, cardId, gate)) return null
-    return `Chưa có câu trả lời "Duyệt" cho ${gate} của thẻ #${cardId}. Trình Gate bằng AskUserQuestion (header ${gate}, câu hỏi bắt đầu "[#${cardId}]", lựa chọn "Duyệt"/"Cần sửa") rồi mới ghi marker ĐÃ DUYỆT.`
-  }
-
-  function checkMarkerBash(cmd) {
-    const c = cmd.normalize('NFC')
-    if (!c.includes('ĐÃ DUYỆT')) return null
-    return WRITE_VERB_RE.test(c) || REDIRECT_RE.test(c) ? 'Ghi marker ĐÃ DUYỆT bằng Edit/Write (để hook kiểm Gate), không ghi bằng Bash.' : null
+    if (!gate) return null
+    const { next } = resultingContent(tool, input, abs)
+    if (!hasMarker(next)) return null
+    const rel = path.relative(cardsDir, abs).split(path.sep)
+    const cardId = rel[0].split('-')[0]
+    if (isApproved(root, cardId, gate, rel.slice(1).join('/'), next)) return null
+    return `Chưa có câu trả lời "Duyệt" cho ${gate} của thẻ #${cardId} khớp nội dung hiện tại. Trình Gate bằng AskUserQuestion (header ${gate}, câu hỏi bắt đầu "[#${cardId}]", lựa chọn "Duyệt"/"Cần sửa") rồi mới ghi marker ĐÃ DUYỆT; sửa nội dung sau khi duyệt thì phải bỏ marker và trình lại.`
   }
 ```
 
@@ -3569,23 +4236,36 @@ Thay thân `evaluate` bằng:
     const c = realish(cwd)
     const abs = file ? realish(path.resolve(c, expandHome(file))) : null
     let reason = null
-    if (cmd) reason = checkSecretsBash(cmd) ?? checkMarkerBash(cmd) ?? checkLockedBash(cmd, c) ?? checkBash(cmd, c, mode)
-    if (!reason && abs) reason = checkSecretsFile(abs) ?? checkMarker(tool, input ?? {}, abs) ?? checkLockedFile(tool, abs) ?? checkAllowlist(tool, abs)
+    if (cmd) reason = checkBashNew(cmd) ?? checkLockedBash(cmd, c) ?? checkBash(cmd, c, mode)
+    if (!reason && abs) reason = checkFileNew(tool, input ?? {}, abs) ?? checkLockedFile(tool, abs) ?? checkAllowlist(tool, abs)
     if (!reason && mode === 'feature-flow' && abs) reason = checkMirrorFile(tool, abs)
     return reason
   }
 ```
 
-- [ ] **Step 3: Chạy test**
+- [ ] **Step 3: Sửa `scripts/guard.mjs` — trả `ask` cho Claude Code**
+
+Thay khối cuối file (từ `if (args.format === 'agy' && cmd && G.needsAsk(cmd)) {` tới hết) bằng:
+
+```js
+if (cmd && G.needsAsk(cmd)) {
+  const reason = '[ff-guard] ship-approve/relock cần người dùng xác nhận'
+  if (args.format === 'agy') process.stdout.write(JSON.stringify({ decision: 'force_ask', reason }) + '\n')
+  else process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n')
+}
+process.exit(0)
+```
+
+- [ ] **Step 4: Chạy test**
 
 Run: `npm test`
-Expected: PASS mọi test, kể cả `guard.test.mjs` cũ.
+Expected: PASS mọi test, kể cả `guard.test.mjs` và `guard-cli.test.mjs` của Task 8.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/lib/guard-rules.mjs tests/guard-new.test.mjs
-git commit -m "feat: guard chặn đọc .ff.env và marker ĐÃ DUYỆT chưa qua Gate
+git add scripts/lib/guard-rules.mjs scripts/guard.mjs tests/guard-new.test.mjs
+git commit -m "feat: guard chặn secret, .ff/, ghi artifact bằng Bash, marker lệch bản ghi Gate; hỏi trước ship-approve/relock
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -3600,12 +4280,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - Test: `tests/hooks.test.mjs`
 
 **Interfaces:**
-- Consumes: `findRoot`, `loadConfig` (Task 3), `runDoctor` (Task 7), `writeDoctorState` (Task 4), `findCardDir`, `traceCheck` (Task 9), `gateQuestions`, `recordGates` (Task 10), `notify`, `makeEvent` (Task 10), fixture `tests/fixtures/hooks/ask-pre.json` (Task 1).
+- Consumes: `findRoot`, `loadConfig`, `loadConfigOrDefaults` (Task 3), `runDoctor` (Task 7), `writeDoctorState` (Task 4), `findCardDir`, `traceCheck` (Task 9), `gateQuestions`, `recordGates(root, config, toolInput, toolResponse)`, `isApproved(root, cardId, gate, relPath, content)` (Task 10), `notify`, `makeEvent` (Task 10), fixture `tests/fixtures/hooks/ask-pre.json` (Task 1).
 - Produces (`scripts/lib/hook-io.mjs`): `readHookInput(): object` (stdin JSON; `{}` khi TTY/rỗng/hỏng).
 - Produces: 4 hook script, mỗi script thoát `0` và im lặng khi cwd không thuộc workspace ff.
   - `session-start`: chạy doctor, ghi `.ff/doctor.json`, in tóm tắt ra stdout (Claude Code đưa vào ngữ cảnh). Không bao giờ exit ≠ 0.
   - `ask-pre`: Gate thiếu `[#id]` → exit 2; `GATE_A`/`GATE_B` mà trace-check đỏ → exit 2 + danh sách lỗi; còn lại gửi `notify` (`gate` kèm lệnh `tmux attach -t <session_prefix><id>`, hoặc `ask`) rồi exit 0.
-  - `ask-post`: `recordGates`.
+  - `ask-post`: `recordGates` (kèm hash artifact, D21).
+  - `ask-pre`: quy ước Gate theo spec §5.1 — câu duyệt (`GATE_*`) gọi ở lượt riêng; câu "Cần bạn chọn" dùng header `Q<n>` nên hook chỉ gửi `kind: ask`.
   - `notification`: `notify(kind: attention)`.
 
 - [ ] **Step 1: Viết test (fail)**
@@ -3732,7 +4413,8 @@ test('ask-post ghi Gate đã Duyệt', async (t) => {
   const input = { ...postFixture, cwd: root, tool_input: { questions: [{ header: 'GATE_A', question: q }] }, tool_response: { ...postFixture.tool_response, answers: { [q]: 'Duyệt' } } }
   const r = await runHook('ask-post', input)
   assert.equal(r.status, 0)
-  assert.equal(isApproved(root, '123', 'GATE_A'), true)
+  const brief = fs.readFileSync(path.join(root, CARD, 'brief.md'), 'utf8')
+  assert.equal(isApproved(root, '123', 'GATE_A', 'brief.md', brief), true)
 })
 
 test('notification gửi attention', async (t) => {
@@ -3852,13 +4534,13 @@ process.exit(0)
 ```js
 // scripts/hooks/ask-post.mjs — PostToolUse(AskUserQuestion): ghi câu trả lời Gate vào .ff/gates/.
 import { readHookInput } from '../lib/hook-io.mjs'
-import { findRoot } from '../lib/config.mjs'
+import { findRoot, loadConfigOrDefaults } from '../lib/config.mjs'
 import { recordGates } from '../lib/gates.mjs'
 
 const input = readHookInput()
 const root = findRoot(input.cwd ?? process.cwd())
 if (!root) process.exit(0)
-recordGates(root, input.tool_input ?? {}, input.tool_response ?? null)
+recordGates(root, loadConfigOrDefaults(root).config, input.tool_input ?? {}, input.tool_response ?? null)
 process.exit(0)
 ```
 
@@ -3898,7 +4580,7 @@ Expected: PASS mọi test.
       { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/ask-post.mjs\"", "timeout": 10 }] }
     ],
     "Notification": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/notification.mjs\"", "timeout": 10 }] }
+      { "matcher": "permission_prompt|idle_prompt", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/notification.mjs\"", "timeout": 10 }] }
     ]
   }
 }
@@ -3963,4 +4645,5 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 | §5.1 Gate | quy ước header/`[#id]`/`Duyệt`, ghi Gate, chặn marker | sửa skill (Plan 4) |
 | §5.2 hooks | SessionStart, PreToolUse/PostToolUse AskUserQuestion, Notification, guard | `Stop` (Plan 3, cần phase từ ff-monitor) |
 | §5.3 ledger | `trace-check` + chặn Gate A/B khi đỏ | khuôn ledger trong skill, adversary hướng 9 (Plan 4) |
-| §8 test | doctor, cfg, guard (cũ + marker + `.ff.env`), trace-check | adapter, orchestrator, reload, ff-init, grep CI, đo trước/sau (Plan 3–5) |
+| D20–D23 | doctor nhóm core/worker/e2e; `task_source` tùy chọn; bản ghi Gate có hash; `ship_branch` trong schema; guard trả `ask` cho `ship-approve`/`relock` | `ff state` đọc bản ghi Gate (Plan 2); `permissions.ask` do `/ff-init` sinh (Plan 4); `.ff/tasks/<id>.json`, token HTTP worker (Plan 3) |
+| §8 test | doctor, cfg, guard (cũ đủ 99 ca + secret + `.ff/` + marker theo hash + ask), trace-check (đơn vị dossier, bỏ sót, bảng không Nguồn) | adapter, orchestrator, reload, ff-init, grep CI, đo trước/sau (Plan 3–5) |
