@@ -117,7 +117,11 @@ project_docs:                       # tùy chọn; thiếu thì skill bỏ bư�
 db:                                 # tùy chọn, cho `ff db-query`
   driver: postgres|mysql
   env_file: system-service/.env.DATABASE   # chỉ trỏ file; db-query đọc trong process, không in
-guard: { protected_paths: [...], allowed_bash: [...] }
+guard:
+  protected_paths: [...]            # thêm vào danh sách "repo gốc là bản gương"
+  allowed_bash: [...]               # regex; đoạn lệnh khớp được miễn luật base
+  migration_script_re: '^migration:(run|revert)$'   # script migration chỉ chạy trong worktree
+  forbidden_script_re: ':prod$'     # biến thể script cấm hẳn
 engine: { default: claude, commands: {...} }
 worker:
   max_concurrent_tasks: 2
