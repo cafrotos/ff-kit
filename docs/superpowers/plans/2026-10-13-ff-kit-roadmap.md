@@ -3,6 +3,14 @@
 > Spec: `docs/superpowers/specs/2026-10-12-ff-kit-packaging-design.md`
 > Spec gồm 4 phân hệ độc lập → 5 plan. Mỗi plan ra phần mềm chạy và test được riêng. Viết plan N+1 sau khi plan N xong, vì interface thật của plan N quyết định plan N+1.
 
+## Trạng thái thực thi (2026-10-13)
+
+- Plan 1: phần nền tảng đã được triển khai. Spike hành vi Claude Code và smoke plugin cần Claude tương tác thật được để lại cho lượt kiểm tra của người dùng; trong lúc làm không gọi Claude.
+- Plan 2: triển khai và kiểm chứng xong. CLI workspace, auth/JWT, scaffold e2e, gate helpers và checker đã có. Template đã chạy `playwright test --list` trong fixture tạm có Playwright. `ff.sh reopen` không có command trong nguồn; spec cũng yêu cầu xác minh hoặc bỏ tham chiếu, nên không port command chưa tồn tại. Ca `test-tools.sh` được chuyển thành fixture Node tests để không chạy trên workspace thật.
+- Plan 3: worker đã triển khai: Trello/console/Rocket.Chat adapters, task state và dossier, tmux, HTTP loopback có token, supervisor/reload, `ff worker`, `verify-lock`/`ship-request`. Kiểm chứng cuối: full suite 203 tests (202 pass, 1 skip, 0 fail), build và package dry-run sạch. Chưa publish.
+- Plan 4: skills, 10 agents, commands, `/ff-init`, `/ff-worker`, install docs và cảnh báo doctor đã hoàn tất. Static checks + generic-content audit xanh.
+- Plan 5: local acceptance hoàn tất trên fixture 2 repo; CLI/config/doctor/scaffold pass, build, full suite, package dry-run và diff check pass. Claude interactive smoke và npm publish chờ lượt review của user.
+
 | Plan | Phạm vi | Spec | Phụ thuộc | Ước lượng |
 |---|---|---|---|---|
 | **1. Nền tảng** (`2026-10-13-ff-kit-p1-foundation.md`) | Spike Claude Code; scaffold plugin + build `dist/`; config loader + schema; `ff cfg get`; `ff env-example`; lock nguồn; `ff doctor`; guard port (đủ 99 ca cũ) + luật mới (file secret, `.ff/`, ghi artifact bằng Bash, marker theo bản ghi Gate có hash, `ask` cho ship-approve/relock); `ff trace-check` (đơn vị dossier, bỏ sót); bản ghi Gate (D21); doctor nhóm core/worker/e2e (D20); `ff notify` client; hooks SessionStart/AskUserQuestion/Notification | §3, §4.1–4.5, §5.1–5.3 (phần xác định), §8 (doctor, cfg, guard, trace) | — | 2–3 ngày |

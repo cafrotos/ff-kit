@@ -21,12 +21,13 @@ export async function run(args, ctx) {
       : runDoctor(root, loaded)
   } catch (e) {
     if (!(e instanceof ConfigError)) throw e
-    result = { ok: false, groups: { core: false, worker: false, e2e: false }, checks: [{ ok: false, msg: e.message, group: 'core' }] }
+    result = { ok: false, groups: { core: false, worker: false, e2e: false }, checks: [{ ok: false, msg: e.message, group: 'core' }], warnings: [] }
   }
   if (!schemaOnly) writeDoctorState(root, result.ok, result.groups)
   if (json) ctx.stdout.write(JSON.stringify(result) + '\n')
   else {
     for (const c of result.checks) ctx.stdout.write(`${c.ok ? '✓' : '✗'} [${c.group}] ${c.msg}\n`)
+    for (const warning of result.warnings ?? []) ctx.stdout.write(`! [optional] ${warning}\n`)
     const n = result.checks.filter((c) => !c.ok).length
     const g = result.groups
     let tail = 'ff doctor: xanh\n'

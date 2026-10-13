@@ -1,6 +1,7 @@
 // Kiểm xác định, không LLM. Không bao giờ in giá trị secret.
 import fs from 'node:fs'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 import { validate } from './schema.mjs'
 import { presentKeys, requiredKeysByGroup } from './env.mjs'
@@ -24,11 +25,12 @@ const git = (cwd, args) => spawnSync('git', args, { cwd, encoding: 'utf8' })
 
 export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
   const checks = []
+  const warnings = []
   const ok = (msg, group = 'core') => checks.push({ ok: true, msg, group })
   const bad = (msg, group = 'core') => checks.push({ ok: false, msg, group })
   const finish = () => {
     const groups = Object.fromEntries(['core', 'worker', 'e2e'].map((g) => [g, checks.filter((c) => c.group === g).every((c) => c.ok)]))
-    return { ok: checks.every((c) => c.ok), groups, checks }
+    return { ok: checks.every((c) => c.ok), groups, checks, warnings }
   }
   const errs = validate(config)
   if (errs.length) {
@@ -36,6 +38,9 @@ export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
     return finish()
   }
   ok('schema hợp lệ')
+
+  if (!which('codegraph', root)) warnings.push('CodeGraph chưa có trong PATH; agent tìm code sẽ dùng cách dự phòng')
+  warnings.push('Không kiểm tra plugin Playwright tự động; xác nhận plugin trong Claude Code nếu dùng ff-observer hoặc ff-verifier')
 
   for (const k of ['cards_dir', 'worktrees_dir']) {
     const rel = config.workspace[k]
@@ -71,9 +76,42 @@ export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
         if (config.e2e[k] && !fs.existsSync(path.resolve(root, config.e2e[k]))) bad(`e2e.${k} không tồn tại: ${config.e2e[k]}`, 'e2e')
       }
       checkCmds('e2e', { up_cmd: config.e2e.up_cmd, down_cmd: config.e2e.down_cmd, test_cmd: config.e2e.test_cmd }, dir, 'e2e')
+      const playwrightPkg = path.join(dir, 'node_modules', '@playwright', 'test')
+      if (!fs.existsSync(playwrightPkg)) bad('e2e thiếu node_modules/@playwright/test — chạy npm install trong e2e.dir', 'e2e')
+      else {
+        try {
+          const require = createRequire(path.join(dir, 'package.json'))
+          const browser = require('playwright').chromium.executablePath()
+          if (!fs.existsSync(browser)) bad('e2e chưa cài browser Chromium — chạy npx playwright install chromium', 'e2e')
+        } catch {
+          bad('không đọc được Playwright hoặc browser Chromium chưa cài', 'e2e')
+        }
+        const playwrightBin = path.join(dir, 'node_modules', '.bin', 'playwright')
+        if (!fs.existsSync(playwrightBin)) bad('e2e thiếu node_modules/.bin/playwright', 'e2e')
+        else {
+          const listed = spawnSync(playwrightBin, ['test', '--list'], { cwd: dir, encoding: 'utf8', timeout: 15000 })
+          if (listed.status !== 0) bad(`npx playwright test --list lỗi trong ${config.e2e.dir}: ${(listed.stderr || listed.stdout || 'không rõ lỗi').trim().split('\n')[0]}`, 'e2e')
+          else ok('e2e: playwright test --list chạy được', 'e2e')
+        }
+      }
     }
   }
   if (config.db && !fs.existsSync(path.resolve(root, config.db.env_file))) bad(`db.env_file không tồn tại: ${config.db.env_file}`, 'e2e')
+  if (config.e2e?.auth?.strategy === 'jwt-mint') {
+    const secret = config.e2e.auth.jwt?.secret
+    if (secret) {
+      const secretPath = path.resolve(root, secret.file)
+      if (!fs.existsSync(secretPath)) bad(`e2e JWT secret file không tồn tại: ${secret.file}`, 'e2e')
+      else if (!presentKeys(secretPath)?.has(secret.key)) bad(`e2e JWT secret thiếu key: ${secret.key} trong ${secret.file}`, 'e2e')
+    }
+    for (const [field, value] of Object.entries(config.e2e.auth.jwt?.payload ?? {})) {
+      const tokens = [...value.matchAll(/\{([^{}]+)\}/g)].map((m) => m[1])
+      const malformed = (value.includes('{') || value.includes('}')) && tokens.length === 0
+      if (malformed || tokens.some((token) => token !== 'uuid' && !/^user\.[A-Za-z_][A-Za-z0-9_.]*$/.test(token))) {
+        bad(`e2e.auth.jwt.payload.${field} có placeholder không hỗ trợ`, 'e2e')
+      }
+    }
+  }
   for (const [k, rel] of Object.entries(config.project_docs ?? {})) {
     if (!fs.existsSync(path.resolve(root, rel))) bad(`project_docs.${k} không tồn tại: ${rel}`)
   }

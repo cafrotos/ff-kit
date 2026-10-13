@@ -6912,14 +6912,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs7 = this.flowScalar(this.type);
+              const fs8 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs7, sep: [] });
+                map.items.push({ start, key: fs8, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs7);
+                this.stack.push(fs8);
               } else {
-                Object.assign(it, { key: fs7, sep: [] });
+                Object.assign(it, { key: fs8, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -7047,13 +7047,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs7 = this.flowScalar(this.type);
+              const fs8 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs7, sep: [] });
+                fc.items.push({ start: [], key: fs8, sep: [] });
               else if (it.sep)
-                this.stack.push(fs7);
+                this.stack.push(fs8);
               else
-                Object.assign(it, { key: fs7, sep: [] });
+                Object.assign(it, { key: fs8, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -14823,7 +14823,7 @@ var DEFAULTS = {
   worker: {
     max_concurrent_tasks: 2,
     channel: { adapter: "console" },
-    tmux: { session_prefix: "ff-", cleanup_on_success: true, cleanup_on_failure: false, max_session_lifetime_hours: 24 },
+    tmux: { session_name: "ff-worker", session_prefix: "ff-", cleanup_on_success: true, cleanup_on_failure: false, max_session_lifetime_hours: 24 },
     http: { port: 0 },
     reload: { watch: true, debounce_ms: 2e3 }
   },
@@ -14881,6 +14881,7 @@ function getKey(obj, key) {
 // scripts/lib/doctor.mjs
 import fs5 from "node:fs";
 import path3 from "node:path";
+import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 
 // scripts/lib/env.mjs
@@ -15126,11 +15127,12 @@ function whichInPath(bin, cwd) {
 var git = (cwd, args) => spawnSync("git", args, { cwd, encoding: "utf8" });
 function runDoctor(root2, { config, raw }, { which = whichInPath } = {}) {
   const checks = [];
+  const warnings = [];
   const ok = (msg, group = "core") => checks.push({ ok: true, msg, group });
   const bad = (msg, group = "core") => checks.push({ ok: false, msg, group });
   const finish = () => {
     const groups = Object.fromEntries(["core", "worker", "e2e"].map((g) => [g, checks.filter((c) => c.group === g).every((c) => c.ok)]));
-    return { ok: checks.every((c) => c.ok), groups, checks };
+    return { ok: checks.every((c) => c.ok), groups, checks, warnings };
   };
   const errs = validate(config);
   if (errs.length) {
@@ -15138,6 +15140,8 @@ function runDoctor(root2, { config, raw }, { which = whichInPath } = {}) {
     return finish();
   }
   ok("schema h\u1EE3p l\u1EC7");
+  if (!which("codegraph", root2)) warnings.push("CodeGraph ch\u01B0a c\xF3 trong PATH; agent t\xECm code s\u1EBD d\xF9ng c\xE1ch d\u1EF1 ph\xF2ng");
+  warnings.push("Kh\xF4ng ki\u1EC3m tra plugin Playwright t\u1EF1 \u0111\u1ED9ng; x\xE1c nh\u1EADn plugin trong Claude Code n\u1EBFu d\xF9ng ff-observer ho\u1EB7c ff-verifier");
   for (const k of ["cards_dir", "worktrees_dir"]) {
     const rel = config.workspace[k];
     fs5.existsSync(path3.resolve(root2, rel)) ? ok(`workspace.${k} c\xF3: ${rel}`) : bad(`workspace.${k} kh\xF4ng t\u1ED3n t\u1EA1i: ${rel}`);
@@ -15172,9 +15176,42 @@ function runDoctor(root2, { config, raw }, { which = whichInPath } = {}) {
         if (config.e2e[k] && !fs5.existsSync(path3.resolve(root2, config.e2e[k]))) bad(`e2e.${k} kh\xF4ng t\u1ED3n t\u1EA1i: ${config.e2e[k]}`, "e2e");
       }
       checkCmds("e2e", { up_cmd: config.e2e.up_cmd, down_cmd: config.e2e.down_cmd, test_cmd: config.e2e.test_cmd }, dir, "e2e");
+      const playwrightPkg = path3.join(dir, "node_modules", "@playwright", "test");
+      if (!fs5.existsSync(playwrightPkg)) bad("e2e thi\u1EBFu node_modules/@playwright/test \u2014 ch\u1EA1y npm install trong e2e.dir", "e2e");
+      else {
+        try {
+          const require2 = createRequire(path3.join(dir, "package.json"));
+          const browser = require2("playwright").chromium.executablePath();
+          if (!fs5.existsSync(browser)) bad("e2e ch\u01B0a c\xE0i browser Chromium \u2014 ch\u1EA1y npx playwright install chromium", "e2e");
+        } catch {
+          bad("kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c Playwright ho\u1EB7c browser Chromium ch\u01B0a c\xE0i", "e2e");
+        }
+        const playwrightBin = path3.join(dir, "node_modules", ".bin", "playwright");
+        if (!fs5.existsSync(playwrightBin)) bad("e2e thi\u1EBFu node_modules/.bin/playwright", "e2e");
+        else {
+          const listed = spawnSync(playwrightBin, ["test", "--list"], { cwd: dir, encoding: "utf8", timeout: 15e3 });
+          if (listed.status !== 0) bad(`npx playwright test --list l\u1ED7i trong ${config.e2e.dir}: ${(listed.stderr || listed.stdout || "kh\xF4ng r\xF5 l\u1ED7i").trim().split("\n")[0]}`, "e2e");
+          else ok("e2e: playwright test --list ch\u1EA1y \u0111\u01B0\u1EE3c", "e2e");
+        }
+      }
     }
   }
   if (config.db && !fs5.existsSync(path3.resolve(root2, config.db.env_file))) bad(`db.env_file kh\xF4ng t\u1ED3n t\u1EA1i: ${config.db.env_file}`, "e2e");
+  if (config.e2e?.auth?.strategy === "jwt-mint") {
+    const secret = config.e2e.auth.jwt?.secret;
+    if (secret) {
+      const secretPath = path3.resolve(root2, secret.file);
+      if (!fs5.existsSync(secretPath)) bad(`e2e JWT secret file kh\xF4ng t\u1ED3n t\u1EA1i: ${secret.file}`, "e2e");
+      else if (!presentKeys(secretPath)?.has(secret.key)) bad(`e2e JWT secret thi\u1EBFu key: ${secret.key} trong ${secret.file}`, "e2e");
+    }
+    for (const [field, value] of Object.entries(config.e2e.auth.jwt?.payload ?? {})) {
+      const tokens = [...value.matchAll(/\{([^{}]+)\}/g)].map((m) => m[1]);
+      const malformed = (value.includes("{") || value.includes("}")) && tokens.length === 0;
+      if (malformed || tokens.some((token) => token !== "uuid" && !/^user\.[A-Za-z_][A-Za-z0-9_.]*$/.test(token))) {
+        bad(`e2e.auth.jwt.payload.${field} c\xF3 placeholder kh\xF4ng h\u1ED7 tr\u1EE3`, "e2e");
+      }
+    }
+  }
   for (const [k, rel] of Object.entries(config.project_docs ?? {})) {
     if (!fs5.existsSync(path3.resolve(root2, rel))) bad(`project_docs.${k} kh\xF4ng t\u1ED3n t\u1EA1i: ${rel}`);
   }
@@ -15214,6 +15251,8 @@ function writeDoctorState(root2, ok, groups = { core: ok, worker: ok, e2e: ok })
 }
 
 // scripts/hooks/session-start.mjs
+import fs7 from "node:fs";
+import { spawnSync as spawnSync2 } from "node:child_process";
 var input = readHookInput();
 var root = findRoot(input.cwd ?? process.cwd());
 if (!root) process.exit(0);
@@ -15222,8 +15261,16 @@ try {
   const r = runDoctor(root, loadConfig(root));
   writeDoctorState(root, r.ok, r.groups);
   const errs = r.checks.filter((c) => !c.ok).map((c) => `- [${c.group}] ${c.msg}`);
-  if (r.ok) lines = ["ff doctor: xanh."];
-  else if (!r.groups.core) lines = ["ff doctor: \u0110\u1ECE nh\xF3m core \u2014 `ff cfg get` s\u1EBD t\u1EEB ch\u1ED1i t\u1EDBi khi s\u1EEDa xong:", ...errs, "S\u1EEDa b\u1EB1ng /ff-init, kh\xF4ng s\u1EEDa ff.config.yaml b\u1EB1ng tay."];
+  if (r.ok) {
+    let status = {};
+    try {
+      status = JSON.parse(fs7.readFileSync(`${root}/.ff/worker.json`, "utf8"));
+    } catch {
+    }
+    const session = loadConfig(root).config.worker.tmux.session_name ?? "ff-worker";
+    const alive = status.state === "ready" && spawnSync2("tmux", ["has-session", "-t", `=${session}`], { cwd: root, encoding: "utf8", timeout: 3e3 }).status === 0;
+    lines = ["ff doctor: xanh.", ...!alive ? ["Worker ch\u01B0a ch\u1EA1y. Mu\u1ED1n nh\u1EADn th\u1EBB t\u1EF1 \u0111\u1ED9ng: g\xF5 /ff-worker start."] : []];
+  } else if (!r.groups.core) lines = ["ff doctor: \u0110\u1ECE nh\xF3m core \u2014 `ff cfg get` s\u1EBD t\u1EEB ch\u1ED1i t\u1EDBi khi s\u1EEDa xong:", ...errs, "S\u1EEDa b\u1EB1ng /ff-init, kh\xF4ng s\u1EEDa ff.config.yaml b\u1EB1ng tay."];
   else lines = ["ff doctor: skill ch\u1EA1y \u0111\u01B0\u1EE3c; c\xF2n thi\u1EBFu:", ...errs, !r.groups.worker ? "Key adapter ch\u1EC9 worker c\u1EA7n (k\xE9o th\u1EBB, th\xF4ng b\xE1o). Mu\u1ED1n b\u1EADt worker: \u0111i\u1EC1n .ff.env r\u1ED3i g\xF5 /ff-worker start." : ""];
 } catch (e) {
   writeDoctorState(root, false, { core: false, worker: false, e2e: false });

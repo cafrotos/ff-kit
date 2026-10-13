@@ -4,6 +4,22 @@ import * as envExample from './env-example.mjs'
 import * as doctor from './doctor.mjs'
 import * as traceCheck from './trace-check.mjs'
 import * as notifyCmd from './notify.mjs'
+import * as mcpAuth from './mcp-auth.mjs'
+import * as e2eAuthCheck from './e2e-auth-check.mjs'
+import * as e2eScaffold from './e2e-scaffold.mjs'
+import * as state from './state.mjs'
+import * as sync from './sync.mjs'
+import * as copy from './copy.mjs'
+import * as squashCheck from './squash-check.mjs'
+import * as verifyUp from './verify-up.mjs'
+import * as verifyDown from './verify-down.mjs'
+import { shipApprove, allow, lockTests, relock, probeSlice } from './gate-tools.mjs'
+import * as e2eLint from './e2e-lint.mjs'
+import * as dbQuery from './db-query.mjs'
+import { acMatrix, designCheck } from './spec-checks.mjs'
+import * as worker from './worker.mjs'
+import * as verifyLock from './verify-lock.mjs'
+import * as shipRequest from './ship-request.mjs'
 const VERSION = '0.1.0'
 
 export const COMMANDS = {
@@ -12,6 +28,27 @@ export const COMMANDS = {
   doctor,
   'trace-check': traceCheck,
   notify: notifyCmd,
+  'mcp-auth': mcpAuth,
+  'e2e-auth-check': e2eAuthCheck,
+  'e2e-scaffold': e2eScaffold,
+  state,
+  sync,
+  copy,
+  'squash-check': squashCheck,
+  'verify-up': verifyUp,
+  'verify-down': verifyDown,
+  'ship-approve': shipApprove,
+  allow,
+  'lock-tests': lockTests,
+  relock,
+  'probe-slice': probeSlice,
+  'e2e-lint': e2eLint,
+  'db-query': dbQuery,
+  'ac-matrix': acMatrix,
+  'design-check': designCheck,
+  worker,
+  'verify-lock': verifyLock,
+  'ship-request': shipRequest,
 }
 
 const defaultCtx = () => ({ cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr })

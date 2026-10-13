@@ -7,6 +7,10 @@ test('ff help liệt kê lệnh và exit 0', async () => {
   const { ctx, buf } = capture()
   assert.equal(await main(['help'], ctx), 0)
   assert.match(buf.out, /ff <lệnh>/)
+  for (const command of ['state', 'sync', 'copy', 'squash-check', 'verify-up', 'verify-down', 'verify-lock', 'ship-request', 'mcp-auth', 'e2e-auth-check', 'e2e-scaffold', 'ship-approve', 'ac-matrix', 'e2e-lint', 'design-check', 'lock-tests', 'relock', 'allow', 'db-query', 'probe-slice']) {
+    assert.match(buf.out, new RegExp(`\\b${command.replaceAll('-', '\\-')}\\b`), `ff help should list ${command}`)
+  }
+  assert.match(buf.out, /worker <start\\|stop\\|status\\|logs>/)
 })
 
 test('ff --version in phiên bản', async () => {

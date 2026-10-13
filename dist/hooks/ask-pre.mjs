@@ -14802,7 +14802,7 @@ var DEFAULTS = {
   worker: {
     max_concurrent_tasks: 2,
     channel: { adapter: "console" },
-    tmux: { session_prefix: "ff-", cleanup_on_success: true, cleanup_on_failure: false, max_session_lifetime_hours: 24 },
+    tmux: { session_name: "ff-worker", session_prefix: "ff-", cleanup_on_success: true, cleanup_on_failure: false, max_session_lifetime_hours: 24 },
     http: { port: 0 },
     reload: { watch: true, debounce_ms: 2e3 }
   },

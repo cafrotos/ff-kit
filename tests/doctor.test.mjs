@@ -24,6 +24,8 @@ test('workspace đủ → xanh, không lộ giá trị secret', (t) => {
   const r = doctor(ws.root)
   assert.equal(r.ok, true, fails(r))
   assert.doesNotMatch(JSON.stringify(r), /SECRET/)
+  assert.ok(Array.isArray(r.warnings))
+  assert.ok(r.warnings.some((warning) => /Playwright/.test(warning)))
 })
 
 test('thiếu thư mục repo', (t) => {
@@ -71,6 +73,42 @@ test('thiếu thư mục e2e → chỉ nhóm e2e đỏ; không có task_source �
   assert.deepEqual(r.groups, { core: true, worker: false, e2e: false })
   assert.match(fails(r), /e2e\.dir không tồn tại/)
   assert.match(fails(r), /chưa cấu hình worker\.task_source/)
+})
+
+test('db.env_file thiếu chỉ làm đỏ nhóm e2e', (t) => {
+  const config = baseConfig()
+  config.db = { driver: 'postgres', env_file: 'system/.env.db' }
+  const ws = green(t, { config })
+  const r = doctor(ws.root)
+  assert.deepEqual(r.groups, { core: true, worker: true, e2e: false })
+  assert.match(fails(r), /db\.env_file không tồn tại/)
+})
+
+test('jwt-mint doctor kiểm file secret và chỉ báo key có/thiếu', (t) => {
+  const config = baseConfig()
+  config.e2e = { dir: 'ff-e2e', auth: { strategy: 'jwt-mint', jwt: {
+    secret: { file: 'api/.env', key: 'JWT_SECRET' },
+    algorithm: 'HS256', payload: { sub: '{user.id}' },
+    deliver: [{ via: 'local_storage', name: 'token' }],
+  } } }
+  const ws = green(t, { config, files: { 'ff-e2e/package.json': '{"devDependencies":{"@playwright/test":"1.0.0"}}', 'api/.env': 'JWT_SECRET=SUPER_SECRET_VALUE\n' } })
+  const r = doctor(ws.root)
+  assert.equal(r.groups.e2e, false, 'thiếu node_modules/@playwright/test và browser phải làm nhóm e2e đỏ')
+  assert.doesNotMatch(fails(r), /SUPER_SECRET_VALUE/)
+  assert.match(fails(r), /playwright/i)
+})
+
+test('jwt-mint thiếu secret key chỉ báo tên key, không đọc lộ giá trị', (t) => {
+  const config = baseConfig()
+  config.e2e = { dir: 'ff-e2e', auth: { strategy: 'jwt-mint', jwt: {
+    secret: { file: 'api/.env', key: 'JWT_SECRET' },
+    algorithm: 'HS256', payload: { sub: '{user.id}' },
+    deliver: [{ via: 'cookie', name: 'session' }],
+  } } }
+  const ws = green(t, { config, files: { 'ff-e2e/package.json': '{}', 'api/.env': 'OTHER_SECRET=SUPER_SECRET_VALUE\n' } })
+  const msg = fails(doctor(ws.root))
+  assert.match(msg, /JWT_SECRET/)
+  assert.doesNotMatch(msg, /SUPER_SECRET_VALUE/)
 })
 
 test('lệnh có export/subshell/redirect không bị báo thiếu binary', (t) => {

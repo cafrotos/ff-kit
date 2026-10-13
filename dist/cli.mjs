@@ -112,17 +112,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path10) {
-      const ctrl = callVisitor(key, node, visitor, path10);
+    function visit_(key, node, visitor, path29) {
+      const ctrl = callVisitor(key, node, visitor, path29);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path10, ctrl);
-        return visit_(key, ctrl, visitor, path10);
+        replaceNode(key, path29, ctrl);
+        return visit_(key, ctrl, visitor, path29);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path10 = Object.freeze(path10.concat(node));
+          path29 = Object.freeze(path29.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path10);
+            const ci = visit_(i, node.items[i], visitor, path29);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -133,13 +133,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path10 = Object.freeze(path10.concat(node));
-          const ck = visit_("key", node.key, visitor, path10);
+          path29 = Object.freeze(path29.concat(node));
+          const ck = visit_("key", node.key, visitor, path29);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path10);
+          const cv = visit_("value", node.value, visitor, path29);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -160,17 +160,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path10) {
-      const ctrl = await callVisitor(key, node, visitor, path10);
+    async function visitAsync_(key, node, visitor, path29) {
+      const ctrl = await callVisitor(key, node, visitor, path29);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path10, ctrl);
-        return visitAsync_(key, ctrl, visitor, path10);
+        replaceNode(key, path29, ctrl);
+        return visitAsync_(key, ctrl, visitor, path29);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path10 = Object.freeze(path10.concat(node));
+          path29 = Object.freeze(path29.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path10);
+            const ci = await visitAsync_(i, node.items[i], visitor, path29);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -181,13 +181,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path10 = Object.freeze(path10.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path10);
+          path29 = Object.freeze(path29.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path29);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path10);
+          const cv = await visitAsync_("value", node.value, visitor, path29);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -214,23 +214,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path10) {
+    function callVisitor(key, node, visitor, path29) {
       if (typeof visitor === "function")
-        return visitor(key, node, path10);
+        return visitor(key, node, path29);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path10);
+        return visitor.Map?.(key, node, path29);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path10);
+        return visitor.Seq?.(key, node, path29);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path10);
+        return visitor.Pair?.(key, node, path29);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path10);
+        return visitor.Scalar?.(key, node, path29);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path10);
+        return visitor.Alias?.(key, node, path29);
       return void 0;
     }
-    function replaceNode(key, path10, node) {
-      const parent = path10[path10.length - 1];
+    function replaceNode(key, path29, node) {
+      const parent = path29[path29.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -394,7 +394,7 @@ var require_directives = __commonJS({
         return tag[0] === "!" ? tag : `!<${tag}>`;
       }
       toString(doc) {
-        const lines = this.yaml.explicit ? [`%YAML ${this.yaml.version || "1.2"}`] : [];
+        const lines2 = this.yaml.explicit ? [`%YAML ${this.yaml.version || "1.2"}`] : [];
         const tagEntries = Object.entries(this.tags);
         let tagNames;
         if (doc && tagEntries.length > 0 && identity.isNode(doc.contents)) {
@@ -410,9 +410,9 @@ var require_directives = __commonJS({
           if (handle === "!!" && prefix === "tag:yaml.org,2002:")
             continue;
           if (!doc || tagNames.some((tn) => tn.startsWith(prefix)))
-            lines.push(`%TAG ${handle} ${prefix}`);
+            lines2.push(`%TAG ${handle} ${prefix}`);
         }
-        return lines.join("\n");
+        return lines2.join("\n");
       }
     };
     Directives.defaultYaml = { explicit: false, version: "1.2" };
@@ -842,10 +842,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path10, value) {
+    function collectionFromPath(schema, path29, value) {
       let v = value;
-      for (let i = path10.length - 1; i >= 0; --i) {
-        const k = path10[i];
+      for (let i = path29.length - 1; i >= 0; --i) {
+        const k = path29[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -864,7 +864,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path10) => path10 == null || typeof path10 === "object" && !!path10[Symbol.iterator]().next().done;
+    var isEmptyPath = (path29) => path29 == null || typeof path29 === "object" && !!path29[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -894,11 +894,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path10, value) {
-        if (isEmptyPath(path10))
+      addIn(path29, value) {
+        if (isEmptyPath(path29))
           this.add(value);
         else {
-          const [key, ...rest] = path10;
+          const [key, ...rest] = path29;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -912,8 +912,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path10) {
-        const [key, ...rest] = path10;
+      deleteIn(path29) {
+        const [key, ...rest] = path29;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -927,8 +927,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path10, keepScalar) {
-        const [key, ...rest] = path10;
+      getIn(path29, keepScalar) {
+        const [key, ...rest] = path29;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -946,8 +946,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path10) {
-        const [key, ...rest] = path10;
+      hasIn(path29) {
+        const [key, ...rest] = path29;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -957,8 +957,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path10, value) {
-        const [key, ...rest] = path10;
+      setIn(path29, value) {
+        const [key, ...rest] = path29;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -1873,22 +1873,22 @@ var require_stringifyCollection = __commonJS({
       const { indent, options: { commentString } } = ctx;
       const itemCtx = Object.assign({}, ctx, { indent: itemIndent, type: null });
       let chompKeep = false;
-      const lines = [];
+      const lines2 = [];
       for (let i = 0; i < items.length; ++i) {
         const item = items[i];
         let comment2 = null;
         if (identity.isNode(item)) {
           if (!chompKeep && item.spaceBefore)
-            lines.push("");
-          addCommentBefore(ctx, lines, item.commentBefore, chompKeep);
+            lines2.push("");
+          addCommentBefore(ctx, lines2, item.commentBefore, chompKeep);
           if (item.comment)
             comment2 = item.comment;
         } else if (identity.isPair(item)) {
           const ik = identity.isNode(item.key) ? item.key : null;
           if (ik) {
             if (!chompKeep && ik.spaceBefore)
-              lines.push("");
-            addCommentBefore(ctx, lines, ik.commentBefore, chompKeep);
+              lines2.push("");
+            addCommentBefore(ctx, lines2, ik.commentBefore, chompKeep);
           }
         }
         chompKeep = false;
@@ -1897,15 +1897,15 @@ var require_stringifyCollection = __commonJS({
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment2));
         if (chompKeep && comment2)
           chompKeep = false;
-        lines.push(blockItemPrefix + str2);
+        lines2.push(blockItemPrefix + str2);
       }
       let str;
-      if (lines.length === 0) {
+      if (lines2.length === 0) {
         str = flowChars.start + flowChars.end;
       } else {
-        str = lines[0];
-        for (let i = 1; i < lines.length; ++i) {
-          const line = lines[i];
+        str = lines2[0];
+        for (let i = 1; i < lines2.length; ++i) {
+          const line = lines2[i];
           str += line ? `
 ${indent}${line}` : "\n";
         }
@@ -1928,22 +1928,22 @@ ${indent}${line}` : "\n";
       });
       let reqNewline = false;
       let linesAtValue = 0;
-      const lines = [];
+      const lines2 = [];
       for (let i = 0; i < items.length; ++i) {
         const item = items[i];
         let comment = null;
         if (identity.isNode(item)) {
           if (item.spaceBefore)
-            lines.push("");
-          addCommentBefore(ctx, lines, item.commentBefore, false);
+            lines2.push("");
+          addCommentBefore(ctx, lines2, item.commentBefore, false);
           if (item.comment)
             comment = item.comment;
         } else if (identity.isPair(item)) {
           const ik = identity.isNode(item.key) ? item.key : null;
           if (ik) {
             if (ik.spaceBefore)
-              lines.push("");
-            addCommentBefore(ctx, lines, ik.commentBefore, false);
+              lines2.push("");
+            addCommentBefore(ctx, lines2, ik.commentBefore, false);
             if (ik.comment)
               reqNewline = true;
           }
@@ -1960,12 +1960,12 @@ ${indent}${line}` : "\n";
         if (comment)
           reqNewline = true;
         let str = stringify.stringify(item, itemCtx, () => comment = null);
-        reqNewline || (reqNewline = lines.length > linesAtValue || str.includes("\n"));
+        reqNewline || (reqNewline = lines2.length > linesAtValue || str.includes("\n"));
         if (i < items.length - 1) {
           str += ",";
         } else if (ctx.options.trailingComma) {
           if (ctx.options.lineWidth > 0) {
-            reqNewline || (reqNewline = lines.reduce((sum, line) => sum + line.length + 2, 2) + (str.length + 2) > ctx.options.lineWidth);
+            reqNewline || (reqNewline = lines2.reduce((sum, line) => sum + line.length + 2, 2) + (str.length + 2) > ctx.options.lineWidth);
           }
           if (reqNewline) {
             str += ",";
@@ -1973,35 +1973,35 @@ ${indent}${line}` : "\n";
         }
         if (comment)
           str += stringifyComment.lineComment(str, itemIndent, commentString(comment));
-        lines.push(str);
-        linesAtValue = lines.length;
+        lines2.push(str);
+        linesAtValue = lines2.length;
       }
       const { start, end } = flowChars;
-      if (lines.length === 0) {
+      if (lines2.length === 0) {
         return start + end;
       } else {
         if (!reqNewline) {
-          const len = lines.reduce((sum, line) => sum + line.length + 2, 2);
+          const len = lines2.reduce((sum, line) => sum + line.length + 2, 2);
           reqNewline = ctx.options.lineWidth > 0 && len > ctx.options.lineWidth;
         }
         if (reqNewline) {
           let str = start;
-          for (const line of lines)
+          for (const line of lines2)
             str += line ? `
 ${indentStep}${indent}${line}` : "\n";
           return `${str}
 ${indent}${end}`;
         } else {
-          return `${start}${fcPadding}${lines.join(" ")}${fcPadding}${end}`;
+          return `${start}${fcPadding}${lines2.join(" ")}${fcPadding}${end}`;
         }
       }
     }
-    function addCommentBefore({ indent, options: { commentString } }, lines, comment, chompKeep) {
+    function addCommentBefore({ indent, options: { commentString } }, lines2, comment, chompKeep) {
       if (comment && chompKeep)
         comment = comment.replace(/^\n+/, "");
       if (comment) {
         const ic = stringifyComment.indentComment(commentString(comment), indent);
-        lines.push(ic.trimStart());
+        lines2.push(ic.trimStart());
       }
     }
     exports.stringifyCollection = stringifyCollection;
@@ -2639,11 +2639,11 @@ var require_binary = __commonJS({
         if (type !== Scalar.Scalar.QUOTE_DOUBLE) {
           const lineWidth = Math.max(ctx.options.lineWidth - ctx.indent.length, ctx.options.minContentWidth);
           const n = Math.ceil(str.length / lineWidth);
-          const lines = new Array(n);
+          const lines2 = new Array(n);
           for (let i = 0, o = 0; i < n; ++i, o += lineWidth) {
-            lines[i] = str.substr(o, lineWidth);
+            lines2[i] = str.substr(o, lineWidth);
           }
-          str = lines.join(type === Scalar.Scalar.BLOCK_LITERAL ? "\n" : " ");
+          str = lines2.join(type === Scalar.Scalar.BLOCK_LITERAL ? "\n" : " ");
         }
         return stringifyString.stringifyString({ comment, type, value: str }, ctx, onComment, onChompKeep);
       }
@@ -3323,35 +3323,35 @@ var require_stringifyDocument = __commonJS({
     var stringify = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
-      const lines = [];
+      const lines2 = [];
       let hasDirectives = options.directives === true;
       if (options.directives !== false && doc.directives) {
         const dir = doc.directives.toString(doc);
         if (dir) {
-          lines.push(dir);
+          lines2.push(dir);
           hasDirectives = true;
         } else if (doc.directives.docStart)
           hasDirectives = true;
       }
       if (hasDirectives)
-        lines.push("---");
+        lines2.push("---");
       const ctx = stringify.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
-        if (lines.length !== 1)
-          lines.unshift("");
+        if (lines2.length !== 1)
+          lines2.unshift("");
         const cs = commentString(doc.commentBefore);
-        lines.unshift(stringifyComment.indentComment(cs, ""));
+        lines2.unshift(stringifyComment.indentComment(cs, ""));
       }
       let chompKeep = false;
       let contentComment = null;
       if (doc.contents) {
         if (identity.isNode(doc.contents)) {
           if (doc.contents.spaceBefore && hasDirectives)
-            lines.push("");
+            lines2.push("");
           if (doc.contents.commentBefore) {
             const cs = commentString(doc.contents.commentBefore);
-            lines.push(stringifyComment.indentComment(cs, ""));
+            lines2.push(stringifyComment.indentComment(cs, ""));
           }
           ctx.forceBlockIndent = !!doc.comment;
           contentComment = doc.contents.comment;
@@ -3360,36 +3360,36 @@ var require_stringifyDocument = __commonJS({
         let body = stringify.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body += stringifyComment.lineComment(body, "", commentString(contentComment));
-        if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
-          lines[lines.length - 1] = `--- ${body}`;
+        if ((body[0] === "|" || body[0] === ">") && lines2[lines2.length - 1] === "---") {
+          lines2[lines2.length - 1] = `--- ${body}`;
         } else
-          lines.push(body);
+          lines2.push(body);
       } else {
-        lines.push(stringify.stringify(doc.contents, ctx));
+        lines2.push(stringify.stringify(doc.contents, ctx));
       }
       if (doc.directives?.docEnd) {
         if (doc.comment) {
           const cs = commentString(doc.comment);
           if (cs.includes("\n")) {
-            lines.push("...");
-            lines.push(stringifyComment.indentComment(cs, ""));
+            lines2.push("...");
+            lines2.push(stringifyComment.indentComment(cs, ""));
           } else {
-            lines.push(`... ${cs}`);
+            lines2.push(`... ${cs}`);
           }
         } else {
-          lines.push("...");
+          lines2.push("...");
         }
       } else {
         let dc = doc.comment;
         if (dc && chompKeep)
           dc = dc.replace(/^\n+/, "");
         if (dc) {
-          if ((!chompKeep || contentComment) && lines[lines.length - 1] !== "")
-            lines.push("");
-          lines.push(stringifyComment.indentComment(commentString(dc), ""));
+          if ((!chompKeep || contentComment) && lines2[lines2.length - 1] !== "")
+            lines2.push("");
+          lines2.push(stringifyComment.indentComment(commentString(dc), ""));
         }
       }
-      return lines.join("\n") + "\n";
+      return lines2.join("\n") + "\n";
     }
     exports.stringifyDocument = stringifyDocument;
   }
@@ -3473,9 +3473,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path10, value) {
+      addIn(path29, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path10, value);
+          this.contents.addIn(path29, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3550,14 +3550,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path10) {
-        if (Collection.isEmptyPath(path10)) {
+      deleteIn(path29) {
+        if (Collection.isEmptyPath(path29)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path10) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path29) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3572,10 +3572,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path10, keepScalar) {
-        if (Collection.isEmptyPath(path10))
+      getIn(path29, keepScalar) {
+        if (Collection.isEmptyPath(path29))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path10, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path29, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3586,10 +3586,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path10) {
-        if (Collection.isEmptyPath(path10))
+      hasIn(path29) {
+        if (Collection.isEmptyPath(path29))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path10) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path29) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3606,13 +3606,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path10, value) {
-        if (Collection.isEmptyPath(path10)) {
+      setIn(path29, value) {
+        if (Collection.isEmptyPath(path29)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path10), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path29), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path10, value);
+          this.contents.setIn(path29, value);
         }
       }
       /**
@@ -4451,17 +4451,17 @@ var require_resolve_block_scalar = __commonJS({
       if (!header)
         return { value: "", type: null, comment: "", range: [start, start, start] };
       const type = header.mode === ">" ? Scalar.Scalar.BLOCK_FOLDED : Scalar.Scalar.BLOCK_LITERAL;
-      const lines = scalar.source ? splitLines(scalar.source) : [];
-      let chompStart = lines.length;
-      for (let i = lines.length - 1; i >= 0; --i) {
-        const content = lines[i][1];
+      const lines2 = scalar.source ? splitLines(scalar.source) : [];
+      let chompStart = lines2.length;
+      for (let i = lines2.length - 1; i >= 0; --i) {
+        const content = lines2[i][1];
         if (content === "" || content === "\r")
           chompStart = i;
         else
           break;
       }
       if (chompStart === 0) {
-        const value2 = header.chomp === "+" && lines.length > 0 ? "\n".repeat(Math.max(1, lines.length - 1)) : "";
+        const value2 = header.chomp === "+" && lines2.length > 0 ? "\n".repeat(Math.max(1, lines2.length - 1)) : "";
         let end2 = start + header.length;
         if (scalar.source)
           end2 += scalar.source.length;
@@ -4471,7 +4471,7 @@ var require_resolve_block_scalar = __commonJS({
       let offset = scalar.offset + header.length;
       let contentStart = 0;
       for (let i = 0; i < chompStart; ++i) {
-        const [indent, content] = lines[i];
+        const [indent, content] = lines2[i];
         if (content === "" || content === "\r") {
           if (header.indent === 0 && indent.length > trimIndent)
             trimIndent = indent.length;
@@ -4491,17 +4491,17 @@ var require_resolve_block_scalar = __commonJS({
         }
         offset += indent.length + content.length + 1;
       }
-      for (let i = lines.length - 1; i >= chompStart; --i) {
-        if (lines[i][0].length > trimIndent)
+      for (let i = lines2.length - 1; i >= chompStart; --i) {
+        if (lines2[i][0].length > trimIndent)
           chompStart = i + 1;
       }
       let value = "";
       let sep = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
-        value += lines[i][0].slice(trimIndent) + "\n";
+        value += lines2[i][0].slice(trimIndent) + "\n";
       for (let i = contentStart; i < chompStart; ++i) {
-        let [indent, content] = lines[i];
+        let [indent, content] = lines2[i];
         offset += indent.length + content.length + 1;
         const crlf = content[content.length - 1] === "\r";
         if (crlf)
@@ -4538,8 +4538,8 @@ var require_resolve_block_scalar = __commonJS({
         case "-":
           break;
         case "+":
-          for (let i = chompStart; i < lines.length; ++i)
-            value += "\n" + lines[i][0].slice(trimIndent);
+          for (let i = chompStart; i < lines2.length; ++i)
+            value += "\n" + lines2[i][0].slice(trimIndent);
           if (value[value.length - 1] !== "\n")
             value += "\n";
           break;
@@ -4611,13 +4611,13 @@ var require_resolve_block_scalar = __commonJS({
     }
     function splitLines(source) {
       const split = source.split(/\n( *)/);
-      const first = split[0];
-      const m = first.match(/^( *)/);
-      const line0 = m?.[1] ? [m[1], first.slice(m[1].length)] : ["", first];
-      const lines = [line0];
+      const first2 = split[0];
+      const m = first2.match(/^( *)/);
+      const line0 = m?.[1] ? [m[1], first2.slice(m[1].length)] : ["", first2];
+      const lines2 = [line0];
       for (let i = 1; i < split.length; i += 2)
-        lines.push([split[i], split[i + 1]]);
-      return lines;
+        lines2.push([split[i], split[i + 1]]);
+      return lines2;
     }
     exports.resolveBlockScalar = resolveBlockScalar;
   }
@@ -5573,9 +5573,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path10) => {
+    visit.itemAtPath = (cst, path29) => {
       let item = cst;
-      for (const [field, index] of path10) {
+      for (const [field, index] of path29) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5584,23 +5584,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path10) => {
-      const parent = visit.itemAtPath(cst, path10.slice(0, -1));
-      const field = path10[path10.length - 1][0];
+    visit.parentCollection = (cst, path29) => {
+      const parent = visit.itemAtPath(cst, path29.slice(0, -1));
+      const field = path29[path29.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path10, item, visitor) {
-      let ctrl = visitor(item, path10);
+    function _visit(path29, item, visitor) {
+      let ctrl = visitor(item, path29);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path10.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path29.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5611,10 +5611,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path10);
+            ctrl = ctrl(item, path29);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path10) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path29) : ctrl;
     }
     exports.visit = visit;
   }
@@ -6916,14 +6916,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs9 = this.flowScalar(this.type);
+              const fs25 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs9, sep: [] });
+                map.items.push({ start, key: fs25, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs9);
+                this.stack.push(fs25);
               } else {
-                Object.assign(it, { key: fs9, sep: [] });
+                Object.assign(it, { key: fs25, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -7051,13 +7051,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs9 = this.flowScalar(this.type);
+              const fs25 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs9, sep: [] });
+                fc.items.push({ start: [], key: fs25, sep: [] });
               else if (it.sep)
-                this.stack.push(fs9);
+                this.stack.push(fs25);
               else
-                Object.assign(it, { key: fs9, sep: [] });
+                Object.assign(it, { key: fs25, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -7265,7 +7265,7 @@ var require_public_api = __commonJS({
       }
       return doc;
     }
-    function parse(src, reviver, options) {
+    function parse2(src, reviver, options) {
       let _reviver = void 0;
       if (typeof reviver === "function") {
         _reviver = reviver;
@@ -7306,7 +7306,7 @@ var require_public_api = __commonJS({
         return value.toString(options);
       return new Document.Document(value, _replacer, options).toString(options);
     }
-    exports.parse = parse;
+    exports.parse = parse2;
     exports.parseAllDocuments = parseAllDocuments;
     exports.parseDocument = parseDocument;
     exports.stringify = stringify;
@@ -8393,10 +8393,10 @@ var require_util = __commonJS({
     var codegen_1 = require_codegen();
     var code_1 = require_code();
     function toHash(arr) {
-      const hash = {};
+      const hash2 = {};
       for (const item of arr)
-        hash[item] = true;
-      return hash;
+        hash2[item] = true;
+      return hash2;
     }
     exports.toHash = toHash;
     function alwaysValidSchema(it, schema) {
@@ -10229,9 +10229,9 @@ var require_compile = __commonJS({
       if (_sch)
         return _sch;
       const rootId = (0, resolve_1.getFullPath)(this.opts.uriResolver, sch.root.baseId);
-      const { es5, lines } = this.opts.code;
+      const { es5, lines: lines2 } = this.opts.code;
       const { ownProperties } = this.opts;
-      const gen = new codegen_1.CodeGen(this.scope, { es5, lines, ownProperties });
+      const gen = new codegen_1.CodeGen(this.scope, { es5, lines: lines2, ownProperties });
       let _ValidationError;
       if (sch.$async) {
         _ValidationError = gen.scopeValue("Error", {
@@ -10594,8 +10594,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path10) {
-      let input = path10;
+    function removeDotSegments(path29) {
+      let input = path29;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -11004,8 +11004,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path10 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path10 && path10 !== "/" ? path10 : void 0;
+        const path29 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path29 && path29 !== "/" ? path29 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -11169,7 +11169,7 @@ var require_fast_uri = __commonJS({
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse(serialize(uri, options), options);
+        parse2(serialize(uri, options), options);
       }
       return uri;
     }
@@ -11209,8 +11209,8 @@ var require_fast_uri = __commonJS({
     function resolveComponent(base, relative, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse(serialize(base, options), options);
-        relative = parse(serialize(relative, options), options);
+        base = parse2(serialize(base, options), options);
+        relative = parse2(serialize(relative, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative.scheme) {
@@ -11509,7 +11509,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
     }
-    function parse(uri, opts) {
+    function parse2(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -11546,7 +11546,7 @@ var require_fast_uri = __commonJS({
       resolveComponent,
       equal,
       serialize,
-      parse
+      parse: parse2
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -11682,8 +11682,8 @@ var require_core = __commonJS({
         this._loading = {};
         this._cache = /* @__PURE__ */ new Map();
         opts = this.opts = { ...opts, ...requiredOptions(opts) };
-        const { es5, lines } = this.opts.code;
-        this.scope = new codegen_2.ValueScope({ scope: {}, prefixes: EXT_SCOPE_NAMES, es5, lines });
+        const { es5, lines: lines2 } = this.opts.code;
+        this.scope = new codegen_2.ValueScope({ scope: {}, prefixes: EXT_SCOPE_NAMES, es5, lines: lines2 });
         this.logger = getLogger(opts.logger);
         const formatOpt = opts.validateFormats;
         opts.validateFormats = false;
@@ -14823,7 +14823,7 @@ var DEFAULTS = {
   worker: {
     max_concurrent_tasks: 2,
     channel: { adapter: "console" },
-    tmux: { session_prefix: "ff-", cleanup_on_success: true, cleanup_on_failure: false, max_session_lifetime_hours: 24 },
+    tmux: { session_name: "ff-worker", session_prefix: "ff-", cleanup_on_success: true, cleanup_on_failure: false, max_session_lifetime_hours: 24 },
     http: { port: 0 },
     reload: { watch: true, debounce_ms: 2e3 }
   },
@@ -15065,6 +15065,7 @@ __export(doctor_exports, {
 // scripts/lib/doctor.mjs
 import fs5 from "node:fs";
 import path6 from "node:path";
+import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
 
 // scripts/lib/lock.mjs
@@ -15106,8 +15107,8 @@ function checkLock(root, raw, envFile = ".ff.env") {
     return [{ ok: false, msg: `thi\u1EBFu ho\u1EB7c h\u1ECFng ${LOCK_FILE} \u2014 ch\u1EA1y l\u1EA1i /ff-init` }];
   }
   const sources = lock.sources ?? {};
-  const checks = [];
-  const bad = (msg) => checks.push({ ok: false, msg });
+  const checks2 = [];
+  const bad = (msg) => checks2.push({ ok: false, msg });
   const secretAbs = path5.resolve(root, envFile);
   for (const { key, value } of leafKeys(raw)) {
     const src = sources[key];
@@ -15143,8 +15144,8 @@ function checkLock(root, raw, envFile = ".ff.env") {
     const have = line.normalize("NFC");
     if (!want.every((w) => have.includes(w))) bad(`${key}: ngu\u1ED3n l\u1EC7ch \u2014 ${m[1]}:${m[2]} kh\xF4ng c\xF2n ch\u1EE9a "${want.join('", "')}"`);
   }
-  if (!checks.length) checks.push({ ok: true, msg: "m\u1ECDi gi\xE1 tr\u1ECB c\xF2n kh\u1EDBp ngu\u1ED3n" });
-  return checks;
+  if (!checks2.length) checks2.push({ ok: true, msg: "m\u1ECDi gi\xE1 tr\u1ECB c\xF2n kh\u1EDBp ngu\u1ED3n" });
+  return checks2;
 }
 
 // scripts/lib/shell.mjs
@@ -15256,12 +15257,13 @@ function whichInPath(bin, cwd) {
 }
 var git = (cwd, args) => spawnSync("git", args, { cwd, encoding: "utf8" });
 function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
-  const checks = [];
-  const ok = (msg, group = "core") => checks.push({ ok: true, msg, group });
-  const bad = (msg, group = "core") => checks.push({ ok: false, msg, group });
+  const checks2 = [];
+  const warnings = [];
+  const ok = (msg, group = "core") => checks2.push({ ok: true, msg, group });
+  const bad = (msg, group = "core") => checks2.push({ ok: false, msg, group });
   const finish = () => {
-    const groups = Object.fromEntries(["core", "worker", "e2e"].map((g) => [g, checks.filter((c) => c.group === g).every((c) => c.ok)]));
-    return { ok: checks.every((c) => c.ok), groups, checks };
+    const groups = Object.fromEntries(["core", "worker", "e2e"].map((g) => [g, checks2.filter((c) => c.group === g).every((c) => c.ok)]));
+    return { ok: checks2.every((c) => c.ok), groups, checks: checks2, warnings };
   };
   const errs = validate(config);
   if (errs.length) {
@@ -15269,6 +15271,8 @@ function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
     return finish();
   }
   ok("schema h\u1EE3p l\u1EC7");
+  if (!which("codegraph", root)) warnings.push("CodeGraph ch\u01B0a c\xF3 trong PATH; agent t\xECm code s\u1EBD d\xF9ng c\xE1ch d\u1EF1 ph\xF2ng");
+  warnings.push("Kh\xF4ng ki\u1EC3m tra plugin Playwright t\u1EF1 \u0111\u1ED9ng; x\xE1c nh\u1EADn plugin trong Claude Code n\u1EBFu d\xF9ng ff-observer ho\u1EB7c ff-verifier");
   for (const k of ["cards_dir", "worktrees_dir"]) {
     const rel = config.workspace[k];
     fs5.existsSync(path6.resolve(root, rel)) ? ok(`workspace.${k} c\xF3: ${rel}`) : bad(`workspace.${k} kh\xF4ng t\u1ED3n t\u1EA1i: ${rel}`);
@@ -15303,9 +15307,42 @@ function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
         if (config.e2e[k] && !fs5.existsSync(path6.resolve(root, config.e2e[k]))) bad(`e2e.${k} kh\xF4ng t\u1ED3n t\u1EA1i: ${config.e2e[k]}`, "e2e");
       }
       checkCmds("e2e", { up_cmd: config.e2e.up_cmd, down_cmd: config.e2e.down_cmd, test_cmd: config.e2e.test_cmd }, dir, "e2e");
+      const playwrightPkg = path6.join(dir, "node_modules", "@playwright", "test");
+      if (!fs5.existsSync(playwrightPkg)) bad("e2e thi\u1EBFu node_modules/@playwright/test \u2014 ch\u1EA1y npm install trong e2e.dir", "e2e");
+      else {
+        try {
+          const require2 = createRequire(path6.join(dir, "package.json"));
+          const browser = require2("playwright").chromium.executablePath();
+          if (!fs5.existsSync(browser)) bad("e2e ch\u01B0a c\xE0i browser Chromium \u2014 ch\u1EA1y npx playwright install chromium", "e2e");
+        } catch {
+          bad("kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c Playwright ho\u1EB7c browser Chromium ch\u01B0a c\xE0i", "e2e");
+        }
+        const playwrightBin = path6.join(dir, "node_modules", ".bin", "playwright");
+        if (!fs5.existsSync(playwrightBin)) bad("e2e thi\u1EBFu node_modules/.bin/playwright", "e2e");
+        else {
+          const listed = spawnSync(playwrightBin, ["test", "--list"], { cwd: dir, encoding: "utf8", timeout: 15e3 });
+          if (listed.status !== 0) bad(`npx playwright test --list l\u1ED7i trong ${config.e2e.dir}: ${(listed.stderr || listed.stdout || "kh\xF4ng r\xF5 l\u1ED7i").trim().split("\n")[0]}`, "e2e");
+          else ok("e2e: playwright test --list ch\u1EA1y \u0111\u01B0\u1EE3c", "e2e");
+        }
+      }
     }
   }
   if (config.db && !fs5.existsSync(path6.resolve(root, config.db.env_file))) bad(`db.env_file kh\xF4ng t\u1ED3n t\u1EA1i: ${config.db.env_file}`, "e2e");
+  if (config.e2e?.auth?.strategy === "jwt-mint") {
+    const secret = config.e2e.auth.jwt?.secret;
+    if (secret) {
+      const secretPath = path6.resolve(root, secret.file);
+      if (!fs5.existsSync(secretPath)) bad(`e2e JWT secret file kh\xF4ng t\u1ED3n t\u1EA1i: ${secret.file}`, "e2e");
+      else if (!presentKeys(secretPath)?.has(secret.key)) bad(`e2e JWT secret thi\u1EBFu key: ${secret.key} trong ${secret.file}`, "e2e");
+    }
+    for (const [field, value] of Object.entries(config.e2e.auth.jwt?.payload ?? {})) {
+      const tokens = [...value.matchAll(/\{([^{}]+)\}/g)].map((m) => m[1]);
+      const malformed = (value.includes("{") || value.includes("}")) && tokens.length === 0;
+      if (malformed || tokens.some((token) => token !== "uuid" && !/^user\.[A-Za-z_][A-Za-z0-9_.]*$/.test(token))) {
+        bad(`e2e.auth.jwt.payload.${field} c\xF3 placeholder kh\xF4ng h\u1ED7 tr\u1EE3`, "e2e");
+      }
+    }
+  }
   for (const [k, rel] of Object.entries(config.project_docs ?? {})) {
     if (!fs5.existsSync(path6.resolve(root, rel))) bad(`project_docs.${k} kh\xF4ng t\u1ED3n t\u1EA1i: ${rel}`);
   }
@@ -15321,7 +15358,7 @@ function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
       miss.length ? bad(`${envName} thi\u1EBFu key: ${miss.join(", ")}`, group) : ok(`${envName} \u0111\u1EE7 key cho ${label}`, group);
     }
   }
-  checks.push(...checkLock(root, raw, envName).map((c) => ({ ...c, group: "core" })));
+  checks2.push(...checkLock(root, raw, envName).map((c) => ({ ...c, group: "core" })));
   return finish();
 }
 
@@ -15344,12 +15381,14 @@ async function run3(args, ctx) {
     })() : runDoctor(root, loaded);
   } catch (e) {
     if (!(e instanceof ConfigError)) throw e;
-    result = { ok: false, groups: { core: false, worker: false, e2e: false }, checks: [{ ok: false, msg: e.message, group: "core" }] };
+    result = { ok: false, groups: { core: false, worker: false, e2e: false }, checks: [{ ok: false, msg: e.message, group: "core" }], warnings: [] };
   }
   if (!schemaOnly) writeDoctorState(root, result.ok, result.groups);
   if (json) ctx.stdout.write(JSON.stringify(result) + "\n");
   else {
     for (const c of result.checks) ctx.stdout.write(`${c.ok ? "\u2713" : "\u2717"} [${c.group}] ${c.msg}
+`);
+    for (const warning of result.warnings ?? []) ctx.stdout.write(`! [optional] ${warning}
 `);
     const n = result.checks.filter((c) => !c.ok).length;
     const g = result.groups;
@@ -15402,21 +15441,21 @@ function splitRow(line) {
   return parts.map((c) => c.trim());
 }
 function parseTables(text) {
-  const lines = norm(text).split(/\r?\n/);
+  const lines2 = norm(text).split(/\r?\n/);
   const tables = [];
   let heads = [];
-  for (let i = 0; i < lines.length; i++) {
-    const h = lines[i].match(/^(#{1,6})\s+(.*)$/);
+  for (let i = 0; i < lines2.length; i++) {
+    const h = lines2[i].match(/^(#{1,6})\s+(.*)$/);
     if (h) {
       heads = heads.slice(0, h[1].length - 1);
       heads[h[1].length - 1] = h[2];
       continue;
     }
-    if (i === lines.length - 1 || !lines[i].trim().startsWith("|") || !/^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) continue;
+    if (i === lines2.length - 1 || !lines2[i].trim().startsWith("|") || !/^\s*\|?\s*:?-{3,}/.test(lines2[i + 1])) continue;
     const rows = [];
     let j = i + 2;
-    for (; j < lines.length && lines[j].trim().startsWith("|"); j++) rows.push({ cells: splitRow(lines[j]), line: j + 1 });
-    tables.push({ header: splitRow(lines[i]), rows, line: i + 1, inAppendix: heads.some((x) => x && /phụ lục/i.test(x)) });
+    for (; j < lines2.length && lines2[j].trim().startsWith("|"); j++) rows.push({ cells: splitRow(lines2[j]), line: j + 1 });
+    tables.push({ header: splitRow(lines2[i]), rows, line: i + 1, inAppendix: heads.some((x) => x && /phụ lục/i.test(x)) });
     i = j - 1;
   }
   return tables;
@@ -15447,10 +15486,10 @@ function dossierUnits(text) {
 }
 function outOfScopeCodes(text) {
   const codes = [];
-  let inside = false;
+  let inside4 = false;
   for (const line of norm(text).split(/\r?\n/)) {
-    if (/^#{1,4}\s/.test(line)) inside = /^#{2,4}\s*Ngoài phạm vi/i.test(line);
-    else if (inside) codes.push(...[...line.matchAll(CODE_RE)].map((m) => m[1]).filter((c) => c.startsWith("D-")));
+    if (/^#{1,4}\s/.test(line)) inside4 = /^#{2,4}\s*Ngoài phạm vi/i.test(line);
+    else if (inside4) codes.push(...[...line.matchAll(CODE_RE)].map((m) => m[1]).filter((c) => c.startsWith("D-")));
   }
   return codes;
 }
@@ -15663,6 +15702,1986 @@ async function run5(args, ctx) {
   return 0;
 }
 
+// scripts/cli/mcp-auth.mjs
+var mcp_auth_exports = {};
+__export(mcp_auth_exports, {
+  run: () => run6,
+  summary: () => summary6
+});
+import fs10 from "node:fs";
+import path12 from "node:path";
+
+// scripts/cli/auth-common.mjs
+import path11 from "node:path";
+
+// scripts/lib/jwt.mjs
+import fs9 from "node:fs";
+import path10 from "node:path";
+import crypto, { randomUUID } from "node:crypto";
+import { createRequire as createRequire2 } from "node:module";
+function readEnvValues(text) {
+  const values = /* @__PURE__ */ Object.create(null);
+  for (const line of text.replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+    let value = match[2].trim();
+    if (/^(['"]).*\1$/.test(value)) value = value.slice(1, -1);
+    else value = value.replace(/\s+#.*$/, "").replace(/^#.*$/, "");
+    values[match[1]] = value;
+  }
+  return values;
+}
+function readEnvFile(file) {
+  return readEnvValues(fs9.readFileSync(file, "utf8"));
+}
+function renderPayload(payload, user, uuid = randomUUID()) {
+  const render = (value, key) => {
+    if (typeof value !== "string") return value;
+    return value.replace(/\{([^{}]+)\}/g, (whole, token) => {
+      if (token === "uuid") return uuid;
+      const match = /^user\.([A-Za-z_][A-Za-z0-9_.]*)$/.exec(token);
+      if (!match) throw new Error(`payload c\xF3 placeholder kh\xF4ng h\u1ED7 tr\u1EE3 \u1EDF ${key}: {${token}}`);
+      const found = match[1].split(".").reduce((obj, part) => obj?.[part], user);
+      if (found === void 0 || found === null) throw new Error(`thi\u1EBFu user.${match[1]} cho JWT payload`);
+      return String(found);
+    });
+  };
+  return Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, render(value, key)]));
+}
+function durationSeconds(value) {
+  const match = /^(\d+)([smhd])$/.exec(value ?? "");
+  if (!match) throw new Error("JWT expires_in kh\xF4ng h\u1EE3p l\u1EC7");
+  return Number(match[1]) * { s: 1, m: 60, h: 3600, d: 86400 }[match[2]];
+}
+function signJwt(config, user, secret, { now = Math.floor(Date.now() / 1e3), uuid = randomUUID(), expiresIn } = {}) {
+  if (!secret) throw new Error("JWT secret r\u1ED7ng");
+  const alg = config.algorithm;
+  const hash2 = { HS256: "sha256", HS384: "sha384", HS512: "sha512" }[alg];
+  if (!hash2) throw new Error(`JWT algorithm kh\xF4ng h\u1ED7 tr\u1EE3: ${alg}`);
+  const payload = renderPayload(config.payload, user, uuid);
+  const seconds = durationSeconds(expiresIn ?? config.expires_in?.default ?? "2h");
+  payload.iat ??= now;
+  payload.exp ??= now + seconds;
+  const header = Buffer.from(JSON.stringify({ alg, typ: "JWT" })).toString("base64url");
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const input = `${header}.${body}`;
+  return `${input}.${crypto.createHmac(hash2, secret).update(input).digest("base64url")}`;
+}
+function storageState(apps, deliver, token) {
+  const locations = deliver.filter((d) => d.via === "local_storage" || d.via === "cookie");
+  if (!locations.length) throw new Error("mcp-auth c\u1EA7n deliver ki\u1EC3u local_storage ho\u1EB7c cookie");
+  const state = { cookies: [], origins: [] };
+  for (const app of apps) {
+    const origin = new URL(app.base_url).origin;
+    const localStorage = [];
+    for (const item of locations) {
+      if (item.via === "local_storage") localStorage.push({ name: item.name, value: token });
+      else state.cookies.push({ name: item.name, value: token, domain: new URL(origin).hostname, path: "/", expires: -1, httpOnly: false, secure: origin.startsWith("https:"), sameSite: "Lax" });
+    }
+    if (localStorage.length) state.origins.push({ origin, localStorage });
+  }
+  return state;
+}
+function dbValues(root, config) {
+  if (!config.db?.env_file) throw new Error("mcp-auth c\u1EA7n c\u1EA5u h\xECnh db.env_file");
+  return readEnvFile(path10.resolve(root, config.db.env_file));
+}
+function first(values, keys, fallback) {
+  for (const key of keys) if (values[key]) return values[key];
+  return fallback;
+}
+async function lookupUserByEmail(root, config, email) {
+  const jwt = config.e2e?.auth?.jwt;
+  const lookup = jwt?.user_lookup;
+  if (!lookup) throw new Error("thi\u1EBFu e2e.auth.jwt.user_lookup");
+  const env = dbValues(root, config);
+  const require2 = createRequire2(path10.join(path10.resolve(root, config.e2e.dir), "package.json"));
+  const shared = {
+    host: first(env, ["DATABASE_HOST", "PGHOST", "MYSQL_HOST"], "localhost"),
+    port: Number(first(env, ["DATABASE_PORT", "PGPORT", "MYSQL_PORT"], config.db.driver === "postgres" ? "5432" : "3306")),
+    user: first(env, ["DATABASE_USERNAME", "DATABASE_USER", "PGUSER", "MYSQL_USER"], ""),
+    password: first(env, ["DATABASE_PASSWORD", "PGPASSWORD", "MYSQL_PASSWORD"], ""),
+    database: first(env, ["DATABASE_NAME", "PGDATABASE", "MYSQL_DATABASE"], "")
+  };
+  if (config.db.driver === "postgres") {
+    const pg = require2("pg");
+    const client = new pg.Client(shared);
+    try {
+      await client.connect();
+      const result = await client.query(lookup, [email]);
+      return result.rows[0] ?? null;
+    } finally {
+      await client.end().catch(() => {
+      });
+    }
+  }
+  if (config.db.driver === "mysql") {
+    const mysql = require2("mysql2/promise");
+    const connection = await mysql.createConnection(shared);
+    try {
+      const sql = lookup.replace(/\$1/g, "?");
+      const [rows] = await connection.execute(sql, [email]);
+      return rows[0] ?? null;
+    } finally {
+      await connection.end();
+    }
+  }
+  throw new Error(`db.driver kh\xF4ng h\u1ED7 tr\u1EE3: ${config.db.driver}`);
+}
+function mintForConfig(root, config, user, { uuid, now } = {}) {
+  const jwt = config.e2e?.auth?.jwt;
+  if (!jwt) throw new Error("thi\u1EBFu e2e.auth.jwt");
+  const secretPath = path10.resolve(root, jwt.secret.file);
+  const env = readEnvFile(secretPath);
+  const secret = env[jwt.secret.key];
+  if (!secret) throw new Error(`thi\u1EBFu key ${jwt.secret.key} trong ${jwt.secret.file}`);
+  const expiresIn = jwt.expires_in?.key && env[jwt.expires_in.key] || jwt.expires_in?.default || "2h";
+  return signJwt(jwt, user, secret, { uuid, now, expiresIn });
+}
+
+// scripts/cli/auth-common.mjs
+function parseEmail(args, command, ctx) {
+  const i = args.indexOf("--email");
+  if (i < 0 || !args[i + 1] || args[i + 1].startsWith("--")) {
+    ctx.stderr.write(`d\xF9ng: ff ${command} --email <email>
+`);
+    return null;
+  }
+  return args[i + 1];
+}
+async function authContext(ctx, email) {
+  const root = findRoot(ctx.cwd);
+  if (!root) throw new Error("kh\xF4ng th\u1EA5y ff.config.yaml");
+  const config = loadConfig(root).config;
+  if (config.e2e?.auth?.strategy !== "jwt-mint") throw new Error("e2e.auth.strategy ph\u1EA3i l\xE0 jwt-mint");
+  const lookup = ctx.lookupUser ?? ((address) => lookupUserByEmail(root, config, address));
+  const user = await lookup(email);
+  if (!user) throw new Error(`kh\xF4ng th\u1EA5y user ${email} trong DB`);
+  return { root, config, user, token: mintForConfig(root, config, user) };
+}
+function resolveAuthStorage(root, config) {
+  if (!config.e2e?.auth_storage) throw new Error("thi\u1EBFu e2e.auth_storage trong ff.config.yaml");
+  return path11.resolve(root, config.e2e.auth_storage);
+}
+
+// scripts/cli/mcp-auth.mjs
+var summary6 = "mcp-auth --email <email> \u2014 t\u1EA1o Playwright storage-state cho user \u0111\u01B0\u1EE3c ch\u1EC9 \u0111\u1ECBnh";
+async function run6(args, ctx) {
+  const email = parseEmail(args, "mcp-auth", ctx);
+  if (!email) return 2;
+  try {
+    const { root, config, user, token } = await authContext(ctx, email);
+    const file = resolveAuthStorage(root, config);
+    const state = storageState(config.e2e.apps ?? [], config.e2e.auth.jwt.deliver, token);
+    fs10.mkdirSync(path12.dirname(file), { recursive: true, mode: 448 });
+    fs10.writeFileSync(file, JSON.stringify(state, null, 2), { mode: 384 });
+    fs10.chmodSync(file, 384);
+    ctx.stdout.write(`storage-state cho ${email} \u0111\xE3 ghi v\xE0o ${path12.relative(root, file)}; kh\xF4ng in JWT
+`);
+    return 0;
+  } catch (e) {
+    ctx.stderr.write(`ff mcp-auth: ${e.message}
+`);
+    return 1;
+  }
+}
+
+// scripts/cli/e2e-auth-check.mjs
+var e2e_auth_check_exports = {};
+__export(e2e_auth_check_exports, {
+  run: () => run7,
+  summary: () => summary7
+});
+var summary7 = "e2e-auth-check --email <email> \u2014 ki\u1EC3m tra JWT v\xE0 endpoint x\xE1c th\u1EF1c e2e";
+async function run7(args, ctx) {
+  const email = parseEmail(args, "e2e-auth-check", ctx);
+  if (!email) return 2;
+  try {
+    const { config, token } = await authContext(ctx, email);
+    const verify = config.e2e.auth.jwt.verify;
+    if (!verify?.url) throw new Error("thi\u1EBFu e2e.auth.jwt.verify.url");
+    const fetcher = ctx.fetch ?? globalThis.fetch;
+    let response;
+    try {
+      response = await fetcher(verify.url, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(1e4) });
+    } catch {
+      throw new Error("server ch\u01B0a b\u1EADt ho\u1EB7c kh\xF4ng k\u1EBFt n\u1ED1i \u0111\u01B0\u1EE3c t\u1EDBi verify.url");
+    }
+    const expected = verify.expect_status ?? 200;
+    if (response.status === 401) throw new Error("verify.url tr\u1EA3 401 \u2014 ki\u1EC3m tra JWT secret, payload v\xE0 user");
+    if (response.status !== expected) throw new Error(`verify.url tr\u1EA3 HTTP ${response.status}, c\u1EA7n ${expected}`);
+    ctx.stdout.write("x\xE1c th\u1EF1c e2e th\xE0nh c\xF4ng; JWT kh\xF4ng \u0111\u01B0\u1EE3c in\n");
+    return 0;
+  } catch (e) {
+    ctx.stderr.write(`ff e2e-auth-check: ${e.message}
+`);
+    return 1;
+  }
+}
+
+// scripts/cli/e2e-scaffold.mjs
+var e2e_scaffold_exports = {};
+__export(e2e_scaffold_exports, {
+  run: () => run8,
+  summary: () => summary8
+});
+import fs11 from "node:fs";
+import path13 from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync as spawnSync2 } from "node:child_process";
+var summary8 = "e2e-scaffold [--dir <\u0111\u01B0\u1EDDng-d\u1EABn>] [--db postgres|mysql] \u2014 d\u1EF1ng b\u1ED9 Playwright t\u1EEB template";
+function inside(root, target) {
+  const rel = path13.relative(root, target);
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${path13.sep}`) && !path13.isAbsolute(rel);
+}
+function templateRoot() {
+  const here = path13.dirname(fileURLToPath(import.meta.url));
+  const candidates = [path13.resolve(here, "../../templates/ff-e2e"), path13.resolve(here, "../templates/ff-e2e")];
+  return candidates.find((dir) => fs11.existsSync(path13.join(dir, "package.json")));
+}
+function parse(args) {
+  const opts = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--dir") opts.dir = args[++i];
+    else if (args[i] === "--db") opts.db = args[++i];
+    else return { error: `tham s\u1ED1 kh\xF4ng h\u1EE3p l\u1EC7: ${args[i]}` };
+    if (!opts.dir && args[i - 1] === "--dir") return { error: "thi\u1EBFu gi\xE1 tr\u1ECB cho --dir" };
+    if (!opts.db && args[i - 1] === "--db") return { error: "thi\u1EBFu gi\xE1 tr\u1ECB cho --db" };
+  }
+  if (opts.db && !["postgres", "mysql"].includes(opts.db)) return { error: "--db ch\u1EC9 nh\u1EADn postgres|mysql" };
+  return { opts };
+}
+function copyTemplate(template, target, withDb) {
+  fs11.cpSync(template, target, { recursive: true, errorOnExist: true });
+  if (withDb) {
+    const pkgPath = path13.join(target, "package.json");
+    const pkg = JSON.parse(fs11.readFileSync(pkgPath, "utf8"));
+    pkg.devDependencies[withDb === "postgres" ? "pg" : "mysql2"] = withDb === "postgres" ? "^8.16.3" : "^3.15.3";
+    fs11.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}
+`);
+    fs11.copyFileSync(path13.join(target, "fixtures/test-db.ts"), path13.join(target, "fixtures/test.ts"));
+    fs11.rmSync(path13.join(target, "fixtures/test-db.ts"));
+  } else {
+    for (const rel of ["helpers/db.ts", "helpers/restore.ts", "fixtures/test-db.ts"]) {
+      fs11.rmSync(path13.join(target, rel), { force: true });
+    }
+  }
+}
+async function run8(args, ctx) {
+  const parsed = parse(args);
+  if (parsed.error) {
+    ctx.stderr.write(`ff e2e-scaffold: ${parsed.error}
+`);
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff e2e-scaffold: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  const config = loadConfig(root).config;
+  const rel = parsed.opts.dir ?? config.e2e?.dir ?? "ff-e2e";
+  const target = path13.resolve(root, rel);
+  if (!inside(root, target)) {
+    ctx.stderr.write("ff e2e-scaffold: --dir ph\u1EA3i n\u1EB1m trong workspace\n");
+    return 2;
+  }
+  let ancestor = path13.dirname(target);
+  while (ancestor !== root && inside(root, ancestor)) {
+    if (fs11.existsSync(ancestor) && !inside(root, fs11.realpathSync(ancestor))) {
+      ctx.stderr.write("ff e2e-scaffold: --dir kh\xF4ng \u0111\u01B0\u1EE3c \u0111i qua symlink ra ngo\xE0i workspace\n");
+      return 2;
+    }
+    ancestor = path13.dirname(ancestor);
+  }
+  if (fs11.existsSync(target) && (!fs11.statSync(target).isDirectory() || fs11.readdirSync(target).length)) {
+    ctx.stderr.write(`ff e2e-scaffold: \u0111\xEDch \u0111\xE3 t\u1ED3n t\u1EA1i v\xE0 kh\xF4ng r\u1ED7ng: ${rel}
+`);
+    return 1;
+  }
+  const template = templateRoot();
+  if (!template) {
+    ctx.stderr.write("ff e2e-scaffold: kh\xF4ng th\u1EA5y templates/ff-e2e trong plugin\n");
+    return 1;
+  }
+  try {
+    fs11.mkdirSync(path13.dirname(target), { recursive: true });
+    if (!fs11.existsSync(target)) copyTemplate(template, target, parsed.opts.db);
+    else {
+      const staging = `${target}.ff-staging-${process.pid}`;
+      copyTemplate(template, staging, parsed.opts.db);
+      for (const name of fs11.readdirSync(staging)) fs11.renameSync(path13.join(staging, name), path13.join(target, name));
+      fs11.rmdirSync(staging);
+    }
+    const install = ctx.install ? await ctx.install(target) : spawnSync2("npm", ["install"], { cwd: target, encoding: "utf8", timeout: 12e4 });
+    if (install.status !== 0) {
+      const detail = (install.stderr || install.stdout || install.error?.message || "npm install l\u1ED7i").trim().split("\n")[0];
+      ctx.stderr.write(`ff e2e-scaffold: npm install th\u1EA5t b\u1EA1i: ${detail}
+`);
+      return 1;
+    }
+    ctx.stdout.write(`\u0110\xE3 d\u1EF1ng e2e t\u1EA1i ${path13.relative(root, target)}. C\xE0i browser b\u1EB1ng npx playwright install chromium sau khi \u0111\u01B0\u1EE3c ng\u01B0\u1EDDi d\xF9ng \u0111\u1ED3ng \xFD.
+`);
+    return 0;
+  } catch (e) {
+    ctx.stderr.write(`ff e2e-scaffold: ${e.message}
+`);
+    return 1;
+  }
+}
+
+// scripts/cli/state.mjs
+var state_exports = {};
+__export(state_exports, {
+  run: () => run9,
+  summary: () => summary9
+});
+import fs13 from "node:fs";
+import path15 from "node:path";
+
+// scripts/lib/gates.mjs
+import crypto2 from "node:crypto";
+import fs12 from "node:fs";
+import path14 from "node:path";
+var ARTIFACT_GATE = { "brief.md": "GATE_A", "03-design.md": "GATE_B", "05-verify-report.md": "GATE_C" };
+var GATE_ARTIFACT = Object.fromEntries(Object.entries(ARTIFACT_GATE).map(([f, g]) => [g, f]));
+var STATUS_LINE_RE = /^\s*>?\s*Trạng thái:\s*(?:CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA)\b[\s\d-]*$/;
+var lines = (text) => text.replace(/^\uFEFF/, "").normalize("NFC").split(/\r?\n/);
+function bodyHash(text) {
+  const body = lines(text).filter((l, i) => !(i < 10 && STATUS_LINE_RE.test(l))).join("\n").replace(/\s+$/, "");
+  return crypto2.createHash("sha256").update(body).digest("hex");
+}
+var sha = (text) => crypto2.createHash("sha256").update(lines(text).join("\n")).digest("hex");
+var gateFile = (root, cardId, gate) => path14.join(ffDir(root), "gates", `${cardId}-${gate}.json`);
+function isApproved(root, cardId, gate, relPath, content, ledgerText = null) {
+  try {
+    const r = JSON.parse(fs12.readFileSync(gateFile(root, cardId, gate), "utf8"));
+    if (r.approved !== true || r.hashes?.[relPath] !== bodyHash(content)) return false;
+    return r.ledgerHash == null || ledgerText !== null && sha(ledgerText) === r.ledgerHash;
+  } catch {
+    return false;
+  }
+}
+
+// scripts/cli/state.mjs
+var summary9 = "state [<id>] \u2014 tr\u1EA1ng th\xE1i dossier, Gate v\xE0 b\u1EA3n copy c\u1EE7a th\u1EBB";
+var artifacts = [["brief.md", "GATE_A"], ["03-design.md", "GATE_B"], ["05-verify-report.md", "GATE_C"]];
+function cardFiles(dir, name) {
+  const found = [];
+  const walk = (current) => {
+    for (const entry of fs13.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name.startsWith(".")) continue;
+      const file = path15.join(current, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (entry.name === name) found.push(file);
+    }
+  };
+  walk(dir);
+  return found;
+}
+function renderCard(root, config, dir) {
+  const name = path15.basename(dir);
+  const id = name.match(/^[A-Za-z0-9]+/)?.[0] ?? name;
+  const lines2 = [`## Th\u1EBB ${name}`, `- Dossier: ${fs13.existsSync(path15.join(dir, "01-dossier.md")) ? "c\xF3" : "thi\u1EBFu"}`];
+  for (const [file, gate] of artifacts) {
+    const matches = cardFiles(dir, file);
+    if (!matches.length) {
+      lines2.push(`- ${file}: ch\u01B0a`);
+      continue;
+    }
+    const statuses = matches.map((full) => {
+      const rel = path15.relative(dir, full).split(path15.sep).join("/");
+      const content = fs13.readFileSync(full, "utf8");
+      const ledgerPath = path15.join(path15.dirname(full), "01b-ledger.md");
+      const ledger = fs13.existsSync(ledgerPath) ? fs13.readFileSync(ledgerPath, "utf8") : null;
+      return `${rel}: ${isApproved(root, id, gate, rel, content, ledger) ? "\u0110\xC3 DUY\u1EC6T" : "ch\u01B0a duy\u1EC7t"}`;
+    });
+    lines2.push(`- ${file}: ${statuses.join("; ")}`);
+  }
+  const worktree = path15.resolve(root, config.workspace.worktrees_dir, name);
+  lines2.push(`- B\u1EA3n copy: ${fs13.existsSync(worktree) ? path15.relative(root, worktree) : "ch\u01B0a c\xF3"}`);
+  return lines2.join("\n");
+}
+async function run9(args, ctx) {
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff state: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  let config;
+  try {
+    config = loadConfig(root).config;
+  } catch (e) {
+    ctx.stderr.write(`ff state: ${e.message}
+`);
+    return 4;
+  }
+  const id = args[0];
+  if (id) {
+    const card = findCardDir(root, config, id);
+    if (card.error) {
+      ctx.stderr.write(`ff state: ${card.error}
+`);
+      return 2;
+    }
+    ctx.stdout.write(`${renderCard(root, config, card.dir)}
+`);
+    return 0;
+  }
+  const base = path15.resolve(root, config.workspace.cards_dir);
+  const cards = fs13.existsSync(base) ? fs13.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory() && fs13.existsSync(path15.join(base, d.name, "01-dossier.md"))).map((d) => d.name) : [];
+  ctx.stdout.write(["## Th\u1EBB \u0111ang l\xE0m", ...cards.length ? cards.map((name) => `- ${name}`) : ["- (kh\xF4ng c\xF3)"], "", "\u27A1\uFE0F Ch\u1EA1y: ff state <id>"].join("\n") + "\n");
+  return 0;
+}
+
+// scripts/cli/sync.mjs
+var sync_exports = {};
+__export(sync_exports, {
+  run: () => run10,
+  summary: () => summary10
+});
+import path17 from "node:path";
+
+// scripts/cli/repo-common.mjs
+import path16 from "node:path";
+import fs14 from "node:fs";
+import { spawnSync as spawnSync3 } from "node:child_process";
+function git2(cwd, args) {
+  return spawnSync3("git", args, { cwd, encoding: "utf8" });
+}
+function repoDir(root, worktreesDir, cardSlug, repo) {
+  return path16.resolve(root, worktreesDir, cardSlug, path16.basename(repo.path));
+}
+function cardBranch(file) {
+  if (!fs14.existsSync(file)) return null;
+  const lines2 = fs14.readFileSync(file, "utf8").split(/\r?\n/);
+  let section = false;
+  let fence = false;
+  for (const line of lines2) {
+    if (/^## .*Branch/i.test(line)) {
+      section = true;
+      continue;
+    }
+    if (section && /^## /.test(line)) break;
+    if (!section) continue;
+    if (/^\s*```/.test(line)) {
+      fence = !fence;
+      continue;
+    }
+    if (fence && line.trim()) return line.trim().replace(/`/g, "").split(/\s+/)[0];
+  }
+  return null;
+}
+function runConfigured(command, cwd, ctx) {
+  if (ctx.runCommand) return ctx.runCommand(command, cwd);
+  return spawnSync3(command, { cwd, shell: true, encoding: "utf8", timeout: 12e4 });
+}
+
+// scripts/cli/sync.mjs
+var summary10 = "sync [--check] \u2014 c\u1EADp nh\u1EADt repo g\u1ED1c theo repos[].base_branch";
+async function run10(args, ctx) {
+  const check2 = args.includes("--check");
+  if (args.some((arg) => arg !== "--check")) {
+    ctx.stderr.write("d\xF9ng: ff sync [--check]\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff sync: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  const config = loadConfig(root).config;
+  let rc = 0;
+  for (const repo of config.repos) {
+    const dir = path17.resolve(root, repo.path);
+    if (git2(dir, ["rev-parse", "--git-dir"]).status !== 0) {
+      ctx.stderr.write(`ff sync: ${repo.name} kh\xF4ng ph\u1EA3i git repo (${repo.path})
+`);
+      rc = 1;
+      continue;
+    }
+    const branch = git2(dir, ["branch", "--show-current"]).stdout.trim();
+    const dirty = git2(dir, ["status", "--porcelain"]).stdout.trim();
+    if (check2) {
+      const ahead = git2(dir, ["rev-list", "--count", `HEAD..origin/${repo.base_branch}`]);
+      ctx.stdout.write(`[${repo.name}] nh\xE1nh=${branch}, thi\u1EBFu ${ahead.status === 0 ? ahead.stdout.trim() : "?"} commit so v\u1EDBi origin/${repo.base_branch}, file s\u1EEDa: ${dirty ? dirty.split("\n").length : 0}
+`);
+      continue;
+    }
+    if (dirty) {
+      ctx.stderr.write(`ff sync: ${repo.name} c\xF3 thay \u0111\u1ED5i ch\u01B0a commit; gi\u1EEF nguy\xEAn v\xE0 d\u1EEBng \u0111\u1ED3ng b\u1ED9 repo n\xE0y
+`);
+      rc = 1;
+      continue;
+    }
+    const fetched = git2(dir, ["fetch", "origin"]);
+    if (fetched.status !== 0) {
+      ctx.stderr.write(`ff sync: git fetch origin l\u1ED7i trong ${repo.path}: ${fetched.stderr.trim().split("\n").at(-1)}
+`);
+      rc = 1;
+      continue;
+    }
+    if (branch !== repo.base_branch) {
+      const checkout = git2(dir, ["switch", repo.base_branch]);
+      if (checkout.status !== 0) {
+        ctx.stderr.write(`ff sync: kh\xF4ng chuy\u1EC3n \u0111\u01B0\u1EE3c sang ${repo.base_branch} trong ${repo.path}
+`);
+        rc = 1;
+        continue;
+      }
+    }
+    const merged = git2(dir, ["merge", "--ff-only", `origin/${repo.base_branch}`]);
+    if (merged.status !== 0) {
+      ctx.stderr.write(`ff sync: fast-forward ${repo.name} t\u1EEB origin/${repo.base_branch} l\u1ED7i: ${merged.stderr.trim().split("\n").at(-1)}
+`);
+      rc = 1;
+      continue;
+    }
+    ctx.stdout.write(`\u0111\xE3 \u0111\u1ED3ng b\u1ED9 ${repo.name} theo ${repo.base_branch}
+`);
+  }
+  return rc;
+}
+
+// scripts/cli/copy.mjs
+var copy_exports = {};
+__export(copy_exports, {
+  run: () => run11,
+  summary: () => summary11
+});
+import fs15 from "node:fs";
+import path18 from "node:path";
+var summary11 = "copy <id> \u2014 t\u1EA1o b\u1EA3n copy repo theo branch trong dossier";
+async function run11(args, ctx) {
+  const id = args[0];
+  if (!id || args.length !== 1) {
+    ctx.stderr.write("d\xF9ng: ff copy <id>\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff copy: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  const config = loadConfig(root).config;
+  const card = findCardDir(root, config, id);
+  if (card.error) {
+    ctx.stderr.write(`ff copy: ${card.error}
+`);
+    return 2;
+  }
+  const slug = path18.basename(card.dir);
+  const branch = cardBranch(path18.join(card.dir, "01-dossier.md"));
+  if (!branch) {
+    ctx.stderr.write("ff copy: kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c t\xEAn branch \u1EDF m\u1EE5c Branch c\u1EE7a dossier; kh\xF4ng t\u1EF1 \u0111\u1EB7t t\xEAn\n");
+    return 1;
+  }
+  const worktree = path18.resolve(root, config.workspace.worktrees_dir, slug);
+  if (fs15.existsSync(worktree)) {
+    const complete = config.repos.every((repo) => fs15.existsSync(path18.join(worktree, path18.basename(repo.path), ".git")));
+    if (complete) {
+      ctx.stdout.write(`B\u1EA3n copy \u0111\xE3 c\xF3: ${path18.relative(root, worktree)} \u2014 kh\xF4ng t\u1EA1o l\u1EA1i.
+`);
+      return 0;
+    }
+    ctx.stderr.write(`ff copy: b\u1EA3n copy ch\u01B0a ho\xE0n ch\u1EC9nh t\u1EA1i ${path18.relative(root, worktree)}; gi\u1EEF nguy\xEAn \u0111\u1EC3 tr\xE1nh m\u1EA5t d\u1EEF li\u1EC7u
+`);
+    return 1;
+  }
+  for (const repo of config.repos) {
+    const source = path18.resolve(root, repo.path);
+    const current = git2(source, ["branch", "--show-current"]);
+    if (current.status !== 0 || current.stdout.trim() !== repo.base_branch) {
+      ctx.stderr.write(`ff copy: repo g\u1ED1c ${repo.name} ph\u1EA3i \u1EDF ${repo.base_branch}; hi\u1EC7n l\xE0 ${current.stdout?.trim() || "kh\xF4ng r\xF5"}
+`);
+      return 1;
+    }
+    if (git2(source, ["check-ref-format", "--branch", branch]).status !== 0) {
+      ctx.stderr.write("ff copy: branch trong dossier kh\xF4ng h\u1EE3p l\u1EC7\n");
+      return 1;
+    }
+  }
+  fs15.mkdirSync(worktree, { recursive: true });
+  try {
+    for (const repo of config.repos) {
+      const source = path18.resolve(root, repo.path);
+      const target = repoDir(root, config.workspace.worktrees_dir, slug, repo);
+      const clone = git2(root, ["clone", "--local", source, target]);
+      if (clone.status !== 0) throw new Error(`git clone l\u1ED7i cho ${repo.name}: ${clone.stderr.trim().split("\n").at(-1)}`);
+      const localBranch = git2(target, ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
+      if (localBranch.status === 0) {
+        const switched = git2(target, ["switch", branch]);
+        if (switched.status !== 0) throw new Error(`kh\xF4ng chuy\u1EC3n \u0111\u01B0\u1EE3c ${repo.name} sang ${branch}`);
+      } else {
+        const from = git2(target, ["show-ref", "--verify", "--quiet", `refs/remotes/origin/${branch}`]).status === 0 ? `origin/${branch}` : `origin/${repo.base_branch}`;
+        const switched = git2(target, ["switch", "--create", branch, from]);
+        if (switched.status !== 0) throw new Error(`kh\xF4ng t\u1EA1o \u0111\u01B0\u1EE3c branch ${branch} cho ${repo.name} t\u1EEB ${from}`);
+      }
+      for (const rel of repo.env_files ?? []) {
+        const sourceFile = path18.resolve(source, rel);
+        const targetFile = path18.resolve(target, rel);
+        if (!sourceFile.startsWith(source + path18.sep) || !targetFile.startsWith(target + path18.sep)) throw new Error(`env_files c\xF3 \u0111\u01B0\u1EDDng d\u1EABn ngo\xE0i repo: ${rel}`);
+        if (!fs15.existsSync(sourceFile)) continue;
+        fs15.mkdirSync(path18.dirname(targetFile), { recursive: true });
+        fs15.copyFileSync(sourceFile, targetFile);
+        fs15.chmodSync(targetFile, fs15.statSync(sourceFile).mode & 511);
+      }
+      if (repo.commands?.install) {
+        const result = runConfigured(repo.commands.install, target, ctx);
+        if (result.status !== 0) throw new Error(`l\u1EC7nh install l\u1ED7i cho ${repo.name}`);
+      }
+      ctx.stdout.write(`\u0110\xE3 t\u1EA1o ${path18.relative(root, target)} tr\xEAn ${branch}
+`);
+    }
+    return 0;
+  } catch (e) {
+    fs15.rmSync(worktree, { recursive: true, force: true });
+    ctx.stderr.write(`ff copy: ${e.message}; \u0111\xE3 d\u1ECDn b\u1EA3n copy v\u1EEBa t\u1EA1o
+`);
+    return 1;
+  }
+}
+
+// scripts/cli/squash-check.mjs
+var squash_check_exports = {};
+__export(squash_check_exports, {
+  run: () => run12,
+  summary: () => summary12
+});
+import fs16 from "node:fs";
+import path19 from "node:path";
+var summary12 = "squash-check <id> \u2014 ki\u1EC3m s\u1ED1 commit, n\u1ED9i dung commit v\xE0 file kh\xF4ng \u0111\u01B0\u1EE3c ship";
+var junk = /(^|\/)(?:\.env(?:\.|$)|tsconfig\.tsbuildinfo|\.run-dev\.pids|\.dev-logs\/|\.ff-ship-approved)/;
+async function run12(args, ctx) {
+  const id = args[0];
+  if (!id || args.length !== 1) {
+    ctx.stderr.write("d\xF9ng: ff squash-check <id>\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff squash-check: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  const config = loadConfig(root).config;
+  const card = findCardDir(root, config, id);
+  if (card.error) {
+    ctx.stderr.write(`ff squash-check: ${card.error}
+`);
+    return 2;
+  }
+  const slug = path19.basename(card.dir);
+  const branch = cardBranch(path19.join(card.dir, "01-dossier.md"));
+  const hasSubtasks = fs16.existsSync(path19.join(card.dir, "00-subtasks.md"));
+  let bad = false;
+  for (const repo of config.repos) {
+    const dir = repoDir(root, config.workspace.worktrees_dir, slug, repo);
+    if (!fs16.existsSync(path19.join(dir, ".git"))) {
+      ctx.stderr.write(`ff squash-check: thi\u1EBFu b\u1EA3n copy ${path19.relative(root, dir)}
+`);
+      bad = true;
+      continue;
+    }
+    let base = `origin/${repo.base_branch}`;
+    if (branch && git2(dir, ["rev-parse", "--verify", "--quiet", `origin/${branch}`]).status === 0 && git2(dir, ["merge-base", "--is-ancestor", `origin/${branch}`, "HEAD"]).status === 0) base = `origin/${branch}`;
+    const merge2 = git2(dir, ["merge-base", "HEAD", base]);
+    if (merge2.status !== 0) {
+      ctx.stderr.write(`ff squash-check: kh\xF4ng t\xECm \u0111\u01B0\u1EE3c merge-base ${repo.name} v\u1EDBi ${base}
+`);
+      bad = true;
+      continue;
+    }
+    const count = Number(git2(dir, ["rev-list", "--count", `${merge2.stdout.trim()}..HEAD`]).stdout.trim());
+    ctx.stdout.write(`## ${repo.name} \u2014 ${count} commit tr\xEAn ${base.replace(/^origin\//, "")}
+`);
+    const dirty = git2(dir, ["status", "--porcelain"]).stdout.split(/\r?\n/).filter((line) => line && !/tsconfig\.tsbuildinfo|CLAUDE\.md$/.test(line));
+    if (dirty.length) ctx.stdout.write(`  \u26A0\uFE0F c\xF2n file ch\u01B0a commit: ${dirty.length}
+`);
+    if (!count) {
+      ctx.stdout.write("  (kh\xF4ng c\xF3 commit tr\xEAn nh\xE1nh g\u1ED1c)\n");
+      continue;
+    }
+    const commits = git2(dir, ["log", "--format=%h %s", `${merge2.stdout.trim()}..HEAD`]).stdout.trim();
+    if (count !== 1 && !hasSubtasks) {
+      ctx.stdout.write("  \u274C c\u1EA7n \u0111\xFAng 1 commit cho m\u1ED7i repo\n");
+      bad = true;
+    }
+    const body = git2(dir, ["log", "-1", "--format=%B"]).stdout.split(/\r?\n/).slice(1);
+    if (!body.some((line) => line.trim() === `Trello: #${id}`)) {
+      ctx.stdout.write(`  \u274C commit message thi\u1EBFu d\xF2ng 'Trello: #${id}'
+`);
+      bad = true;
+    }
+    if (commits) ctx.stdout.write(`${commits.split("\n").map((line) => `  ${line}`).join("\n")}
+`);
+    const files = git2(dir, ["diff", "--name-only", `${merge2.stdout.trim()}..HEAD`]).stdout.split(/\r?\n/).filter(Boolean);
+    const invalid = files.filter((file) => junk.test(file) && !/(^|\/)\.env\.example$/.test(file));
+    if (invalid.length) {
+      ctx.stdout.write(`  \u274C file kh\xF4ng \u0111\u01B0\u1EE3c commit: ${invalid.join(", ")}
+`);
+      bad = true;
+    }
+  }
+  ctx.stdout.write(bad ? "\u274C squash-check ch\u01B0a \u0111\u1EA1t\n" : "\u2705 squash-check \u0111\u1EA1t\n");
+  return bad ? 1 : 0;
+}
+
+// scripts/cli/verify-up.mjs
+var verify_up_exports = {};
+__export(verify_up_exports, {
+  run: () => run13,
+  summary: () => summary13
+});
+import fs18 from "node:fs";
+import path21 from "node:path";
+
+// scripts/lib/verify-lock.mjs
+import fs17 from "node:fs";
+import path20 from "node:path";
+function verifyLockPath(root, config) {
+  return path20.resolve(root, config.workspace.worktrees_dir, ".verify.lock");
+}
+function readVerifyLock(file) {
+  try {
+    const raw = fs17.readFileSync(file, "utf8");
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return { slug: raw.trim().split(/\s+/)[0] ?? "" };
+    }
+  } catch {
+    return null;
+  }
+}
+function acquireVerifyLock(file, slug) {
+  fs17.mkdirSync(path20.dirname(file), { recursive: true });
+  try {
+    const fd = fs17.openSync(file, "wx", 384);
+    fs17.writeFileSync(fd, JSON.stringify({ slug, pid: process.pid, startedAt: (/* @__PURE__ */ new Date()).toISOString() }) + "\n");
+    fs17.closeSync(fd);
+    return { acquired: true };
+  } catch (error) {
+    if (error.code !== "EEXIST") throw error;
+    const current = readVerifyLock(file);
+    return { acquired: current?.slug === slug, current };
+  }
+}
+function releaseVerifyLock(file, slug, force = false) {
+  const current = readVerifyLock(file);
+  if (!current) return { released: false, current: null };
+  if (current.slug !== slug && !force) return { released: false, current };
+  fs17.rmSync(file);
+  return { released: true, current };
+}
+
+// scripts/cli/verify-up.mjs
+var summary13 = "verify-up <id> <app> \u2014 l\u1EA5y lock, ch\u1EA1y migration/server v\xE0 ki\u1EC3m health URL";
+async function run13(args, ctx) {
+  const [id, appName, ...extra] = args;
+  if (!id || !appName || extra.length) {
+    ctx.stderr.write("d\xF9ng: ff verify-up <id> <app>\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff verify-up: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  const loaded = loadConfig(root);
+  const config = loaded.config;
+  const card = findCardDir(root, config, id);
+  if (card.error) {
+    ctx.stderr.write(`ff verify-up: ${card.error}
+`);
+    return 2;
+  }
+  const slug = path21.basename(card.dir);
+  const app = config.e2e?.apps?.find((item) => item.name === appName);
+  if (!app) {
+    ctx.stderr.write(`ff verify-up: app '${appName}' kh\xF4ng c\xF3 trong e2e.apps
+`);
+    return 2;
+  }
+  if (!config.e2e.up_cmd) {
+    ctx.stderr.write("ff verify-up: thi\u1EBFu e2e.up_cmd\n");
+    return 4;
+  }
+  const doctor = runDoctor(root, loaded);
+  if (!doctor.groups.core || !doctor.groups.e2e) {
+    const errors = doctor.checks.filter((c) => !c.ok && ["core", "e2e"].includes(c.group)).map((c) => c.msg);
+    ctx.stderr.write(`ff verify-up: doctor core/e2e \u0111\u1ECF; ${errors.join("; ")}
+`);
+    return 4;
+  }
+  const lock = verifyLockPath(root, config);
+  const acquired = acquireVerifyLock(lock, slug);
+  if (!acquired.acquired) {
+    ctx.stderr.write(`ff verify-up: th\u1EBB kh\xE1c \u0111ang verify (${acquired.current?.slug ?? "kh\xF4ng r\xF5"})
+`);
+    return 1;
+  }
+  for (const repo of config.repos) {
+    const dir = repoDir(root, config.workspace.worktrees_dir, slug, repo);
+    if (!fs18.existsSync(dir)) {
+      releaseVerifyLock(lock, slug);
+      ctx.stderr.write(`ff verify-up: thi\u1EBFu b\u1EA3n copy ${path21.relative(root, dir)}; \u0111\xE3 tr\u1EA3 lock
+`);
+      return 1;
+    }
+    if (!repo.commands?.migrate) continue;
+    const result = runConfigured(repo.commands.migrate, dir, ctx);
+    if (result.status !== 0) {
+      releaseVerifyLock(lock, slug);
+      ctx.stderr.write(`ff verify-up: migration l\u1ED7i trong ${repo.name}; d\u1EEBng, kh\xF4ng t\u1EF1 revert; \u0111\xE3 tr\u1EA3 lock
+`);
+      return 1;
+    }
+  }
+  const e2eDir = path21.resolve(root, config.e2e.dir);
+  const started = runConfigured(config.e2e.up_cmd, e2eDir, ctx);
+  if (started.status !== 0) {
+    releaseVerifyLock(lock, slug);
+    ctx.stderr.write("ff verify-up: e2e.up_cmd l\u1ED7i; \u0111\xE3 tr\u1EA3 lock\n");
+    return 1;
+  }
+  const urls = [.../* @__PURE__ */ new Set([...config.e2e.health_urls ?? [], app.base_url])];
+  const fetcher = ctx.fetch ?? globalThis.fetch;
+  for (const url of urls) {
+    try {
+      await fetcher(url, { signal: AbortSignal.timeout(1e4) });
+    } catch {
+      releaseVerifyLock(lock, slug);
+      ctx.stderr.write(`ff verify-up: kh\xF4ng k\u1EBFt n\u1ED1i \u0111\u01B0\u1EE3c ${url}; \u0111\xE3 tr\u1EA3 lock
+`);
+      return 1;
+    }
+  }
+  ctx.stdout.write(`verify-up: server s\u1EB5n s\xE0ng cho ${slug} / ${appName}; lock \u0111ang gi\u1EEF
+`);
+  return 0;
+}
+
+// scripts/cli/verify-down.mjs
+var verify_down_exports = {};
+__export(verify_down_exports, {
+  run: () => run14,
+  summary: () => summary14
+});
+import path22 from "node:path";
+var summary14 = "verify-down <id> [--force-unlock] \u2014 d\u1EEBng server v\xE0 tr\u1EA3 verify lock";
+async function run14(args, ctx) {
+  const [id, ...flags] = args;
+  if (!id || flags.some((flag) => flag !== "--force-unlock")) {
+    ctx.stderr.write("d\xF9ng: ff verify-down <id> [--force-unlock]\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff verify-down: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  const config = loadConfig(root).config;
+  const card = findCardDir(root, config, id);
+  if (card.error) {
+    ctx.stderr.write(`ff verify-down: ${card.error}
+`);
+    return 2;
+  }
+  const slug = path22.basename(card.dir);
+  const lock = verifyLockPath(root, config);
+  const current = readVerifyLock(lock);
+  const force = flags.includes("--force-unlock");
+  if (current && current.slug !== slug && !force) {
+    ctx.stderr.write(`ff verify-down: verify lock thu\u1ED9c ${current.slug}; kh\xF4ng d\u1EEBng server ho\u1EB7c \u0111\u1ED5i lock
+`);
+    return 1;
+  }
+  if (config.e2e?.down_cmd) {
+    const result = runConfigured(config.e2e.down_cmd, path22.resolve(root, config.e2e.dir), ctx);
+    if (result.status !== 0) {
+      ctx.stderr.write("ff verify-down: e2e.down_cmd l\u1ED7i; gi\u1EEF nguy\xEAn lock \u0111\u1EC3 \u0111i\u1EC1u tra\n");
+      return 1;
+    }
+  }
+  const released = releaseVerifyLock(lock, slug, force);
+  if (released.released) ctx.stdout.write(`verify-down: \u0111\xE3 tr\u1EA3 lock c\u1EE7a ${current.slug}
+`);
+  else if (!current) ctx.stdout.write("verify-down: lock tr\u1ED1ng\n");
+  else ctx.stdout.write(`verify-down: lock thu\u1ED9c ${current.slug}; kh\xF4ng thay \u0111\u1ED5i
+`);
+  return 0;
+}
+
+// scripts/cli/gate-tools.mjs
+import fs19 from "node:fs";
+import path23 from "node:path";
+import crypto3 from "node:crypto";
+var sha2 = (v) => crypto3.createHash("sha256").update(v).digest("hex");
+var inside2 = (base, target) => {
+  const rel = path23.relative(base, target);
+  return rel && !rel.startsWith("..") && !path23.isAbsolute(rel);
+};
+function canonicalTarget(target) {
+  const abs = path23.resolve(target);
+  if (fs19.existsSync(abs)) return fs19.realpathSync(abs);
+  const tail = [];
+  let parent = abs;
+  while (!fs19.existsSync(parent)) {
+    tail.unshift(path23.basename(parent));
+    const up = path23.dirname(parent);
+    if (up === parent) throw new Error(`kh\xF4ng x\xE1c \u0111\u1ECBnh \u0111\u01B0\u1EE3c \u0111\u01B0\u1EDDng d\u1EABn: ${target}`);
+    parent = up;
+  }
+  return path23.resolve(fs19.realpathSync(parent), ...tail);
+}
+function assertLocalTarget(base, target) {
+  if (!inside2(fs19.realpathSync(base), canonicalTarget(target))) throw new Error(`\u0111\u01B0\u1EDDng d\u1EABn v\u01B0\u1EE3t kh\u1ECFi workspace: ${target}`);
+}
+function setup(ctx, slug) {
+  const root = findRoot(ctx.cwd);
+  if (!root) throw new Error("kh\xF4ng th\u1EA5y ff.config.yaml");
+  const { config } = loadConfig(root);
+  if (slug.includes("/") || slug.includes("\\") || slug === "." || slug === "..") throw new Error("slug kh\xF4ng h\u1EE3p l\u1EC7");
+  const worktrees = path23.resolve(root, config.workspace.worktrees_dir);
+  const wt = path23.resolve(worktrees, slug);
+  if (!inside2(worktrees, wt) || !fs19.statSync(wt).isDirectory() || !inside2(fs19.realpathSync(worktrees), fs19.realpathSync(wt))) throw new Error(`worktree kh\xF4ng h\u1EE3p l\u1EC7 ho\u1EB7c kh\xF4ng th\u1EA5y: ${slug}`);
+  return { root, config, wt };
+}
+var shipApprove = {
+  summary: "ship-approve <slug> \u2014 ghi nh\u1EADn cho ph\xE9p ship trong 2 gi\u1EDD",
+  async run(args, ctx) {
+    try {
+      const slug = args[0];
+      if (!slug) throw new Error("d\xF9ng: ff ship-approve <slug>");
+      const { wt } = setup(ctx, slug);
+      const marker = path23.join(wt, ".ff-ship-approved");
+      assertLocalTarget(wt, marker);
+      fs19.writeFileSync(marker, `${Math.floor(Date.now() / 1e3)}
+${process.env.USER || "user"}
+${(/* @__PURE__ */ new Date()).toISOString()}
+`, { mode: 384 });
+      ctx.stdout.write(`\u0110\xE3 ghi nh\u1EADn cho ph\xE9p ship ${slug} (h\u1EA1n 2 gi\u1EDD).
+`);
+      return 0;
+    } catch (e) {
+      ctx.stderr.write(`ff ship-approve: ${e.message}
+`);
+      return 1;
+    }
+  }
+};
+var allow = {
+  summary: "allow <slug> <file\u2026>|--clear \u2014 gi\u1EDBi h\u1EA1n file s\u1EEDa trong 4 gi\u1EDD",
+  async run(args, ctx) {
+    try {
+      const [slug, ...files] = args;
+      if (!slug) throw new Error("d\xF9ng: ff allow <slug> <file\u2026>|--clear");
+      const { wt } = setup(ctx, slug);
+      const file = path23.join(wt, ".ff-allow");
+      assertLocalTarget(wt, file);
+      if (files[0] === "--clear") {
+        fs19.rmSync(file, { force: true });
+        ctx.stdout.write(`\u0110\xE3 x\xF3a allowlist ${slug}
+`);
+        return 0;
+      }
+      if (!files.length) throw new Error("c\u1EA7n \xEDt nh\u1EA5t m\u1ED9t file ho\u1EB7c --clear");
+      const rels = [...new Set(files.map((f) => {
+        const abs = path23.resolve(wt, f.replace(new RegExp(`^(?:\\./)?${configPathEscape(path23.basename(wt))}/`), ""));
+        const rel = path23.relative(wt, abs);
+        if (!inside2(wt, abs) || !inside2(fs19.realpathSync(wt), canonicalTarget(abs))) throw new Error(`file ngo\xE0i worktree: ${f}`);
+        return rel.split(path23.sep).join("/");
+      }))];
+      fs19.writeFileSync(file, `ts=${Math.floor(Date.now() / 1e3)}
+${rels.join("\n")}
+`, { mode: 384 });
+      ctx.stdout.write(`Allowlist ${slug}: ${rels.length} file, hi\u1EC7u l\u1EF1c 4 gi\u1EDD
+`);
+      rels.forEach((x) => ctx.stdout.write(`  ${x}
+`));
+      return 0;
+    } catch (e) {
+      ctx.stderr.write(`ff allow: ${e.message}
+`);
+      return 1;
+    }
+  }
+};
+function configPathEscape(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+var lockTests = {
+  summary: "lock-tests <slug> [file\u2026] \u2014 kh\xF3a test theo SHA-256",
+  async run(args, ctx) {
+    try {
+      const [slug, ...files] = args;
+      if (!slug) throw new Error("d\xF9ng: ff lock-tests <slug> [file\u2026]");
+      const { root, config, wt } = setup(ctx, slug);
+      const manifest = path23.join(wt, ".ff-test-lock");
+      assertLocalTarget(wt, manifest);
+      if (fs19.existsSync(manifest)) throw new Error('\u0111\xE3 kh\xF3a; d\xF9ng ff relock <slug> --reason "\u2026"');
+      const testsDir = config.e2e?.tests_dir ? path23.resolve(root, config.e2e.tests_dir, slug) : null;
+      const selected = files.length ? files : testsDir && fs19.existsSync(testsDir) ? fs19.readdirSync(testsDir).filter((n) => n.endsWith(".spec.ts")).sort().map((n) => path23.join(testsDir, n)) : [];
+      if (!selected.length) throw new Error("kh\xF4ng c\xF3 file test \u0111\u1EC3 kh\xF3a; c\u1EA5u h\xECnh e2e.tests_dir ho\u1EB7c truy\u1EC1n file");
+      const entries = selected.map((f) => {
+        const abs = path23.resolve(root, f);
+        if (!inside2(root, abs) || !inside2(fs19.realpathSync(root), fs19.realpathSync(abs)) || !fs19.statSync(abs).isFile()) throw new Error(`file kh\xF4ng t\u1ED3n t\u1EA1i trong workspace: ${f}`);
+        return { abs, rel: path23.relative(root, abs).split(path23.sep).join("/"), hash: sha2(fs19.readFileSync(abs)) };
+      });
+      const body = entries.map((e) => `${e.hash}  ${e.rel}
+`).join("");
+      fs19.writeFileSync(manifest, body, { mode: 292 });
+      for (const e of entries) fs19.chmodSync(e.abs, fs19.statSync(e.abs).mode & ~146);
+      ctx.stdout.write(`\u0110\xE3 kh\xF3a ${entries.length} file test; manifest ${sha2(body).slice(0, 8)}
+`);
+      return 0;
+    } catch (e) {
+      ctx.stderr.write(`ff lock-tests: ${e.message}
+`);
+      return 1;
+    }
+  }
+};
+var relock = {
+  summary: "relock <slug> --reason <l\xFD do> \u2014 c\u1EADp nh\u1EADt hash test \u0111\xE3 kh\xF3a",
+  async run(args, ctx) {
+    try {
+      const slug = args[0], ix = args.indexOf("--reason"), reason = ix >= 0 ? args[ix + 1]?.trim() : "";
+      if (!slug || !reason) throw new Error('d\xF9ng: ff relock <slug> --reason "l\xFD do"');
+      const { root, wt } = setup(ctx, slug);
+      const manifest = path23.join(wt, ".ff-test-lock");
+      const log = path23.join(wt, ".ff-test-lock.log");
+      assertLocalTarget(wt, manifest);
+      assertLocalTarget(wt, log);
+      if (!fs19.existsSync(manifest)) throw new Error("ch\u01B0a kh\xF3a; d\xF9ng ff lock-tests tr\u01B0\u1EDBc");
+      const old = fs19.readFileSync(manifest);
+      const entries = old.toString().split(/\r?\n/).filter(Boolean).map((line) => {
+        const match = line.match(/^([a-f0-9]{64})  (.+)$/);
+        if (!match) throw new Error("manifest h\u1ECFng");
+        return { hash: match[1], rel: match[2], abs: path23.resolve(root, match[2]) };
+      });
+      for (const entry of entries) {
+        if (!inside2(root, entry.abs) || !fs19.existsSync(entry.abs) || !inside2(fs19.realpathSync(root), fs19.realpathSync(entry.abs)))
+          throw new Error(`file kh\xF3a kh\xF4ng t\u1ED3n t\u1EA1i trong workspace: ${entry.rel}`);
+      }
+      const changes = [];
+      let body;
+      try {
+        for (const entry of entries) {
+          fs19.chmodSync(entry.abs, fs19.statSync(entry.abs).mode | 128);
+          const nextHash = sha2(fs19.readFileSync(entry.abs));
+          if (nextHash !== entry.hash) changes.push(entry.rel);
+          entry.hash = nextHash;
+        }
+        body = entries.map((entry) => `${entry.hash}  ${entry.rel}
+`).join("");
+        fs19.chmodSync(manifest, fs19.statSync(manifest).mode | 128);
+        fs19.writeFileSync(manifest, body, { mode: 384 });
+        fs19.chmodSync(manifest, 292);
+      } finally {
+        for (const entry of entries) {
+          try {
+            fs19.chmodSync(entry.abs, fs19.statSync(entry.abs).mode & ~146);
+          } catch {
+          }
+        }
+      }
+      fs19.appendFileSync(log, `${(/* @__PURE__ */ new Date()).toISOString()} | ${reason} | ${changes.join(", ") || "kh\xF4ng \u0111\u1ED5i"} | ${sha2(old).slice(0, 8)}\u2192${sha2(body).slice(0, 8)}
+`);
+      ctx.stdout.write(`Relock xong: ${changes.length} file thay \u0111\u1ED5i
+`);
+      return 0;
+    } catch (e) {
+      ctx.stderr.write(`ff relock: ${e.message}
+`);
+      return 1;
+    }
+  }
+};
+var probeSlice = {
+  summary: "probe-slice <slug> [task] [--json] \u2014 so thay \u0111\u1ED5i v\u1EDBi allowlist",
+  async run(args, ctx) {
+    try {
+      const slug = args[0], json = args.includes("--json"), root = findRoot(ctx.cwd);
+      if (!root || !slug) throw new Error("d\xF9ng: ff probe-slice <slug> [task] [--json]");
+      const { config } = loadConfig(root);
+      if (slug.includes("/") || slug.includes("\\") || slug === "." || slug === "..") throw new Error("slug kh\xF4ng h\u1EE3p l\u1EC7");
+      const worktrees = path23.resolve(root, config.workspace.worktrees_dir), wt = path23.resolve(worktrees, slug);
+      if (!inside2(worktrees, wt) || !fs19.existsSync(wt) || !inside2(fs19.realpathSync(worktrees), fs19.realpathSync(wt))) throw new Error(`kh\xF4ng th\u1EA5y worktree h\u1EE3p l\u1EC7 ${slug}`);
+      const allowedFile = path23.join(wt, ".ff-allow"), lines2 = fs19.existsSync(allowedFile) ? fs19.readFileSync(allowedFile, "utf8").split(/\r?\n/) : [];
+      const ts = Number(lines2[0]?.match(/^ts=(\d+)$/)?.[1]);
+      const expired = !ts || Date.now() / 1e3 - ts > 14400;
+      const allowed = new Set((expired ? [] : lines2.slice(1)).filter(Boolean));
+      const changed = [];
+      const { spawnSync: spawnSync5 } = await import("node:child_process");
+      const gitRun = (dir, gitArgs) => ctx.git ? ctx.git(dir, gitArgs) : spawnSync5("git", gitArgs, { cwd: dir, encoding: "utf8" });
+      const ignored = (p) => p.endsWith(".env.example") ? false : /(^|\/)\.env(?:$|\.)|(^|\/)tsconfig\.tsbuildinfo$|(^|\/)CLAUDE\.md$|(^|\/)\.dev-logs\/|(^|\/)\.run-dev\.|(^|\/)\.ff-|\.DS_Store$|(^|\/)node_modules\/|(^|\/)(?:dist|build|coverage)\//.test(p);
+      const add = (repoName, p) => {
+        p = p.replace(/^"|"$/g, "");
+        const relative = `${repoName}/${p}`;
+        if (p && !ignored(relative)) changed.push(relative);
+      };
+      for (const repo of config.repos) {
+        const dir = path23.join(wt, path23.basename(repo.path));
+        if (!fs19.existsSync(path23.join(dir, ".git"))) continue;
+        const repoName = path23.basename(repo.path), st = gitRun(dir, ["status", "--porcelain", "-uall"]);
+        if (st.status !== 0) throw new Error(`git status th\u1EA5t b\u1EA1i trong ${repoName}`);
+        for (const l of st.stdout.split(/\r?\n/)) {
+          if (!l.trim()) continue;
+          add(repoName, l.slice(3).trim().split(" -> ").at(-1));
+        }
+        const branch = gitRun(dir, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout?.trim() || "";
+        const candidates = branch && branch !== "HEAD" && branch !== repo.base_branch ? [`origin/${branch}`, `origin/${repo.base_branch}`, repo.base_branch] : [`origin/${repo.base_branch}`, repo.base_branch];
+        let base = null;
+        for (const ref of candidates) {
+          if (gitRun(dir, ["rev-parse", "--verify", ref]).status === 0) {
+            base = ref;
+            break;
+          }
+        }
+        if (base) {
+          const merge2 = gitRun(dir, ["merge-base", "HEAD", base]);
+          if (merge2.status === 0 && merge2.stdout.trim()) {
+            const diff = gitRun(dir, ["diff", "--name-only", `${merge2.stdout.trim()}..HEAD`]);
+            if (diff.status === 0) for (const p of diff.stdout.split(/\r?\n/)) add(repoName, p.trim());
+          }
+        }
+      }
+      const unique = [...new Set(changed)].sort(), violations = unique.filter((f) => !allowed.has(f)), status = !unique.length ? "NO_CHANGES" : violations.length ? "ALLOWLIST_VIOLATION" : "DRIFT_CLEAN";
+      const out = { status, slug, task: args.find((a) => a !== slug && !a.startsWith("--")) ?? null, allowlist: { exists: fs19.existsSync(allowedFile), expired, files: [...allowed] }, changedFiles: unique, violations, isClean: status !== "ALLOWLIST_VIOLATION" };
+      ctx.stdout.write(json ? JSON.stringify(out, null, 2) + "\n" : `${status}: ${unique.length} file thay \u0111\u1ED5i${violations.length ? `; ngo\xE0i allowlist: ${violations.join(", ")}` : ""}
+`);
+      return out.isClean ? 0 : 1;
+    } catch (e) {
+      ctx.stderr.write(`ff probe-slice: ${e.message}
+`);
+      return 1;
+    }
+  }
+};
+
+// scripts/cli/e2e-lint.mjs
+var e2e_lint_exports = {};
+__export(e2e_lint_exports, {
+  run: () => run15,
+  summary: () => summary15
+});
+import fs20 from "node:fs";
+import path24 from "node:path";
+var summary15 = "e2e-lint <file|dir> [--strict] \u2014 t\xECm d\u1EA5u hi\u1EC7u test e2e y\u1EBFu";
+var checks = [
+  ["force: true", /\bforce\s*:\s*true\b/],
+  ["dispatchEvent(", /\bdispatchEvent\(/],
+  [".catch(() => r\u1ED7ng/h\u1EB1ng)", /\.catch\(\s*\(\)\s*=>\s*(?:\{\s*\}|\(\{\}\)|null|undefined|\[\]|false|true|0|''|"")\s*\)/],
+  ["waitForTimeout(", /\bwaitForTimeout\(/],
+  [".first()", /\.first\(\)/],
+  [".nth(", /\.nth\(/]
+];
+async function run15(args, ctx) {
+  try {
+    const target = args.find((arg) => !arg.startsWith("--"));
+    if (!target) throw new Error("d\xF9ng: ff e2e-lint <file|dir> [--strict]");
+    const abs = path24.resolve(ctx.cwd, target);
+    if (!fs20.existsSync(abs)) throw new Error(`kh\xF4ng th\u1EA5y ${target}`);
+    const walk = (file) => fs20.statSync(file).isFile() ? [file] : fs20.readdirSync(file, { withFileTypes: true }).filter((entry) => entry.name !== "node_modules").flatMap((entry) => walk(path24.join(file, entry.name))).filter((item) => /\.(?:ts|tsx|js|mjs)$/.test(item));
+    const counts = Object.fromEntries([...checks.map(([label]) => label), "test.skip c\u1EA5p file/describe", "test.skip trong th\xE2n test"].map((key) => [key, 0]));
+    const rows = [];
+    for (const file of walk(abs).sort()) {
+      const lines2 = fs20.readFileSync(file, "utf8").split(/\r?\n/);
+      let testIndent = null;
+      lines2.forEach((line, index) => {
+        if (/^\s*\/\//.test(line)) return;
+        const test = line.match(/^(\s*)test(?:\.(?:only|fixme))?\(\s*['"`]/);
+        if (test) testIndent = test[1].length;
+        if (/^\s*test\.describe/.test(line)) testIndent = null;
+        for (const [label, pattern] of checks) {
+          if (pattern.test(line)) {
+            counts[label]++;
+            rows.push([label, file, index + 1]);
+          }
+        }
+        if (/\btest\.skip\(/.test(line)) {
+          const isTitleSkip = /^\s*test\.skip\(\s*['"`]/.test(line);
+          const indent = line.match(/^(\s*)/)?.[1].length ?? 0;
+          const key = !isTitleSkip && testIndent !== null && indent > testIndent ? "test.skip trong th\xE2n test" : "test.skip c\u1EA5p file/describe";
+          counts[key]++;
+          rows.push([key, file, index + 1]);
+        }
+      });
+    }
+    for (const [label, file, line] of rows) ctx.stdout.write(`${label}: ${path24.relative(ctx.cwd, file)}:${line}
+`);
+    for (const [label, count] of Object.entries(counts)) ctx.stdout.write(`${label}: ${count}
+`);
+    ctx.stdout.write(`T\u1ED5ng d\u1EA5u hi\u1EC7u: ${rows.length}
+`);
+    return args.includes("--strict") && rows.length ? 1 : 0;
+  } catch (error) {
+    ctx.stderr.write(`ff e2e-lint: ${error.message}
+`);
+    return 1;
+  }
+}
+
+// scripts/cli/db-query.mjs
+var db_query_exports = {};
+__export(db_query_exports, {
+  run: () => run16,
+  summary: () => summary16,
+  validateQuerySafety: () => validateQuerySafety
+});
+import fs21 from "node:fs";
+import path25 from "node:path";
+import { createRequire as createRequire3 } from "node:module";
+var summary16 = "db-query --sql <SELECT> | --file <query.sql> [--json] \u2014 truy v\u1EA5n DB ch\u1EC9 \u0111\u1ECDc";
+function stripComments(sql) {
+  let out = "", i = 0, single = false, double = false, backtick = false, dollar = null, line = false, block = false;
+  while (i < sql.length) {
+    const c = sql[i], n = sql[i + 1];
+    if (line) {
+      if (c === "\n") {
+        line = false;
+        out += "\n";
+      } else out += " ";
+      i++;
+      continue;
+    }
+    if (block) {
+      if (c === "*" && n === "/") {
+        out += "  ";
+        i += 2;
+        block = false;
+      } else {
+        out += c === "\n" ? "\n" : " ";
+        i++;
+      }
+      continue;
+    }
+    if (dollar) {
+      if (sql.startsWith(dollar, i)) {
+        out += dollar;
+        i += dollar.length;
+        dollar = null;
+      } else {
+        out += c;
+        i++;
+      }
+      continue;
+    }
+    if (single) {
+      out += c;
+      if (c === "'" && n === "'") {
+        out += n;
+        i += 2;
+        continue;
+      }
+      if (c === "'") single = false;
+      i++;
+      continue;
+    }
+    if (double) {
+      out += c;
+      if (c === '"' && n === '"') {
+        out += n;
+        i += 2;
+        continue;
+      }
+      if (c === '"') double = false;
+      i++;
+      continue;
+    }
+    if (backtick) {
+      out += c;
+      if (c === "`" && n === "`") {
+        out += n;
+        i += 2;
+        continue;
+      }
+      if (c === "`") backtick = false;
+      i++;
+      continue;
+    }
+    if (c === "-" && n === "-") {
+      out += "  ";
+      i += 2;
+      line = true;
+      continue;
+    }
+    if (c === "/" && n === "*") {
+      out += "  ";
+      i += 2;
+      block = true;
+      continue;
+    }
+    if (c === "'") single = true;
+    else if (c === '"') double = true;
+    else if (c === "`") backtick = true;
+    else if (c === "$") {
+      const m = sql.slice(i).match(/^\$[A-Za-z_0-9]*\$/);
+      if (m) dollar = m[0];
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+function splitStatements(sql) {
+  const clean = stripComments(sql);
+  const statements = [];
+  let start = 0, single = false, double = false, backtick = false, dollar = null;
+  for (let i = 0; i < clean.length; i++) {
+    const c = clean[i], n = clean[i + 1];
+    if (dollar) {
+      if (clean.startsWith(dollar, i)) {
+        i += dollar.length - 1;
+        dollar = null;
+      }
+      continue;
+    }
+    if (single) {
+      if (c === "'" && n === "'") i++;
+      else if (c === "'") single = false;
+      continue;
+    }
+    if (double) {
+      if (c === '"' && n === '"') i++;
+      else if (c === '"') double = false;
+      continue;
+    }
+    if (backtick) {
+      if (c === "`" && n === "`") i++;
+      else if (c === "`") backtick = false;
+      continue;
+    }
+    if (c === "'") single = true;
+    else if (c === '"') double = true;
+    else if (c === "`") backtick = true;
+    else if (c === "$") {
+      const m = clean.slice(i).match(/^\$[A-Za-z_0-9]*\$/);
+      if (m) dollar = m[0];
+    } else if (c === ";") {
+      if (clean.slice(start, i).trim()) statements.push(clean.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  if (clean.slice(start).trim()) statements.push(clean.slice(start).trim());
+  return statements;
+}
+function maskLiterals(sql) {
+  return sql.replace(/'(?:''|[^'])*'/g, "''").replace(/\$[A-Za-z_0-9]*\$[\s\S]*?\$[A-Za-z_0-9]*\$/g, "''");
+}
+function validateQuerySafety(sql) {
+  if (typeof sql !== "string" || !sql.trim()) throw new Error("SQL r\u1ED7ng");
+  const statements = splitStatements(sql);
+  if (!statements.length) throw new Error("SQL ch\u1EC9 ch\u1EE9a ch\xFA th\xEDch ho\u1EB7c r\u1ED7ng");
+  for (const statement of statements) {
+    const masked = maskLiterals(statement);
+    const first2 = masked.match(/^\s*([A-Za-z]+)/)?.[1]?.toUpperCase();
+    if (!["SELECT", "WITH", "EXPLAIN"].includes(first2)) throw new Error(`ch\u1EC9 cho ph\xE9p SELECT / WITH ... SELECT / EXPLAIN; nh\u1EADn ${first2 ?? "SQL kh\xF4ng h\u1EE3p l\u1EC7"}`);
+    if (first2 === "WITH" && !/\bSELECT\b/i.test(masked)) throw new Error("WITH ph\u1EA3i ch\u1EE9a SELECT");
+    const forbidden = masked.match(/\b(INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE|GRANT|REVOKE|CREATE|CALL|COPY)\b/i);
+    if (forbidden) throw new Error(`thao t\xE1c ghi b\u1ECB c\u1EA5m: ${forbidden[1].toUpperCase()}`);
+  }
+  return statements;
+}
+function parseEnv(file) {
+  const env = {};
+  for (const line of fs21.readFileSync(file, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (!match || match[1].startsWith("#")) continue;
+    let value = match[2];
+    if (/^(?:".*"|'.*')$/.test(value)) value = value.slice(1, -1);
+    else value = value.replace(/\s+#.*$/, "").replace(/^#.*$/, "");
+    env[match[1]] = value;
+  }
+  return env;
+}
+function makeClient(root, config, env, database, ctx) {
+  if (typeof ctx.connectDb === "function") return ctx.connectDb({ root, config, env, database });
+  const e2eRoot = config.e2e?.dir ? path25.resolve(root, config.e2e.dir) : root;
+  const require2 = createRequire3(path25.join(e2eRoot, "package.json"));
+  if (config.db.driver === "postgres") {
+    const { Client } = require2("pg");
+    const client = new Client({
+      host: env.DATABASE_HOST ?? env.PGHOST ?? "localhost",
+      port: Number(env.DATABASE_PORT ?? env.PGPORT ?? 5432),
+      user: env.DATABASE_USERNAME ?? env.PGUSER,
+      password: env.DATABASE_PASSWORD ?? env.PGPASSWORD,
+      database: database ?? env.DATABASE_NAME ?? env.PGDATABASE
+    });
+    return { connect: () => client.connect(), query: (sql) => client.query(sql), end: () => client.end() };
+  }
+  if (config.db.driver === "mysql") {
+    const mysql = require2("mysql2/promise");
+    let connection;
+    return {
+      connect: async () => {
+        connection = await mysql.createConnection({
+          host: env.DATABASE_HOST ?? env.MYSQL_HOST ?? "localhost",
+          port: Number(env.DATABASE_PORT ?? env.MYSQL_PORT ?? 3306),
+          user: env.DATABASE_USERNAME ?? env.MYSQL_USER,
+          password: env.DATABASE_PASSWORD ?? env.MYSQL_PASSWORD,
+          database: database ?? env.DATABASE_NAME ?? env.MYSQL_DATABASE
+        });
+      },
+      query: async (sql) => {
+        const [rows] = await connection.execute(sql);
+        return { rows };
+      },
+      end: () => connection?.end()
+    };
+  }
+  throw new Error(`driver DB kh\xF4ng h\u1ED7 tr\u1EE3: ${config.db.driver}`);
+}
+function formatRows(rows, json) {
+  if (json) return `${JSON.stringify(rows, null, 2)}
+`;
+  if (!rows.length) return "(0 d\xF2ng)\n";
+  const columns = Object.keys(rows[0]);
+  return `${columns.join(" | ")}
+${rows.map((row) => columns.map((column) => {
+    const value = row[column];
+    return String(value === null || value === void 0 ? "null" : typeof value === "object" ? JSON.stringify(value) : value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  }).join(" | ")).join("\n")}
+`;
+}
+async function run16(args, ctx) {
+  let client, env = {};
+  try {
+    const root = findRoot(ctx.cwd);
+    if (!root) throw new Error("kh\xF4ng th\u1EA5y ff.config.yaml");
+    const { config } = loadConfig(root);
+    if (!config.db?.env_file || !config.db.driver) throw new Error("ch\u01B0a c\u1EA5u h\xECnh db.driver v\xE0 db.env_file");
+    let sql = null, database = null, file = null;
+    const json = args.includes("--json") || args.includes("--format") && args[args.indexOf("--format") + 1] === "json";
+    for (let i = 0; i < args.length; i++) {
+      if (["--sql", "-s"].includes(args[i])) sql = args[++i];
+      else if (["--file", "-f"].includes(args[i])) file = args[++i];
+      else if (["--db", "-d"].includes(args[i])) database = args[++i];
+    }
+    if (sql && file) throw new Error("ch\u1EC9 truy\u1EC1n m\u1ED9t trong --sql ho\u1EB7c --file");
+    if (file) {
+      const allowedDir = config.project_docs?.verification_queries_dir;
+      if (!allowedDir) throw new Error("ch\u01B0a c\u1EA5u h\xECnh project_docs.verification_queries_dir cho --file");
+      const base = path25.resolve(root, allowedDir), target = path25.resolve(ctx.cwd, file);
+      if (!target.startsWith(base + path25.sep) || !fs21.existsSync(target) || !fs21.statSync(target).isFile() || !fs21.realpathSync(target).startsWith(fs21.realpathSync(base) + path25.sep)) throw new Error("file SQL ph\u1EA3i n\u1EB1m trong project_docs.verification_queries_dir");
+      sql = fs21.readFileSync(target, "utf8");
+    }
+    const statements = validateQuerySafety(sql);
+    const envFile = path25.resolve(root, config.db.env_file);
+    if (!envFile.startsWith(root + path25.sep) || !fs21.existsSync(envFile)) throw new Error("kh\xF4ng th\u1EA5y file c\u1EA5u h\xECnh DB");
+    env = parseEnv(envFile);
+    client = await makeClient(root, config, env, database, ctx);
+    await client.connect();
+    const rows = [];
+    for (const statement of statements) {
+      const result = await client.query(statement);
+      rows.push(...result.rows ?? []);
+    }
+    ctx.stdout.write(formatRows(rows, json));
+    return 0;
+  } catch (error) {
+    let message = String(error?.message ?? error);
+    for (const value of Object.values(env)) if (value && value.length >= 3) message = message.split(value).join("[redacted]");
+    ctx.stderr.write(`ff db-query: ${message}
+`);
+    return 1;
+  } finally {
+    try {
+      await client?.end();
+    } catch {
+    }
+  }
+}
+
+// scripts/cli/spec-checks.mjs
+import fs22 from "node:fs";
+import path26 from "node:path";
+import crypto4 from "node:crypto";
+var hash = (v) => crypto4.createHash("sha256").update(v).digest("hex");
+var inside3 = (base, target) => {
+  const rel = path26.relative(base, target);
+  return Boolean(rel && rel !== ".." && !rel.startsWith(`..${path26.sep}`) && !path26.isAbsolute(rel));
+};
+var normalizeAc = (number, suffix = "", revision = "") => `AC-${revision ? `${revision.toUpperCase()}-` : ""}${String(Number(number)).padStart(2, "0")}${suffix.toLowerCase()}`;
+var acMatches = (a, b) => {
+  const x = a.match(/^AC-(?:([A-Z0-9]+)-)?(\d+)([a-z]?)$/i);
+  const y = b.match(/^AC-(?:([A-Z0-9]+)-)?(\d+)([a-z]?)$/i);
+  return Boolean(x && y && (x[1] ?? "") === (y[1] ?? "") && x[2] === y[2] && (!x[3] || !y[3] || x[3].toLowerCase() === y[3].toLowerCase()));
+};
+function getContext(ctx, id, task, fileName) {
+  const root = findRoot(ctx.cwd);
+  if (!root) throw new Error("kh\xF4ng th\u1EA5y ff.config.yaml");
+  const config = loadConfig(root).config;
+  const card = findCardDir(root, config, id);
+  if (card.error) throw new Error(card.error);
+  const dirs = fs22.readdirSync(card.dir, { withFileTypes: true }).filter((entry) => entry.isDirectory() && /^(?:task-\d+|rev-\d+)/.test(entry.name)).map((entry) => entry.name).sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]));
+  let selected;
+  if (task) {
+    if (/^rev-\d+/.test(task)) selected = dirs.filter((name) => name === task);
+    else {
+      const key = task.match(/^task-\d+/)?.[0];
+      if (!key) throw new Error(`task ph\u1EA3i d\u1EA1ng task-N ho\u1EB7c rev-N, nh\u1EADn '${task}'`);
+      selected = dirs.filter((name) => name === key || name.startsWith(`${key}-`));
+    }
+    if (!selected.length) throw new Error(`kh\xF4ng th\u1EA5y th\u01B0 m\u1EE5c ${task}`);
+  } else {
+    const revs = dirs.filter((name) => /^rev-\d+/.test(name)).sort((a, b) => Number(b.match(/\d+/)?.[0]) - Number(a.match(/\d+/)?.[0]));
+    selected = revs.length && fs22.existsSync(path26.join(card.dir, revs[0], fileName)) ? [revs[0]] : dirs.filter((name) => fs22.existsSync(path26.join(card.dir, name, fileName)));
+    if (!selected.length) selected = [""];
+  }
+  return {
+    root,
+    config,
+    card: card.dir,
+    docs: selected.map((name) => ({ task: name || null, file: path26.join(card.dir, name, fileName) }))
+  };
+}
+function parseSpecAcs(text) {
+  return [...text.matchAll(/^\s*[-*]\s+\*\*AC-(?:([A-Za-z0-9]+)-)?(\d+)([a-z]?)\*\*\s*[—–-]*\s*(.*)$/gm)].map((m) => ({ id: normalizeAc(m[2], m[3], m[1]), dropped: /^_?\(bỏ/i.test(m[4].trim()) }));
+}
+function titleAcs(title) {
+  const ids = [];
+  const first2 = title.match(/AC-(?:([A-Za-z0-9]+)-)?(\d+)([a-z]?)(?![\w])/i);
+  if (!first2) return ids;
+  ids.push(normalizeAc(first2[2], first2[3], first2[1]));
+  let rest = title.slice(first2.index + first2[0].length);
+  for (; ; ) {
+    const next = rest.match(/^\s*(?:\([^)]*\))?\s*(?:,|&|\/|và)\s*(?:AC-)?(?:([A-Za-z0-9]+)-)?(\d+)([a-z]?)(?![\w])/i);
+    if (!next) break;
+    ids.push(normalizeAc(next[2], next[3], next[1]));
+    rest = rest.slice(next[0].length);
+  }
+  return ids;
+}
+function scanTests(file) {
+  const lines2 = fs22.readFileSync(file, "utf8").split(/\r?\n/);
+  const found = [];
+  let active = null;
+  for (let i = 0; i < lines2.length; i++) {
+    const line = lines2[i];
+    if (/^\s*\/\//.test(line)) continue;
+    const start = line.match(/^\s*test(?:\.(skip|fixme|only))?\(\s*(['"`])(.*)$/);
+    const continuation = !start && line.match(/^\s*test(?:\.(skip|fixme|only))?\(\s*$/) ? lines2[i + 1]?.match(/^\s*(['"`])(.*)$/) : null;
+    if (start || continuation) {
+      const mod = start?.[1] ?? (continuation ? line.match(/^\s*test(?:\.(skip|fixme|only))?/)?.[1] : null);
+      const title = start?.[3] ?? continuation?.[2] ?? "";
+      active = { ids: titleAcs(title), skip: mod === "skip" || mod === "fixme", conditional: false, line: i + 1, file: path26.basename(file) };
+      found.push(active);
+      continue;
+    }
+    if (active && /\btest\.skip\(/.test(line)) active.conditional = true;
+  }
+  return found;
+}
+function readLock(root, config, cardSlug, task) {
+  const file = path26.join(root, config.workspace.worktrees_dir, cardSlug, ".ff-test-lock");
+  if (!fs22.existsSync(file)) return { found: false, bad: [] };
+  const raw = fs22.readFileSync(file);
+  const bad = [];
+  for (const line of raw.toString().split(/\r?\n/)) {
+    const m = line.match(/^([a-f0-9]{64})\s{2}(.+)$/);
+    if (!line.trim()) continue;
+    if (!m) {
+      bad.push(".ff-test-lock (manifest kh\xF4ng h\u1EE3p l\u1EC7)");
+      continue;
+    }
+    if (task && !path26.basename(m[2]).startsWith(`${task}-`)) continue;
+    const target = path26.resolve(root, m[2]);
+    if (!inside3(root, target)) {
+      bad.push(m[2]);
+      continue;
+    }
+    const actual = fs22.existsSync(target) ? hash(fs22.readFileSync(target)) : null;
+    if (actual !== m[1]) bad.push(m[2]);
+  }
+  return { found: true, digest: hash(raw).slice(0, 8), bad };
+}
+var acMatrix = {
+  summary: "ac-matrix <id> [task-N] \u2014 \u0111\u1ED1i chi\u1EBFu acceptance criteria v\u1EDBi test",
+  async run(args, ctx) {
+    try {
+      const id = args[0];
+      if (!id) throw new Error("d\xF9ng: ff ac-matrix <id> [task-N]");
+      const c = getContext(ctx, id, args[1], "02-spec.md");
+      const testRoot = c.config.e2e?.tests_dir ? path26.resolve(c.root, c.config.e2e.tests_dir, path26.basename(c.card)) : null;
+      const testFiles = testRoot && fs22.existsSync(testRoot) ? fs22.readdirSync(testRoot).filter((name) => name.endsWith(".spec.ts")).sort() : [];
+      const total = { COVERED: 0, SKIP: 0, MISSING: 0, ORPHAN: 0, DROPPED: 0 };
+      let failed = false;
+      for (const doc of c.docs) {
+        if (!fs22.existsSync(doc.file)) throw new Error(`kh\xF4ng th\u1EA5y ${path26.relative(c.root, doc.file)}`);
+        const acs = parseSpecAcs(fs22.readFileSync(doc.file, "utf8"));
+        const names = testFiles.filter((name) => !doc.task || doc.task.startsWith("rev-") || name.startsWith(`${doc.task}-`) || name.startsWith(`${doc.task}.`));
+        const tests = names.flatMap((name) => scanTests(path26.join(testRoot, name)));
+        const local = { COVERED: 0, SKIP: 0, MISSING: 0, ORPHAN: 0, DROPPED: 0 };
+        ctx.stdout.write(`
+== ${path26.relative(c.root, doc.file)} \u2014 ${acs.length} AC, ${names.length} file test
+`);
+        for (const ac of acs) {
+          const matches = tests.filter((t) => t.ids.some((id2) => acMatches(id2, ac.id)));
+          const state = ac.dropped ? "DROPPED" : !matches.length ? "MISSING" : matches.some((t) => !t.skip && !t.conditional) ? "COVERED" : "SKIP";
+          local[state]++;
+          const locations = matches.map((t) => `${t.file}:${t.line}${t.skip ? " (skip)" : t.conditional ? " (skip c\xF3 \u0111i\u1EC1u ki\u1EC7n)" : ""}`).join(", ");
+          ctx.stdout.write(`${ac.id}: ${state}${locations ? ` \u2014 ${locations}` : ""}
+`);
+        }
+        for (const t of tests) for (const testId of t.ids) {
+          if (acs.some((ac) => acMatches(testId, ac.id))) continue;
+          local.ORPHAN++;
+          ctx.stdout.write(`${testId}: ORPHAN \u2014 ${t.file}:${t.line}
+`);
+        }
+        for (const key of Object.keys(total)) total[key] += local[key];
+        if (local.SKIP || local.MISSING) failed = true;
+        ctx.stdout.write(`T\u1ED5ng: COVERED ${local.COVERED}, SKIP ${local.SKIP}, MISSING ${local.MISSING}, ORPHAN ${local.ORPHAN}, DROPPED ${local.DROPPED}
+`);
+      }
+      const lock = readLock(c.root, c.config, path26.basename(c.card), args[1]?.startsWith("task-") ? args[1].match(/^task-\d+/)?.[0] : null);
+      if (lock.found) {
+        ctx.stdout.write(`
+Test lock: manifest ${lock.digest}
+`);
+        for (const item of lock.bad) ctx.stdout.write(`\u274C HASH \u0110\u1ED4I ${item}
+`);
+        if (!lock.bad.length) ctx.stdout.write("hash kh\u1EDBp\n");
+        if (lock.bad.length) failed = true;
+      } else ctx.stdout.write("\nCh\u01B0a kh\xF3a test (.ff-test-lock kh\xF4ng c\xF3)\n");
+      ctx.stdout.write(`
+${failed ? "\u2192 KH\xD4NG S\u1EA0CH" : "\u2192 S\u1EA0CH"}
+`);
+      return failed ? 1 : 0;
+    } catch (error) {
+      ctx.stderr.write(`ff ac-matrix: ${error.message}
+`);
+      return 1;
+    }
+  }
+};
+var designCheck = {
+  summary: "design-check <id> [task-N] \u2014 ki\u1EC3m tham chi\u1EBFu file:line trong design",
+  async run(args, ctx) {
+    try {
+      if (!args[0]) throw new Error("d\xF9ng: ff design-check <id> [task-N]");
+      const c = getContext(ctx, args[0], args[1], "03-design.md");
+      let bad = 0;
+      const extensions = /\.(?:tsx?|jsx?|mjs|cjs|json|less|css|scss|sql|ya?ml|md|sh|html)$/;
+      const excluded = /* @__PURE__ */ new Set(["node_modules", "dist", "build", ".turbo", ".git", "coverage"]);
+      const files = [];
+      const walk = (dir) => {
+        let entries;
+        try {
+          entries = fs22.readdirSync(dir, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const entry of entries) {
+          if (excluded.has(entry.name)) continue;
+          const file = path26.join(dir, entry.name);
+          if (entry.isDirectory()) walk(file);
+          else if (extensions.test(entry.name)) files.push(file);
+        }
+      };
+      const base = path26.resolve(c.root, c.config.workspace.worktrees_dir, path26.basename(c.card));
+      const searchRoot = fs22.existsSync(base) ? base : c.root;
+      for (const repo of c.config.repos) walk(path26.join(searchRoot, path26.basename(repo.path)));
+      for (const doc of c.docs) {
+        if (!fs22.existsSync(doc.file)) throw new Error(`kh\xF4ng th\u1EA5y ${path26.relative(c.root, doc.file)}`);
+        const text = fs22.readFileSync(doc.file, "utf8");
+        const refs = /* @__PURE__ */ new Set();
+        for (const match of text.matchAll(/([\w@.\-/]+\.(?:tsx?|jsx?|mjs|cjs|json|less|css|scss|sql|ya?ml|md|sh|html)):(\d+)(?:-(\d+))?/g)) refs.add(match[0]);
+        for (const ref of refs) {
+          const match = ref.match(/^(.+):(\d+)(?:-(\d+))?$/);
+          const raw = match[1], from = Number(match[2]), to = Number(match[3] ?? match[2]);
+          const candidates = [path26.resolve(searchRoot, raw), ...c.config.repos.map((repo) => path26.resolve(searchRoot, path26.basename(repo.path), raw))].filter((file) => file.startsWith(searchRoot + path26.sep) && fs22.existsSync(file) && fs22.statSync(file).isFile());
+          if (!candidates.length) {
+            ctx.stdout.write(`\u274C ${ref} \u2014 file kh\xF4ng t\u1ED3n t\u1EA1i
+`);
+            bad++;
+            continue;
+          }
+          const counts = candidates.map((file) => {
+            const source = fs22.readFileSync(file, "utf8");
+            return source.split("\n").length - (source.endsWith("\n") ? 1 : 0);
+          });
+          if (from < 1 || to < from || !counts.some((count) => to <= count)) {
+            ctx.stdout.write(`\u274C ${ref} \u2014 d\xF2ng ngo\xE0i file
+`);
+            bad++;
+          }
+        }
+        const identifiers = new Set([...text.matchAll(/`([^`\n]+)`/g)].map((m) => m[1].trim()).filter((s) => s.length >= 4 && /^[A-Za-z_$][\w$]*(?:\.[\w$]+)*(?:\(\))?$/.test(s)));
+        const tokens = /* @__PURE__ */ new Set();
+        for (const file of files) {
+          try {
+            if (fs22.statSync(file).size <= 2e6) for (const token of fs22.readFileSync(file, "utf8").matchAll(/[A-Za-z_$][\w$]*/g)) tokens.add(token[0]);
+          } catch {
+          }
+        }
+        for (const identifier of identifiers) {
+          const last = identifier.replace(/\(\)$/, "").split(".").at(-1);
+          if (!tokens.has(last)) ctx.stdout.write(`\u26A0\uFE0F \`${identifier}\` \u2014 kh\xF4ng t\xECm th\u1EA5y trong repo
+`);
+        }
+      }
+      ctx.stdout.write(`
+T\u1ED5ng: \u274C ${bad}
+`);
+      return bad ? 1 : 0;
+    } catch (error) {
+      ctx.stderr.write(`ff design-check: ${error.message}
+`);
+      return 1;
+    }
+  }
+};
+
+// scripts/cli/worker.mjs
+var worker_exports = {};
+__export(worker_exports, {
+  run: () => run17,
+  summary: () => summary17
+});
+import fs23 from "node:fs";
+import path27 from "node:path";
+import { spawnSync as spawnSync4 } from "node:child_process";
+var summary17 = "worker <start|stop|status|logs> \u2014 qu\u1EA3n l\xFD worker trong tmux";
+function tmux(args, root, ctx) {
+  if (ctx.runTmux) return ctx.runTmux(args, root);
+  return spawnSync4("tmux", args, { cwd: root, encoding: "utf8", timeout: 1e4 });
+}
+function readStatus(root) {
+  try {
+    return JSON.parse(fs23.readFileSync(path27.join(root, ".ff/worker.json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function session(config) {
+  return config.worker.tmux.session_name ?? "ff-worker";
+}
+function exactTarget(config) {
+  return `=${session(config)}`;
+}
+async function run17(args, ctx) {
+  const [action, ...rest] = args;
+  if (!["start", "stop", "status", "logs"].includes(action) || action !== "logs" && rest.length) {
+    ctx.stderr.write("d\xF9ng: ff worker <start|stop|status|logs [-n 100]>\n");
+    return 2;
+  }
+  if (action === "logs") {
+    let count = 100;
+    if (rest.length) {
+      if (rest.length !== 2 || rest[0] !== "-n" || !/^\d+$/.test(rest[1]) || Number(rest[1]) < 1 || Number(rest[1]) > 5e3) {
+        ctx.stderr.write("d\xF9ng: ff worker logs [-n 1..5000]\n");
+        return 2;
+      }
+      count = Number(rest[1]);
+    }
+    const root2 = findRoot(ctx.cwd);
+    if (!root2) return missingRoot(ctx);
+    const config2 = loadConfig(root2).config;
+    const r = tmux(["capture-pane", "-p", "-t", exactTarget(config2), "-S", `-${count}`], root2, ctx);
+    if (r.status !== 0) {
+      ctx.stderr.write("ff worker logs: kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c tmux session\n");
+      return 1;
+    }
+    ctx.stdout.write(r.stdout ?? "");
+    return 0;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) return missingRoot(ctx);
+  const loaded = loadConfig(root);
+  const config = loaded.config;
+  const target = exactTarget(config);
+  const status = readStatus(root);
+  if (action === "status") {
+    const exists2 = tmux(["has-session", "-t", target], root, ctx).status === 0;
+    ctx.stdout.write(`ff worker: ${exists2 ? status?.state ?? "\u0111ang ch\u1EA1y, ch\u01B0a c\xF3 status" : status?.state === "crashed" ? "crashed" : "kh\xF4ng ch\u1EA1y"}
+`);
+    if (exists2 && status) ctx.stdout.write(`adapter: ${status.adapter ?? "\u0111ang kh\u1EDFi \u0111\u1ED9ng"} \xB7 pid: ${status.pid ?? "\u2014"} \xB7 port: ${status.port ?? "\u2014"}
+`);
+    return status?.state === "crashed" ? 1 : 0;
+  }
+  if (action === "stop") {
+    const exists2 = tmux(["has-session", "-t", target], root, ctx).status === 0;
+    if (!exists2) {
+      ctx.stdout.write("ff worker: kh\xF4ng ch\u1EA1y\n");
+      return 0;
+    }
+    const stopped = tmux(["send-keys", "-t", target, "C-c"], root, ctx);
+    if (stopped.status !== 0) {
+      ctx.stderr.write("ff worker stop: kh\xF4ng g\u1EEDi \u0111\u01B0\u1EE3c t\xEDn hi\u1EC7u d\u1EEBng\n");
+      return 1;
+    }
+    ctx.stdout.write("ff worker: \u0111\xE3 y\xEAu c\u1EA7u d\u1EEBng \xEAm\n");
+    return 0;
+  }
+  const doctor = runDoctor(root, loaded);
+  if (!doctor.groups.core || !doctor.groups.worker) {
+    const errors = doctor.checks.filter((c) => !c.ok && ["core", "worker"].includes(c.group)).map((c) => c.msg);
+    ctx.stderr.write(`ff worker start: doctor core/worker \u0111\u1ECF; ${errors.join("; ")}
+`);
+    return 4;
+  }
+  if (!(ctx.which ?? whichInPath)("tmux", root)) {
+    ctx.stderr.write("ff worker start: kh\xF4ng t\xECm th\u1EA5y tmux trong PATH\n");
+    return 4;
+  }
+  const exists = tmux(["has-session", "-t", target], root, ctx).status === 0;
+  if (exists) {
+    if (status?.state === "ready") {
+      ctx.stdout.write(`ff worker: \u0111ang ch\u1EA1y trong tmux session ${session(config)}
+`);
+      return 0;
+    }
+    ctx.stderr.write(`ff worker: tmux session ${session(config)} \u0111\xE3 t\u1ED3n t\u1EA1i; ki\u1EC3m tra b\u1EB1ng ff worker status tr\u01B0\u1EDBc khi t\u1EA1o phi\xEAn kh\xE1c
+`);
+    return 1;
+  }
+  const pluginRoot = ctx.pluginRoot ?? inferPluginRoot();
+  const supervisor = path27.join(pluginRoot, "dist", "worker-supervise.mjs");
+  const pkg = JSON.parse(fs23.readFileSync(path27.join(pluginRoot, "ff-worker/package.json"), "utf8"));
+  const command = tmux(["new-session", "-d", "-s", session(config), "-c", root, process.execPath, supervisor, "--config", path27.join(root, "ff.config.yaml"), "--package", `ff-worker@${pkg.version}`], root, ctx);
+  if (command.status !== 0) {
+    ctx.stderr.write("ff worker start: tmux kh\xF4ng t\u1EA1o \u0111\u01B0\u1EE3c session\n");
+    return 1;
+  }
+  for (let i = 0; i < 30; i++) {
+    const wait = ctx.wait ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    await wait(1e3);
+    const current = readStatus(root);
+    if (current?.state === "ready") {
+      ctx.stdout.write([
+        `\u0110ang ch\u1EA1y: worker trong tmux session ${session(config)}, TaskSource ${config.worker.task_source.adapter}, th\xF4ng b\xE1o qua ${config.worker.channel.adapter}.`,
+        `Xem th\u1EBF n\xE0o: tmux attach -t =${session(config)} (tho\xE1t phi\xEAn b\u1EB1ng Ctrl-b r\u1ED3i d).`,
+        `Duy\u1EC7t Gate: khi c\xF3 th\xF4ng b\xE1o Gate, attach phi\xEAn tmux ${config.worker.tmux.session_prefix ?? "ff-"}<id> trong th\xF4ng b\xE1o.`,
+        "D\u1EEBng/kh\u1EDFi \u0111\u1ED9ng l\u1EA1i: /ff-worker stop / /ff-worker start; s\u1EEDa config ho\u1EB7c .ff.env s\u1EBD n\u1EA1p l\u1EA1i.",
+        "C\xF2n thi\u1EBFu: kh\xF4ng.",
+        ""
+      ].join("\n"));
+      return 0;
+    }
+    if (current?.state === "crashed") break;
+  }
+  ctx.stderr.write("ff worker start: worker ch\u01B0a ready sau 30 gi\xE2y; xem ff worker logs\n");
+  return 1;
+}
+function missingRoot(ctx) {
+  ctx.stderr.write("ff worker: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+  return 4;
+}
+function inferPluginRoot() {
+  const entry = path27.resolve(process.argv[1] ?? process.cwd());
+  const dir = path27.dirname(entry);
+  return ["bin", "dist"].includes(path27.basename(dir)) ? path27.dirname(dir) : process.cwd();
+}
+
+// scripts/cli/verify-lock.mjs
+var verify_lock_exports = {};
+__export(verify_lock_exports, {
+  run: () => run18,
+  summary: () => summary18
+});
+
+// scripts/lib/worker-client.mjs
+import fs24 from "node:fs";
+import path28 from "node:path";
+async function workerRequest(root, endpoint, body, fetcher = globalThis.fetch) {
+  let status;
+  try {
+    status = JSON.parse(fs24.readFileSync(path28.join(root, ".ff/worker.json"), "utf8"));
+  } catch {
+    throw new Error("worker ch\u01B0a ch\u1EA1y; d\xF9ng /ff-worker start");
+  }
+  if (!Number.isInteger(status.port) || status.port < 1 || status.port > 65535 || typeof status.token !== "string" || !status.token) {
+    throw new Error("worker ch\u01B0a s\u1EB5n s\xE0ng; d\xF9ng ff worker status");
+  }
+  const response = await fetcher(`http://127.0.0.1:${status.port}${endpoint}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${status.token}` },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(5e3)
+  });
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+  }
+  if (!response.ok) throw new Error(data.error ?? `worker tr\u1EA3 HTTP ${response.status}`);
+  return data;
+}
+
+// scripts/cli/verify-lock.mjs
+var summary18 = "verify-lock <acquire|release> <slug> \u2014 l\u1EA5y/tr\u1EA3 lock verify qua worker";
+async function run18(args, ctx) {
+  const [action, slug, ...extra] = args;
+  if (!["acquire", "release"].includes(action) || !slug || extra.length || !/^[A-Za-z0-9]+(?:-[A-Za-z0-9-]+)?$/.test(slug)) {
+    ctx.stderr.write("d\xF9ng: ff verify-lock <acquire|release> <slug>\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff verify-lock: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  try {
+    const result = await workerRequest(root, "/verify-lock", { action, slug }, ctx.fetch);
+    if (action === "acquire" && !result.acquired) {
+      ctx.stderr.write(`ff verify-lock: \u0111ang \u0111\u01B0\u1EE3c gi\u1EEF b\u1EDFi ${result.current?.slug ?? "th\u1EBB kh\xE1c"}
+`);
+      return 1;
+    }
+    if (action === "release" && !result.released) {
+      ctx.stderr.write("ff verify-lock: lock ch\u01B0a \u0111\u01B0\u1EE3c tr\u1EA3\n");
+      return 1;
+    }
+    ctx.stdout.write(action === "acquire" ? "\u0111\xE3 l\u1EA5y verify lock\n" : "\u0111\xE3 tr\u1EA3 verify lock\n");
+    return 0;
+  } catch (e) {
+    ctx.stderr.write(`ff verify-lock: ${e.message}
+`);
+    return 1;
+  }
+}
+
+// scripts/cli/ship-request.mjs
+var ship_request_exports = {};
+__export(ship_request_exports, {
+  run: () => run19,
+  summary: () => summary19
+});
+var summary19 = "ship-request --task <id> --title <text> [--body <text>] \u2014 g\u1EEDi y\xEAu c\u1EA7u ship \u0111\u1EC3 ng\u01B0\u1EDDi d\xF9ng x\xE1c nh\u1EADn";
+async function run19(args, ctx) {
+  const options = {};
+  for (let i = 0; i < args.length; i++) {
+    const match = /^--(task|title|body)$/.exec(args[i]);
+    if (!match || !args[i + 1] || args[i + 1].startsWith("--")) {
+      ctx.stderr.write(`d\xF9ng: ff ship-request --task <id> --title <text> [--body <text>]
+`);
+      return 2;
+    }
+    options[match[1]] = args[++i];
+  }
+  if (!/^[A-Za-z0-9]+$/.test(options.task ?? "") || !options.title?.trim()) {
+    ctx.stderr.write("ff ship-request: c\u1EA7n --task <id> v\xE0 --title <text>\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff ship-request: kh\xF4ng th\u1EA5y ff.config.yaml\n");
+    return 4;
+  }
+  try {
+    await workerRequest(root, "/ship-request", { taskId: options.task, title: options.title, body: options.body ?? "" }, ctx.fetch);
+    ctx.stdout.write("\u0111\xE3 g\u1EEDi y\xEAu c\u1EA7u ship \u0111\u1EC3 ng\u01B0\u1EDDi d\xF9ng x\xE1c nh\u1EADn\n");
+    return 0;
+  } catch (e) {
+    ctx.stderr.write(`ff ship-request: ${e.message}
+`);
+    return 1;
+  }
+}
+
 // scripts/cli/main.mjs
 var VERSION = "0.1.0";
 var COMMANDS = {
@@ -15670,7 +17689,28 @@ var COMMANDS = {
   "env-example": env_example_exports,
   doctor: doctor_exports,
   "trace-check": trace_check_exports,
-  notify: notify_exports
+  notify: notify_exports,
+  "mcp-auth": mcp_auth_exports,
+  "e2e-auth-check": e2e_auth_check_exports,
+  "e2e-scaffold": e2e_scaffold_exports,
+  state: state_exports,
+  sync: sync_exports,
+  copy: copy_exports,
+  "squash-check": squash_check_exports,
+  "verify-up": verify_up_exports,
+  "verify-down": verify_down_exports,
+  "ship-approve": shipApprove,
+  allow,
+  "lock-tests": lockTests,
+  relock,
+  "probe-slice": probeSlice,
+  "e2e-lint": e2e_lint_exports,
+  "db-query": db_query_exports,
+  "ac-matrix": acMatrix,
+  "design-check": designCheck,
+  worker: worker_exports,
+  "verify-lock": verify_lock_exports,
+  "ship-request": ship_request_exports
 };
 var defaultCtx = () => ({ cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr });
 async function main(argv, ctx = defaultCtx()) {
@@ -15692,8 +17732,8 @@ async function main(argv, ctx = defaultCtx()) {
   return cmd.run(rest, ctx);
 }
 function usage() {
-  const lines = Object.entries(COMMANDS).map(([n, c]) => `  ${n.padEnd(14)} ${c.summary}`);
-  return ["ff <l\u1EC7nh> [tham s\u1ED1]", "", "L\u1EC7nh:", ...lines, ""].join("\n");
+  const lines2 = Object.entries(COMMANDS).map(([n, c]) => `  ${n.padEnd(14)} ${c.summary}`);
+  return ["ff <l\u1EC7nh> [tham s\u1ED1]", "", "L\u1EC7nh:", ...lines2, ""].join("\n");
 }
 export {
   COMMANDS,

@@ -65,6 +65,7 @@ test('session-start: xanh và đỏ, luôn exit 0', async (t) => {
   const g = await runHook('session-start', { cwd: root })
   assert.equal(g.status, 0)
   assert.match(g.out, /ff doctor: xanh/)
+  assert.match(g.out, /Worker chưa chạy.*\/ff-worker start/)
   assert.equal(doctorStatus(root), 'green')
   fs.rmSync(path.join(root, '.ff.env'))
   const w = await runHook('session-start', { cwd: root })
