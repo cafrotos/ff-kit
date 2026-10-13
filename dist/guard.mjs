@@ -109,17 +109,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path5) {
-      const ctrl = callVisitor(key, node, visitor, path5);
+    function visit_(key, node, visitor, path7) {
+      const ctrl = callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path5, ctrl);
-        return visit_(key, ctrl, visitor, path5);
+        replaceNode(key, path7, ctrl);
+        return visit_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path5 = Object.freeze(path5.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path5);
+            const ci = visit_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -130,13 +130,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path5 = Object.freeze(path5.concat(node));
-          const ck = visit_("key", node.key, visitor, path5);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = visit_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path5);
+          const cv = visit_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -157,17 +157,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path5) {
-      const ctrl = await callVisitor(key, node, visitor, path5);
+    async function visitAsync_(key, node, visitor, path7) {
+      const ctrl = await callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path5, ctrl);
-        return visitAsync_(key, ctrl, visitor, path5);
+        replaceNode(key, path7, ctrl);
+        return visitAsync_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path5 = Object.freeze(path5.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path5);
+            const ci = await visitAsync_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -178,13 +178,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path5 = Object.freeze(path5.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path5);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path5);
+          const cv = await visitAsync_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -211,23 +211,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path5) {
+    function callVisitor(key, node, visitor, path7) {
       if (typeof visitor === "function")
-        return visitor(key, node, path5);
+        return visitor(key, node, path7);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path5);
+        return visitor.Map?.(key, node, path7);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path5);
+        return visitor.Seq?.(key, node, path7);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path5);
+        return visitor.Pair?.(key, node, path7);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path5);
+        return visitor.Scalar?.(key, node, path7);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path5);
+        return visitor.Alias?.(key, node, path7);
       return void 0;
     }
-    function replaceNode(key, path5, node) {
-      const parent = path5[path5.length - 1];
+    function replaceNode(key, path7, node) {
+      const parent = path7[path7.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -391,7 +391,7 @@ var require_directives = __commonJS({
         return tag[0] === "!" ? tag : `!<${tag}>`;
       }
       toString(doc) {
-        const lines = this.yaml.explicit ? [`%YAML ${this.yaml.version || "1.2"}`] : [];
+        const lines2 = this.yaml.explicit ? [`%YAML ${this.yaml.version || "1.2"}`] : [];
         const tagEntries = Object.entries(this.tags);
         let tagNames;
         if (doc && tagEntries.length > 0 && identity.isNode(doc.contents)) {
@@ -407,9 +407,9 @@ var require_directives = __commonJS({
           if (handle === "!!" && prefix === "tag:yaml.org,2002:")
             continue;
           if (!doc || tagNames.some((tn) => tn.startsWith(prefix)))
-            lines.push(`%TAG ${handle} ${prefix}`);
+            lines2.push(`%TAG ${handle} ${prefix}`);
         }
-        return lines.join("\n");
+        return lines2.join("\n");
       }
     };
     Directives.defaultYaml = { explicit: false, version: "1.2" };
@@ -839,10 +839,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path5, value) {
+    function collectionFromPath(schema, path7, value) {
       let v = value;
-      for (let i = path5.length - 1; i >= 0; --i) {
-        const k = path5[i];
+      for (let i = path7.length - 1; i >= 0; --i) {
+        const k = path7[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -861,7 +861,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path5) => path5 == null || typeof path5 === "object" && !!path5[Symbol.iterator]().next().done;
+    var isEmptyPath = (path7) => path7 == null || typeof path7 === "object" && !!path7[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -891,11 +891,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path5, value) {
-        if (isEmptyPath(path5))
+      addIn(path7, value) {
+        if (isEmptyPath(path7))
           this.add(value);
         else {
-          const [key, ...rest] = path5;
+          const [key, ...rest] = path7;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -909,8 +909,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path5) {
-        const [key, ...rest] = path5;
+      deleteIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -924,8 +924,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path5, keepScalar) {
-        const [key, ...rest] = path5;
+      getIn(path7, keepScalar) {
+        const [key, ...rest] = path7;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -943,8 +943,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path5) {
-        const [key, ...rest] = path5;
+      hasIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -954,8 +954,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path5, value) {
-        const [key, ...rest] = path5;
+      setIn(path7, value) {
+        const [key, ...rest] = path7;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -1870,22 +1870,22 @@ var require_stringifyCollection = __commonJS({
       const { indent, options: { commentString } } = ctx;
       const itemCtx = Object.assign({}, ctx, { indent: itemIndent, type: null });
       let chompKeep = false;
-      const lines = [];
+      const lines2 = [];
       for (let i = 0; i < items.length; ++i) {
         const item = items[i];
         let comment2 = null;
         if (identity.isNode(item)) {
           if (!chompKeep && item.spaceBefore)
-            lines.push("");
-          addCommentBefore(ctx, lines, item.commentBefore, chompKeep);
+            lines2.push("");
+          addCommentBefore(ctx, lines2, item.commentBefore, chompKeep);
           if (item.comment)
             comment2 = item.comment;
         } else if (identity.isPair(item)) {
           const ik = identity.isNode(item.key) ? item.key : null;
           if (ik) {
             if (!chompKeep && ik.spaceBefore)
-              lines.push("");
-            addCommentBefore(ctx, lines, ik.commentBefore, chompKeep);
+              lines2.push("");
+            addCommentBefore(ctx, lines2, ik.commentBefore, chompKeep);
           }
         }
         chompKeep = false;
@@ -1894,15 +1894,15 @@ var require_stringifyCollection = __commonJS({
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment2));
         if (chompKeep && comment2)
           chompKeep = false;
-        lines.push(blockItemPrefix + str2);
+        lines2.push(blockItemPrefix + str2);
       }
       let str;
-      if (lines.length === 0) {
+      if (lines2.length === 0) {
         str = flowChars.start + flowChars.end;
       } else {
-        str = lines[0];
-        for (let i = 1; i < lines.length; ++i) {
-          const line = lines[i];
+        str = lines2[0];
+        for (let i = 1; i < lines2.length; ++i) {
+          const line = lines2[i];
           str += line ? `
 ${indent}${line}` : "\n";
         }
@@ -1925,22 +1925,22 @@ ${indent}${line}` : "\n";
       });
       let reqNewline = false;
       let linesAtValue = 0;
-      const lines = [];
+      const lines2 = [];
       for (let i = 0; i < items.length; ++i) {
         const item = items[i];
         let comment = null;
         if (identity.isNode(item)) {
           if (item.spaceBefore)
-            lines.push("");
-          addCommentBefore(ctx, lines, item.commentBefore, false);
+            lines2.push("");
+          addCommentBefore(ctx, lines2, item.commentBefore, false);
           if (item.comment)
             comment = item.comment;
         } else if (identity.isPair(item)) {
           const ik = identity.isNode(item.key) ? item.key : null;
           if (ik) {
             if (ik.spaceBefore)
-              lines.push("");
-            addCommentBefore(ctx, lines, ik.commentBefore, false);
+              lines2.push("");
+            addCommentBefore(ctx, lines2, ik.commentBefore, false);
             if (ik.comment)
               reqNewline = true;
           }
@@ -1957,12 +1957,12 @@ ${indent}${line}` : "\n";
         if (comment)
           reqNewline = true;
         let str = stringify.stringify(item, itemCtx, () => comment = null);
-        reqNewline || (reqNewline = lines.length > linesAtValue || str.includes("\n"));
+        reqNewline || (reqNewline = lines2.length > linesAtValue || str.includes("\n"));
         if (i < items.length - 1) {
           str += ",";
         } else if (ctx.options.trailingComma) {
           if (ctx.options.lineWidth > 0) {
-            reqNewline || (reqNewline = lines.reduce((sum, line) => sum + line.length + 2, 2) + (str.length + 2) > ctx.options.lineWidth);
+            reqNewline || (reqNewline = lines2.reduce((sum, line) => sum + line.length + 2, 2) + (str.length + 2) > ctx.options.lineWidth);
           }
           if (reqNewline) {
             str += ",";
@@ -1970,35 +1970,35 @@ ${indent}${line}` : "\n";
         }
         if (comment)
           str += stringifyComment.lineComment(str, itemIndent, commentString(comment));
-        lines.push(str);
-        linesAtValue = lines.length;
+        lines2.push(str);
+        linesAtValue = lines2.length;
       }
       const { start, end } = flowChars;
-      if (lines.length === 0) {
+      if (lines2.length === 0) {
         return start + end;
       } else {
         if (!reqNewline) {
-          const len = lines.reduce((sum, line) => sum + line.length + 2, 2);
+          const len = lines2.reduce((sum, line) => sum + line.length + 2, 2);
           reqNewline = ctx.options.lineWidth > 0 && len > ctx.options.lineWidth;
         }
         if (reqNewline) {
           let str = start;
-          for (const line of lines)
+          for (const line of lines2)
             str += line ? `
 ${indentStep}${indent}${line}` : "\n";
           return `${str}
 ${indent}${end}`;
         } else {
-          return `${start}${fcPadding}${lines.join(" ")}${fcPadding}${end}`;
+          return `${start}${fcPadding}${lines2.join(" ")}${fcPadding}${end}`;
         }
       }
     }
-    function addCommentBefore({ indent, options: { commentString } }, lines, comment, chompKeep) {
+    function addCommentBefore({ indent, options: { commentString } }, lines2, comment, chompKeep) {
       if (comment && chompKeep)
         comment = comment.replace(/^\n+/, "");
       if (comment) {
         const ic = stringifyComment.indentComment(commentString(comment), indent);
-        lines.push(ic.trimStart());
+        lines2.push(ic.trimStart());
       }
     }
     exports.stringifyCollection = stringifyCollection;
@@ -2636,11 +2636,11 @@ var require_binary = __commonJS({
         if (type !== Scalar.Scalar.QUOTE_DOUBLE) {
           const lineWidth = Math.max(ctx.options.lineWidth - ctx.indent.length, ctx.options.minContentWidth);
           const n = Math.ceil(str.length / lineWidth);
-          const lines = new Array(n);
+          const lines2 = new Array(n);
           for (let i = 0, o = 0; i < n; ++i, o += lineWidth) {
-            lines[i] = str.substr(o, lineWidth);
+            lines2[i] = str.substr(o, lineWidth);
           }
-          str = lines.join(type === Scalar.Scalar.BLOCK_LITERAL ? "\n" : " ");
+          str = lines2.join(type === Scalar.Scalar.BLOCK_LITERAL ? "\n" : " ");
         }
         return stringifyString.stringifyString({ comment, type, value: str }, ctx, onComment, onChompKeep);
       }
@@ -3320,35 +3320,35 @@ var require_stringifyDocument = __commonJS({
     var stringify = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
-      const lines = [];
+      const lines2 = [];
       let hasDirectives = options.directives === true;
       if (options.directives !== false && doc.directives) {
         const dir = doc.directives.toString(doc);
         if (dir) {
-          lines.push(dir);
+          lines2.push(dir);
           hasDirectives = true;
         } else if (doc.directives.docStart)
           hasDirectives = true;
       }
       if (hasDirectives)
-        lines.push("---");
+        lines2.push("---");
       const ctx = stringify.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
-        if (lines.length !== 1)
-          lines.unshift("");
+        if (lines2.length !== 1)
+          lines2.unshift("");
         const cs = commentString(doc.commentBefore);
-        lines.unshift(stringifyComment.indentComment(cs, ""));
+        lines2.unshift(stringifyComment.indentComment(cs, ""));
       }
       let chompKeep = false;
       let contentComment = null;
       if (doc.contents) {
         if (identity.isNode(doc.contents)) {
           if (doc.contents.spaceBefore && hasDirectives)
-            lines.push("");
+            lines2.push("");
           if (doc.contents.commentBefore) {
             const cs = commentString(doc.contents.commentBefore);
-            lines.push(stringifyComment.indentComment(cs, ""));
+            lines2.push(stringifyComment.indentComment(cs, ""));
           }
           ctx.forceBlockIndent = !!doc.comment;
           contentComment = doc.contents.comment;
@@ -3357,36 +3357,36 @@ var require_stringifyDocument = __commonJS({
         let body = stringify.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body += stringifyComment.lineComment(body, "", commentString(contentComment));
-        if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
-          lines[lines.length - 1] = `--- ${body}`;
+        if ((body[0] === "|" || body[0] === ">") && lines2[lines2.length - 1] === "---") {
+          lines2[lines2.length - 1] = `--- ${body}`;
         } else
-          lines.push(body);
+          lines2.push(body);
       } else {
-        lines.push(stringify.stringify(doc.contents, ctx));
+        lines2.push(stringify.stringify(doc.contents, ctx));
       }
       if (doc.directives?.docEnd) {
         if (doc.comment) {
           const cs = commentString(doc.comment);
           if (cs.includes("\n")) {
-            lines.push("...");
-            lines.push(stringifyComment.indentComment(cs, ""));
+            lines2.push("...");
+            lines2.push(stringifyComment.indentComment(cs, ""));
           } else {
-            lines.push(`... ${cs}`);
+            lines2.push(`... ${cs}`);
           }
         } else {
-          lines.push("...");
+          lines2.push("...");
         }
       } else {
         let dc = doc.comment;
         if (dc && chompKeep)
           dc = dc.replace(/^\n+/, "");
         if (dc) {
-          if ((!chompKeep || contentComment) && lines[lines.length - 1] !== "")
-            lines.push("");
-          lines.push(stringifyComment.indentComment(commentString(dc), ""));
+          if ((!chompKeep || contentComment) && lines2[lines2.length - 1] !== "")
+            lines2.push("");
+          lines2.push(stringifyComment.indentComment(commentString(dc), ""));
         }
       }
-      return lines.join("\n") + "\n";
+      return lines2.join("\n") + "\n";
     }
     exports.stringifyDocument = stringifyDocument;
   }
@@ -3470,9 +3470,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path5, value) {
+      addIn(path7, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path5, value);
+          this.contents.addIn(path7, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3547,14 +3547,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path5) {
-        if (Collection.isEmptyPath(path5)) {
+      deleteIn(path7) {
+        if (Collection.isEmptyPath(path7)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path5) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path7) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3569,10 +3569,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path5, keepScalar) {
-        if (Collection.isEmptyPath(path5))
+      getIn(path7, keepScalar) {
+        if (Collection.isEmptyPath(path7))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path5, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path7, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3583,10 +3583,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path5) {
-        if (Collection.isEmptyPath(path5))
+      hasIn(path7) {
+        if (Collection.isEmptyPath(path7))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path5) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path7) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3603,13 +3603,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path5, value) {
-        if (Collection.isEmptyPath(path5)) {
+      setIn(path7, value) {
+        if (Collection.isEmptyPath(path7)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path5), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path7), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path5, value);
+          this.contents.setIn(path7, value);
         }
       }
       /**
@@ -4448,17 +4448,17 @@ var require_resolve_block_scalar = __commonJS({
       if (!header)
         return { value: "", type: null, comment: "", range: [start, start, start] };
       const type = header.mode === ">" ? Scalar.Scalar.BLOCK_FOLDED : Scalar.Scalar.BLOCK_LITERAL;
-      const lines = scalar.source ? splitLines(scalar.source) : [];
-      let chompStart = lines.length;
-      for (let i = lines.length - 1; i >= 0; --i) {
-        const content = lines[i][1];
+      const lines2 = scalar.source ? splitLines(scalar.source) : [];
+      let chompStart = lines2.length;
+      for (let i = lines2.length - 1; i >= 0; --i) {
+        const content = lines2[i][1];
         if (content === "" || content === "\r")
           chompStart = i;
         else
           break;
       }
       if (chompStart === 0) {
-        const value2 = header.chomp === "+" && lines.length > 0 ? "\n".repeat(Math.max(1, lines.length - 1)) : "";
+        const value2 = header.chomp === "+" && lines2.length > 0 ? "\n".repeat(Math.max(1, lines2.length - 1)) : "";
         let end2 = start + header.length;
         if (scalar.source)
           end2 += scalar.source.length;
@@ -4468,7 +4468,7 @@ var require_resolve_block_scalar = __commonJS({
       let offset = scalar.offset + header.length;
       let contentStart = 0;
       for (let i = 0; i < chompStart; ++i) {
-        const [indent, content] = lines[i];
+        const [indent, content] = lines2[i];
         if (content === "" || content === "\r") {
           if (header.indent === 0 && indent.length > trimIndent)
             trimIndent = indent.length;
@@ -4488,17 +4488,17 @@ var require_resolve_block_scalar = __commonJS({
         }
         offset += indent.length + content.length + 1;
       }
-      for (let i = lines.length - 1; i >= chompStart; --i) {
-        if (lines[i][0].length > trimIndent)
+      for (let i = lines2.length - 1; i >= chompStart; --i) {
+        if (lines2[i][0].length > trimIndent)
           chompStart = i + 1;
       }
       let value = "";
       let sep = "";
       let prevMoreIndented = false;
       for (let i = 0; i < contentStart; ++i)
-        value += lines[i][0].slice(trimIndent) + "\n";
+        value += lines2[i][0].slice(trimIndent) + "\n";
       for (let i = contentStart; i < chompStart; ++i) {
-        let [indent, content] = lines[i];
+        let [indent, content] = lines2[i];
         offset += indent.length + content.length + 1;
         const crlf = content[content.length - 1] === "\r";
         if (crlf)
@@ -4535,8 +4535,8 @@ var require_resolve_block_scalar = __commonJS({
         case "-":
           break;
         case "+":
-          for (let i = chompStart; i < lines.length; ++i)
-            value += "\n" + lines[i][0].slice(trimIndent);
+          for (let i = chompStart; i < lines2.length; ++i)
+            value += "\n" + lines2[i][0].slice(trimIndent);
           if (value[value.length - 1] !== "\n")
             value += "\n";
           break;
@@ -4611,10 +4611,10 @@ var require_resolve_block_scalar = __commonJS({
       const first = split[0];
       const m = first.match(/^( *)/);
       const line0 = m?.[1] ? [m[1], first.slice(m[1].length)] : ["", first];
-      const lines = [line0];
+      const lines2 = [line0];
       for (let i = 1; i < split.length; i += 2)
-        lines.push([split[i], split[i + 1]]);
-      return lines;
+        lines2.push([split[i], split[i + 1]]);
+      return lines2;
     }
     exports.resolveBlockScalar = resolveBlockScalar;
   }
@@ -5570,9 +5570,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path5) => {
+    visit.itemAtPath = (cst, path7) => {
       let item = cst;
-      for (const [field, index] of path5) {
+      for (const [field, index] of path7) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5581,23 +5581,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path5) => {
-      const parent = visit.itemAtPath(cst, path5.slice(0, -1));
-      const field = path5[path5.length - 1][0];
+    visit.parentCollection = (cst, path7) => {
+      const parent = visit.itemAtPath(cst, path7.slice(0, -1));
+      const field = path7[path7.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path5, item, visitor) {
-      let ctrl = visitor(item, path5);
+    function _visit(path7, item, visitor) {
+      let ctrl = visitor(item, path7);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path5.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path7.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5608,10 +5608,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path5);
+            ctrl = ctrl(item, path7);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path5) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path7) : ctrl;
     }
     exports.visit = visit;
   }
@@ -6913,14 +6913,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs5 = this.flowScalar(this.type);
+              const fs6 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs5, sep: [] });
+                map.items.push({ start, key: fs6, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs5);
+                this.stack.push(fs6);
               } else {
-                Object.assign(it, { key: fs5, sep: [] });
+                Object.assign(it, { key: fs6, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -7048,13 +7048,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs5 = this.flowScalar(this.type);
+              const fs6 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs5, sep: [] });
+                fc.items.push({ start: [], key: fs6, sep: [] });
               else if (it.sep)
-                this.stack.push(fs5);
+                this.stack.push(fs6);
               else
-                Object.assign(it, { key: fs5, sep: [] });
+                Object.assign(it, { key: fs6, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -10226,9 +10226,9 @@ var require_compile = __commonJS({
       if (_sch)
         return _sch;
       const rootId = (0, resolve_1.getFullPath)(this.opts.uriResolver, sch.root.baseId);
-      const { es5, lines } = this.opts.code;
+      const { es5, lines: lines2 } = this.opts.code;
       const { ownProperties } = this.opts;
-      const gen = new codegen_1.CodeGen(this.scope, { es5, lines, ownProperties });
+      const gen = new codegen_1.CodeGen(this.scope, { es5, lines: lines2, ownProperties });
       let _ValidationError;
       if (sch.$async) {
         _ValidationError = gen.scopeValue("Error", {
@@ -10591,8 +10591,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path5) {
-      let input = path5;
+    function removeDotSegments(path7) {
+      let input = path7;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -11001,8 +11001,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path5 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path5 && path5 !== "/" ? path5 : void 0;
+        const path7 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path7 && path7 !== "/" ? path7 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -11679,8 +11679,8 @@ var require_core = __commonJS({
         this._loading = {};
         this._cache = /* @__PURE__ */ new Map();
         opts = this.opts = { ...opts, ...requiredOptions(opts) };
-        const { es5, lines } = this.opts.code;
-        this.scope = new codegen_2.ValueScope({ scope: {}, prefixes: EXT_SCOPE_NAMES, es5, lines });
+        const { es5, lines: lines2 } = this.opts.code;
+        this.scope = new codegen_2.ValueScope({ scope: {}, prefixes: EXT_SCOPE_NAMES, es5, lines: lines2 });
         this.logger = getLogger(opts.logger);
         const formatOpt = opts.validateFormats;
         opts.validateFormats = false;
@@ -14212,8 +14212,8 @@ var require_ajv = __commonJS({
 });
 
 // scripts/guard.mjs
-import fs4 from "node:fs";
-import path4 from "node:path";
+import fs5 from "node:fs";
+import path6 from "node:path";
 
 // scripts/lib/config.mjs
 var import_yaml = __toESM(require_dist(), 1);
@@ -14902,8 +14902,8 @@ function sanitize(c) {
 }
 
 // scripts/lib/guard-rules.mjs
-import fs3 from "node:fs";
-import path3 from "node:path";
+import fs4 from "node:fs";
+import path5 from "node:path";
 import os from "node:os";
 
 // scripts/lib/shell.mjs
@@ -15007,6 +15007,38 @@ function realish(p) {
   }
 }
 
+// scripts/lib/gates.mjs
+import crypto from "node:crypto";
+import fs3 from "node:fs";
+import path4 from "node:path";
+
+// scripts/lib/state.mjs
+import path3 from "node:path";
+var ffDir = (root2) => path3.join(root2, ".ff");
+
+// scripts/lib/gates.mjs
+var ARTIFACT_GATE = { "brief.md": "GATE_A", "03-design.md": "GATE_B", "05-verify-report.md": "GATE_C" };
+var GATE_ARTIFACT = Object.fromEntries(Object.entries(ARTIFACT_GATE).map(([f, g]) => [g, f]));
+var MARKER_RE = /Trạng thái:\s*ĐÃ DUYỆT/;
+var STATUS_LINE_RE = /^\s*>?\s*Trạng thái:\s*(?:CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA)\b[\s\d-]*$/;
+var lines = (text) => text.replace(/^\uFEFF/, "").normalize("NFC").split(/\r?\n/);
+var hasMarker = (text) => typeof text === "string" && lines(text).slice(0, 10).some((l) => MARKER_RE.test(l));
+function bodyHash(text) {
+  const body = lines(text).filter((l, i) => !(i < 10 && STATUS_LINE_RE.test(l))).join("\n").replace(/\s+$/, "");
+  return crypto.createHash("sha256").update(body).digest("hex");
+}
+var sha = (text) => crypto.createHash("sha256").update(lines(text).join("\n")).digest("hex");
+var gateFile = (root2, cardId, gate) => path4.join(ffDir(root2), "gates", `${cardId}-${gate}.json`);
+function isApproved(root2, cardId, gate, relPath, content, ledgerText = null) {
+  try {
+    const r = JSON.parse(fs3.readFileSync(gateFile(root2, cardId, gate), "utf8"));
+    if (r.approved !== true || r.hashes?.[relPath] !== bodyHash(content)) return false;
+    return r.ledgerHash == null || ledgerText !== null && sha(ledgerText) === r.ledgerHash;
+  } catch {
+    return false;
+  }
+}
+
 // scripts/lib/guard-rules.mjs
 var SHIP_MARKER_TTL_S = 2 * 60 * 60;
 var ALLOW_TTL_S = 4 * 60 * 60;
@@ -15015,20 +15047,41 @@ var WRITE_VERB_RE = /\bsed\s+(?:-\w*i|--in-place)|\bperl\s+-\w*i|\btee\b|\bcp\b|
 var WRAPPER_RE = /\b(?:ba|z)?sh\s+-\w*c\b|\beval\b|\$\(|`|\bxargs\b/;
 var FF_EXEMPT_RE = /(?:^|[\s/])ff\s+(?:relock|lock-tests)\b/;
 var FF_ASK_RE = /(?:^|[\s/])ff\s+(?:ship-approve|relock)\b/;
-var under = (p, dir) => (p + path3.sep).startsWith(dir + path3.sep);
-var expandHome = (p) => p === "~" || p.startsWith("~/") ? path3.join(os.homedir(), p.slice(1)) : p;
+var INTERP_RE = /(?:^|[\s/])(?:python3?|node|perl|ruby|deno|bun)(?=\s|$)/;
+var SUBST_RE = /\$\(|`|<\(/;
+var REDIRECT_TARGET_RE = /(?<![\d&=-])>>?\s*(['"]?)([^\s'"]+)\1/g;
+var PATHLIKE_RE = /[\w.~/-]+\.(?:md|json)\b/g;
+var COPY_LIKE = /* @__PURE__ */ new Set(["cp", "mv", "install", "rsync", "ln"]);
+var EDIT_LIKE = /* @__PURE__ */ new Set(["tee", "truncate", "rm", "chmod", "chflags", "touch"]);
+var INPLACE = /* @__PURE__ */ new Set(["sed", "perl"]);
+var isFfCall = (seg) => {
+  const head = headTokens(seg)[0] ?? "";
+  return (head === "ff" || head.endsWith("/ff")) && !SUBST_RE.test(seg);
+};
+function writeTargets(seg, tokens) {
+  const out = [...seg.matchAll(REDIRECT_TARGET_RE)].map((m) => m[2]);
+  const [head, ...rest] = tokens;
+  const args2 = rest.filter((t) => !t.startsWith("-"));
+  if (COPY_LIKE.has(head) && args2.length) out.push(args2[args2.length - 1]);
+  if (EDIT_LIKE.has(head)) out.push(...args2);
+  if (INPLACE.has(head) && rest.some((t) => /^-\w*i/.test(t) || t === "--in-place")) out.push(...args2);
+  if (INTERP_RE.test(seg)) out.push(...seg.match(PATHLIKE_RE) ?? []);
+  return out;
+}
+var under = (p, dir) => (p + path5.sep).startsWith(dir + path5.sep);
+var expandHome = (p) => p === "~" || p.startsWith("~/") ? path5.join(os.homedir(), p.slice(1)) : p;
 var unanchor = (s) => s.replace(/^\^/, "").replace(/\$$/, "");
 var escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function makeGuard(rootIn, config) {
   const root2 = realish(rootIn);
   const g = config.guard;
   const relWt = config.workspace.worktrees_dir;
-  const worktrees = path3.resolve(root2, relWt);
-  const repoRoots = [...config.repos.map((r) => r.path), ...g.protected_paths ?? []].map((p) => path3.resolve(root2, p));
+  const worktrees = path5.resolve(root2, relWt);
+  const repoRoots = [...config.repos.map((r) => r.path), ...g.protected_paths ?? []].map((p) => path5.resolve(root2, p));
   const str = (v) => typeof v === "string" && v ? v : null;
-  const e2eDir = str(config.e2e?.dir) ? path3.resolve(root2, config.e2e.dir) : null;
-  const e2eTests = str(config.e2e?.tests_dir) ? path3.resolve(root2, config.e2e.tests_dir) : null;
-  const testsRel = e2eDir && e2eTests ? path3.relative(e2eDir, e2eTests).split(path3.sep).join("/") : null;
+  const e2eDir = str(config.e2e?.dir) ? path5.resolve(root2, config.e2e.dir) : null;
+  const e2eTests = str(config.e2e?.tests_dir) ? path5.resolve(root2, config.e2e.tests_dir) : null;
+  const testsRel = e2eDir && e2eTests ? path5.relative(e2eDir, e2eTests).split(path5.sep).join("/") : null;
   const migRe = new RegExp(g.migration_script_re);
   const prodRe = new RegExp(g.forbidden_script_re);
   const allowedBash = (g.allowed_bash ?? []).map((s) => new RegExp(s));
@@ -15041,13 +15094,13 @@ function makeGuard(rootIn, config) {
     new RegExp(unanchor(g.migration_script_re)),
     new RegExp(unanchor(g.forbidden_script_re) + "\\b")
   ];
-  const resolveDir = (base, p) => realish(path3.resolve(base, expandHome(p)));
+  const resolveDir = (base, p) => realish(path5.resolve(base, expandHome(p)));
   const inRootRepo = (p) => repoRoots.some((r) => under(p, r));
   const inWorktree = (p) => under(p, worktrees);
   const slugOf = (p) => {
-    if (inWorktree(p)) return path3.relative(worktrees, p).split(path3.sep)[0] || null;
+    if (inWorktree(p)) return path5.relative(worktrees, p).split(path5.sep)[0] || null;
     if (e2eTests && under(p, e2eTests)) {
-      const parts = path3.relative(e2eTests, p).split(path3.sep);
+      const parts = path5.relative(e2eTests, p).split(path5.sep);
       return parts.length > 1 && /^[A-Za-z0-9]+-.+$/.test(parts[0]) ? parts[0] : null;
     }
     return null;
@@ -15056,7 +15109,7 @@ function makeGuard(rootIn, config) {
   const isEdit = (tool2) => !tool2 || EDIT_TOOLS.includes(tool2);
   const lockedOf = (slug) => {
     try {
-      return fs3.readFileSync(path3.join(worktrees, slug, ".ff-test-lock"), "utf8").split("\n").map((l) => l.match(/^[0-9a-f]{64}\s{2}(.+)$/)).filter(Boolean).map((m) => path3.join(root2, m[1]));
+      return fs4.readFileSync(path5.join(worktrees, slug, ".ff-test-lock"), "utf8").split("\n").map((l) => l.match(/^[0-9a-f]{64}\s{2}(.+)$/)).filter(Boolean).map((m) => path5.join(root2, m[1]));
     } catch {
       return [];
     }
@@ -15064,12 +15117,73 @@ function makeGuard(rootIn, config) {
   const allLocked = () => {
     let slugs = [];
     try {
-      slugs = fs3.readdirSync(worktrees);
+      slugs = fs4.readdirSync(worktrees);
     } catch {
     }
     return slugs.flatMap(lockedOf);
   };
   const lockMsg = (slug) => `file test \u0111\xE3 kh\xF3a; \u0111\u1ED5i qua: ff relock ${idOf(slug)} --reason "\u2026" (c\u1EA7n user cho ph\xE9p)`;
+  const cardsDir = path5.resolve(root2, config.workspace.cards_dir);
+  const ffDirAbs = path5.join(root2, ".ff");
+  const secretFiles = [config.secrets.env_file, config.db?.env_file, config.e2e?.auth?.jwt?.secret?.file, config.e2e?.auth_storage, ".ff/worker.json"].filter(Boolean);
+  const secretAbs = new Set(secretFiles.map((f) => path5.resolve(root2, f)));
+  const secretRes = secretFiles.map((f) => new RegExp(`(^|[\\s<>='"/])${escapeRe(path5.basename(f))}(?![\\w.-])`));
+  const secretMsg = `Kh\xF4ng \u0111\u1ECDc, s\u1EEDa hay ch\xE9p file secret (${secretFiles.join(", ")}). C\u1EA7n bi\u1EBFt key c\xF3 hay ch\u01B0a \u2192 \`ff doctor\`.`;
+  function checkBashNew(cmd2, cwd2) {
+    let dir = cwd2;
+    for (const seg of segments(cmd2)) {
+      const tokens = headTokens(seg);
+      if (tokens[0] === "cd") {
+        dir = resolveDir(dir, tokens[1] ?? os.homedir());
+        continue;
+      }
+      if (secretRes.some((re) => re.test(seg)) && !isFfCall(seg)) return secretMsg;
+      if (isFfCall(seg)) continue;
+      for (const t of writeTargets(seg, tokens)) {
+        const abs = realish(path5.resolve(dir, expandHome(t)));
+        if (abs === ffDirAbs || under(abs, ffDirAbs)) return "`.ff/` do hook v\xE0 l\u1EC7nh `ff` ghi; agent kh\xF4ng s\u1EEDa th\u01B0 m\u1EE5c n\xE0y.";
+        if (under(abs, cardsDir) && ARTIFACT_GATE[path5.basename(abs)])
+          return "S\u1EEDa brief.md / 03-design.md / 05-verify-report.md trong th\u01B0 m\u1EE5c th\u1EBB b\u1EB1ng Edit/Write (\u0111\u1EC3 hook ki\u1EC3m Gate), kh\xF4ng ghi b\u1EB1ng Bash.";
+      }
+    }
+    return null;
+  }
+  function resultingContent(tool2, input, abs) {
+    let old = "";
+    try {
+      old = fs4.readFileSync(abs, "utf8");
+    } catch {
+    }
+    if (["Write", "write", "write_to_file"].includes(tool2)) return { old, next: String(input.content ?? input.CodeContent ?? "") };
+    if (tool2 === "NotebookEdit") return { old, next: String(input.new_source ?? "") + "\n" + old };
+    let next = old;
+    for (const e of Array.isArray(input.edits) ? input.edits : [input]) {
+      const o = String(e?.old_string ?? e?.oldString ?? e?.TargetContent ?? "");
+      const n = String(e?.new_string ?? e?.newString ?? e?.ReplacementContent ?? "");
+      if (!o) next = n + next;
+      else next = e?.replace_all ? next.split(o).join(n) : next.replace(o, () => n);
+    }
+    return { old, next };
+  }
+  function checkFileNew(tool2, input, abs) {
+    if (secretAbs.has(abs)) return secretMsg;
+    if (!isEdit(tool2)) return null;
+    if (under(abs, ffDirAbs)) return "`.ff/` do hook v\xE0 l\u1EC7nh `ff` ghi; agent kh\xF4ng s\u1EEDa th\u01B0 m\u1EE5c n\xE0y.";
+    if (!under(abs, cardsDir)) return null;
+    const gate = ARTIFACT_GATE[path5.basename(abs)];
+    if (!gate) return null;
+    const { next } = resultingContent(tool2, input, abs);
+    if (!hasMarker(next)) return null;
+    const rel = path5.relative(cardsDir, abs).split(path5.sep);
+    const cardId = rel[0].split("-")[0];
+    let ledger = null;
+    try {
+      ledger = fs4.readFileSync(path5.join(cardsDir, rel[0], "01b-ledger.md"), "utf8");
+    } catch {
+    }
+    if (isApproved(root2, cardId, gate, rel.slice(1).join("/"), next, ledger)) return null;
+    return `Ch\u01B0a c\xF3 c\xE2u tr\u1EA3 l\u1EDDi "Duy\u1EC7t" cho ${gate} c\u1EE7a th\u1EBB #${cardId} kh\u1EDBp n\u1ED9i dung hi\u1EC7n t\u1EA1i. Tr\xECnh Gate b\u1EB1ng AskUserQuestion (header ${gate}, c\xE2u h\u1ECFi b\u1EAFt \u0111\u1EA7u "[#${cardId}]", l\u1EF1a ch\u1ECDn "Duy\u1EC7t"/"C\u1EA7n s\u1EEDa") r\u1ED3i m\u1EDBi ghi marker \u0110\xC3 DUY\u1EC6T; s\u1EEDa n\u1ED9i dung sau khi duy\u1EC7t th\xEC ph\u1EA3i b\u1ECF marker v\xE0 tr\xECnh l\u1EA1i.`;
+  }
   function checkLockedFile(tool2, abs) {
     if (!isEdit(tool2)) return null;
     const slug = slugOf(abs);
@@ -15080,16 +15194,16 @@ function makeGuard(rootIn, config) {
     if (!isEdit(tool2) || !inWorktree(abs)) return null;
     const slug = slugOf(abs);
     if (!slug) return null;
-    let lines;
+    let lines2;
     try {
-      lines = fs3.readFileSync(path3.join(worktrees, slug, ".ff-allow"), "utf8").split("\n");
+      lines2 = fs4.readFileSync(path5.join(worktrees, slug, ".ff-allow"), "utf8").split("\n");
     } catch {
       return null;
     }
-    const ts = Number((lines[0] ?? "").match(/^ts=(\d+)$/)?.[1]);
+    const ts = Number((lines2[0] ?? "").match(/^ts=(\d+)$/)?.[1]);
     if (!Number.isFinite(ts) || Date.now() / 1e3 - ts > ALLOW_TTL_S) return null;
-    const rel = path3.relative(path3.join(worktrees, slug), abs).split(path3.sep).join("/");
-    if (lines.slice(1).map((l) => l.trim()).filter(Boolean).includes(rel)) return null;
+    const rel = path5.relative(path5.join(worktrees, slug), abs).split(path5.sep).join("/");
+    if (lines2.slice(1).map((l) => l.trim()).filter(Boolean).includes(rel)) return null;
     return `file ngo\xE0i allowlist c\u1EE7a \u0111\u1EE3t; th\xEAm qua: ff allow ${idOf(slug)} <file>`;
   }
   function checkLockedBash(cmd2, cwd2) {
@@ -15097,10 +15211,10 @@ function makeGuard(rootIn, config) {
     if (!locked.length) return null;
     for (const seg of segments(cmd2)) {
       if (FF_EXEMPT_RE.test(seg)) continue;
-      const hits = locked.filter((l) => seg.includes(l) || seg.includes(path3.relative(root2, l)) || seg.includes(path3.basename(l)));
+      const hits = locked.filter((l) => seg.includes(l) || seg.includes(path5.relative(root2, l)) || seg.includes(path5.basename(l)));
       if (!hits.length) continue;
       const redirects = [...seg.matchAll(/(?<![\d&=-])>>?\s*(\S+)/g)].map((m) => m[1].replace(/^['"]|['"]$/g, ""));
-      const redirHit = redirects.some((t) => hits.some((l) => realish(path3.resolve(cwd2, t)) === l || path3.basename(t) === path3.basename(l)));
+      const redirHit = redirects.some((t) => hits.some((l) => realish(path5.resolve(cwd2, t)) === l || path5.basename(t) === path5.basename(l)));
       if (redirHit || WRITE_VERB_RE.test(seg)) return lockMsg(slugOf(hits[0]));
     }
     return null;
@@ -15118,9 +15232,9 @@ function makeGuard(rootIn, config) {
   function shipApproved(dir) {
     const slug = slugOf(dir);
     if (!slug || !inWorktree(dir)) return { ok: false, why: `l\u1EC7nh kh\xF4ng ch\u1EA1y trong ${relWt}/<id>-<slug>/` };
-    const marker = path3.join(worktrees, slug, ".ff-ship-approved");
-    if (!fs3.existsSync(marker)) return { ok: false, why: `ch\u01B0a c\xF3 ${path3.relative(root2, marker)}`, slug };
-    const ts = Number(fs3.readFileSync(marker, "utf8").trim().split(/\s+/)[0]);
+    const marker = path5.join(worktrees, slug, ".ff-ship-approved");
+    if (!fs4.existsSync(marker)) return { ok: false, why: `ch\u01B0a c\xF3 ${path5.relative(root2, marker)}`, slug };
+    const ts = Number(fs4.readFileSync(marker, "utf8").trim().split(/\s+/)[0]);
     const age = Date.now() / 1e3 - ts;
     if (!Number.isFinite(age) || age > SHIP_MARKER_TTL_S) return { ok: false, why: "marker ship \u0111\xE3 qu\xE1 2 gi\u1EDD", slug };
     return { ok: true };
@@ -15187,7 +15301,7 @@ function makeGuard(rootIn, config) {
         const writes = ["commit", "reset", "rebase", "merge", "cherry-pick", "am", "apply", "revert"];
         const newBranch = sub === "checkout" && args2.some((t) => t === "-b" || t === "-B") || sub === "switch" && args2.some((t) => t === "-c" || t === "-C");
         if (writes.includes(sub) || newBranch)
-          return `Repo g\u1ED1c ${path3.relative(root2, gitDir) || "."} ch\u1EC9 l\xE0 b\u1EA3n g\u01B0\u01A1ng \u2014 kh\xF4ng \`git ${sub}\` \u1EDF \u0111\xE2y. L\xE0m trong ${relWt}/<id>-<slug>/ (\`ff copy <id>\`).`;
+          return `Repo g\u1ED1c ${path5.relative(root2, gitDir) || "."} ch\u1EC9 l\xE0 b\u1EA3n g\u01B0\u01A1ng \u2014 kh\xF4ng \`git ${sub}\` \u1EDF \u0111\xE2y. L\xE0m trong ${relWt}/<id>-<slug>/ (\`ff copy <id>\`).`;
       }
     }
     return null;
@@ -15195,15 +15309,15 @@ function makeGuard(rootIn, config) {
   function checkMirrorFile(tool2, abs) {
     if (!isEdit(tool2)) return null;
     if (!inRootRepo(abs) || inWorktree(abs)) return null;
-    if (["CLAUDE.md", "AGENTS.md"].includes(path3.basename(abs))) return null;
-    return `Repo g\u1ED1c l\xE0 b\u1EA3n g\u01B0\u01A1ng \u2014 kh\xF4ng s\u1EEDa ${path3.relative(root2, abs)}. S\u1EEDa b\u1EA3n trong ${relWt}/<id>-<slug>/${path3.relative(root2, abs)}.`;
+    if (["CLAUDE.md", "AGENTS.md"].includes(path5.basename(abs))) return null;
+    return `Repo g\u1ED1c l\xE0 b\u1EA3n g\u01B0\u01A1ng \u2014 kh\xF4ng s\u1EEDa ${path5.relative(root2, abs)}. S\u1EEDa b\u1EA3n trong ${relWt}/<id>-<slug>/${path5.relative(root2, abs)}.`;
   }
   function evaluate({ cmd: cmd2, file: file2, tool: tool2, cwd: cwd2, mode = "base", input = {} }) {
     const c = realish(cwd2);
-    const abs = file2 ? realish(path3.resolve(c, expandHome(file2))) : null;
+    const abs = file2 ? realish(path5.resolve(c, expandHome(file2))) : null;
     let reason2 = null;
-    if (cmd2) reason2 = checkLockedBash(cmd2, c) ?? checkBash(cmd2, c, mode);
-    if (!reason2 && abs) reason2 = checkLockedFile(tool2, abs) ?? checkAllowlist(tool2, abs);
+    if (cmd2) reason2 = checkBashNew(cmd2, c) ?? checkLockedBash(cmd2, c) ?? checkBash(cmd2, c, mode);
+    if (!reason2 && abs) reason2 = checkFileNew(tool2, input ?? {}, abs) ?? checkLockedFile(tool2, abs) ?? checkAllowlist(tool2, abs);
     if (!reason2 && mode === "feature-flow" && abs) reason2 = checkMirrorFile(tool2, abs);
     return reason2;
   }
@@ -15228,7 +15342,7 @@ function parseArgs(argv) {
 function readStdinJson() {
   if (process.stdin.isTTY) return null;
   try {
-    const raw = fs4.readFileSync(0, "utf8").trim();
+    const raw = fs5.readFileSync(0, "utf8").trim();
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -15252,8 +15366,8 @@ var hook = fromHookJson(readStdinJson());
 var cmd = args.cmd ?? hook.cmd;
 var file = args.file ?? hook.file;
 var tool = args.tool ?? hook.tool;
-var cwd = path4.resolve(args.cwd ?? hook.cwd ?? process.cwd());
-var root = findRoot(cwd) ?? (file ? findRoot(path4.dirname(path4.resolve(cwd, file))) : null);
+var cwd = path6.resolve(args.cwd ?? hook.cwd ?? process.cwd());
+var root = findRoot(cwd) ?? (file ? findRoot(path6.dirname(path6.resolve(cwd, file))) : null);
 if (!root) process.exit(0);
 var G = makeGuard(root, loadConfigOrDefaults(root).config);
 var reason = G.evaluate({ cmd, file, tool, cwd, mode: args.mode, input: hook.input ?? {} });
@@ -15266,7 +15380,9 @@ if (reason) {
   process.stderr.write(msg + "\n");
   process.exit(2);
 }
-if (args.format === "agy" && cmd && G.needsAsk(cmd)) {
-  process.stdout.write(JSON.stringify({ decision: "force_ask", reason: "[ff-guard] c\u1EA7n user x\xE1c nh\u1EADn tr\u01B0\u1EDBc khi ch\u1EA1y ship-approve/relock" }) + "\n");
+if (cmd && G.needsAsk(cmd)) {
+  const reason2 = "[ff-guard] ship-approve/relock c\u1EA7n ng\u01B0\u1EDDi d\xF9ng x\xE1c nh\u1EADn";
+  if (args.format === "agy") process.stdout.write(JSON.stringify({ decision: "force_ask", reason: reason2 }) + "\n");
+  else process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: reason2 } }) + "\n");
 }
 process.exit(0);

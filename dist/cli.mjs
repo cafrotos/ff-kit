@@ -112,17 +112,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path7) {
-      const ctrl = callVisitor(key, node, visitor, path7);
+    function visit_(key, node, visitor, path10) {
+      const ctrl = callVisitor(key, node, visitor, path10);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path7, ctrl);
-        return visit_(key, ctrl, visitor, path7);
+        replaceNode(key, path10, ctrl);
+        return visit_(key, ctrl, visitor, path10);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path7 = Object.freeze(path7.concat(node));
+          path10 = Object.freeze(path10.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path7);
+            const ci = visit_(i, node.items[i], visitor, path10);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -133,13 +133,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path7 = Object.freeze(path7.concat(node));
-          const ck = visit_("key", node.key, visitor, path7);
+          path10 = Object.freeze(path10.concat(node));
+          const ck = visit_("key", node.key, visitor, path10);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path7);
+          const cv = visit_("value", node.value, visitor, path10);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -160,17 +160,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path7) {
-      const ctrl = await callVisitor(key, node, visitor, path7);
+    async function visitAsync_(key, node, visitor, path10) {
+      const ctrl = await callVisitor(key, node, visitor, path10);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path7, ctrl);
-        return visitAsync_(key, ctrl, visitor, path7);
+        replaceNode(key, path10, ctrl);
+        return visitAsync_(key, ctrl, visitor, path10);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path7 = Object.freeze(path7.concat(node));
+          path10 = Object.freeze(path10.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path7);
+            const ci = await visitAsync_(i, node.items[i], visitor, path10);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -181,13 +181,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path7 = Object.freeze(path7.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path7);
+          path10 = Object.freeze(path10.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path10);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path7);
+          const cv = await visitAsync_("value", node.value, visitor, path10);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -214,23 +214,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path7) {
+    function callVisitor(key, node, visitor, path10) {
       if (typeof visitor === "function")
-        return visitor(key, node, path7);
+        return visitor(key, node, path10);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path7);
+        return visitor.Map?.(key, node, path10);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path7);
+        return visitor.Seq?.(key, node, path10);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path7);
+        return visitor.Pair?.(key, node, path10);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path7);
+        return visitor.Scalar?.(key, node, path10);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path7);
+        return visitor.Alias?.(key, node, path10);
       return void 0;
     }
-    function replaceNode(key, path7, node) {
-      const parent = path7[path7.length - 1];
+    function replaceNode(key, path10, node) {
+      const parent = path10[path10.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -842,10 +842,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path7, value) {
+    function collectionFromPath(schema, path10, value) {
       let v = value;
-      for (let i = path7.length - 1; i >= 0; --i) {
-        const k = path7[i];
+      for (let i = path10.length - 1; i >= 0; --i) {
+        const k = path10[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -864,7 +864,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path7) => path7 == null || typeof path7 === "object" && !!path7[Symbol.iterator]().next().done;
+    var isEmptyPath = (path10) => path10 == null || typeof path10 === "object" && !!path10[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -894,11 +894,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path7, value) {
-        if (isEmptyPath(path7))
+      addIn(path10, value) {
+        if (isEmptyPath(path10))
           this.add(value);
         else {
-          const [key, ...rest] = path7;
+          const [key, ...rest] = path10;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -912,8 +912,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path7) {
-        const [key, ...rest] = path7;
+      deleteIn(path10) {
+        const [key, ...rest] = path10;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -927,8 +927,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path7, keepScalar) {
-        const [key, ...rest] = path7;
+      getIn(path10, keepScalar) {
+        const [key, ...rest] = path10;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -946,8 +946,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path7) {
-        const [key, ...rest] = path7;
+      hasIn(path10) {
+        const [key, ...rest] = path10;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -957,8 +957,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path7, value) {
-        const [key, ...rest] = path7;
+      setIn(path10, value) {
+        const [key, ...rest] = path10;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -3473,9 +3473,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path7, value) {
+      addIn(path10, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path7, value);
+          this.contents.addIn(path10, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3550,14 +3550,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path7) {
-        if (Collection.isEmptyPath(path7)) {
+      deleteIn(path10) {
+        if (Collection.isEmptyPath(path10)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path7) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path10) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3572,10 +3572,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path7, keepScalar) {
-        if (Collection.isEmptyPath(path7))
+      getIn(path10, keepScalar) {
+        if (Collection.isEmptyPath(path10))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path7, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path10, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3586,10 +3586,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path7) {
-        if (Collection.isEmptyPath(path7))
+      hasIn(path10) {
+        if (Collection.isEmptyPath(path10))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path7) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path10) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3606,13 +3606,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path7, value) {
-        if (Collection.isEmptyPath(path7)) {
+      setIn(path10, value) {
+        if (Collection.isEmptyPath(path10)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path7), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path10), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path7, value);
+          this.contents.setIn(path10, value);
         }
       }
       /**
@@ -5573,9 +5573,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path7) => {
+    visit.itemAtPath = (cst, path10) => {
       let item = cst;
-      for (const [field, index] of path7) {
+      for (const [field, index] of path10) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5584,23 +5584,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path7) => {
-      const parent = visit.itemAtPath(cst, path7.slice(0, -1));
-      const field = path7[path7.length - 1][0];
+    visit.parentCollection = (cst, path10) => {
+      const parent = visit.itemAtPath(cst, path10.slice(0, -1));
+      const field = path10[path10.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path7, item, visitor) {
-      let ctrl = visitor(item, path7);
+    function _visit(path10, item, visitor) {
+      let ctrl = visitor(item, path10);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path7.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path10.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5611,10 +5611,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path7);
+            ctrl = ctrl(item, path10);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path7) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path10) : ctrl;
     }
     exports.visit = visit;
   }
@@ -6916,14 +6916,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs6 = this.flowScalar(this.type);
+              const fs9 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs6, sep: [] });
+                map.items.push({ start, key: fs9, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs6);
+                this.stack.push(fs9);
               } else {
-                Object.assign(it, { key: fs6, sep: [] });
+                Object.assign(it, { key: fs9, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -7051,13 +7051,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs6 = this.flowScalar(this.type);
+              const fs9 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs6, sep: [] });
+                fc.items.push({ start: [], key: fs9, sep: [] });
               else if (it.sep)
-                this.stack.push(fs6);
+                this.stack.push(fs9);
               else
-                Object.assign(it, { key: fs6, sep: [] });
+                Object.assign(it, { key: fs9, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -10594,8 +10594,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path7) {
-      let input = path7;
+    function removeDotSegments(path10) {
+      let input = path10;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -11004,8 +11004,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path7 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path7 && path7 !== "/" ? path7 : void 0;
+        const path10 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path10 && path10 !== "/" ? path10 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -15363,12 +15363,314 @@ async function run3(args, ctx) {
   return result.ok ? 0 : 1;
 }
 
+// scripts/cli/trace-check.mjs
+var trace_check_exports = {};
+__export(trace_check_exports, {
+  run: () => run4,
+  summary: () => summary4
+});
+
+// scripts/lib/cards.mjs
+import fs6 from "node:fs";
+import path7 from "node:path";
+var CARD_ID_RE = /^[A-Za-z0-9]+$/;
+function findCardDir(root, config, id) {
+  if (!CARD_ID_RE.test(String(id))) return { error: `id th\u1EBB kh\xF4ng h\u1EE3p l\u1EC7: ${id}` };
+  const base = path7.resolve(root, config.workspace.cards_dir);
+  let names = [];
+  try {
+    names = fs6.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  } catch {
+  }
+  const hits = names.filter((n) => n === id || n.startsWith(`${id}-`));
+  if (!hits.length) return { error: `kh\xF4ng th\u1EA5y th\u01B0 m\u1EE5c ${config.workspace.cards_dir}/${id}-*` };
+  if (hits.length > 1) return { error: `nhi\u1EC1u th\u01B0 m\u1EE5c kh\u1EDBp th\u1EBB ${id}: ${hits.join(", ")}` };
+  return { dir: path7.join(base, hits[0]) };
+}
+
+// scripts/lib/trace.mjs
+import fs7 from "node:fs";
+import path8 from "node:path";
+var CODE_RE = /\b([DU]-\d+)\b/g;
+var ARTIFACTS = /* @__PURE__ */ new Set(["brief.md", "brief-chi-tiet.md", "02-spec.md", "03-design.md"]);
+var norm = (s) => s.replace(/^\uFEFF/, "").normalize("NFC");
+var squash = (s) => norm(s).replace(/\\\|/g, "|").replace(/[*_`]/g, "").replace(/\s+/g, " ").trim();
+function splitRow(line) {
+  const parts = line.trim().split(/(?<!\\)\|/);
+  if (parts[0].trim() === "") parts.shift();
+  if (parts.length && parts[parts.length - 1].trim() === "") parts.pop();
+  return parts.map((c) => c.trim());
+}
+function parseTables(text) {
+  const lines = norm(text).split(/\r?\n/);
+  const tables = [];
+  let heads = [];
+  for (let i = 0; i < lines.length; i++) {
+    const h = lines[i].match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      heads = heads.slice(0, h[1].length - 1);
+      heads[h[1].length - 1] = h[2];
+      continue;
+    }
+    if (i === lines.length - 1 || !lines[i].trim().startsWith("|") || !/^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) continue;
+    const rows = [];
+    let j = i + 2;
+    for (; j < lines.length && lines[j].trim().startsWith("|"); j++) rows.push({ cells: splitRow(lines[j]), line: j + 1 });
+    tables.push({ header: splitRow(lines[i]), rows, line: i + 1, inAppendix: heads.some((x) => x && /phụ lục/i.test(x)) });
+    i = j - 1;
+  }
+  return tables;
+}
+var EXEMPT_SECTION_RE = /^(Tiêu đề|Branch|Loại|Thông tin tiếp nhận|Comments?)\b/i;
+var stripLinePrefix = (l) => l.replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|>\s+)/, "").trim();
+function dossierUnits(text) {
+  const units = [];
+  let section = "";
+  let fence = false;
+  norm(text).split(/\r?\n/).forEach((raw, i) => {
+    if (/^\s*```/.test(raw)) {
+      fence = !fence;
+      return;
+    }
+    if (fence) return;
+    const h = raw.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      if (h[1].length === 1) section = "";
+      else if (h[1].length === 2) section = h[2].replace(/^[^\p{L}]+/u, "").trim();
+      return;
+    }
+    const body = stripLinePrefix(raw);
+    if (!body) return;
+    units.push({ line: squash(body), sentences: body.split(/(?<=[.!?…])\s+/).map(squash).filter(Boolean), section, lineNo: i + 1 });
+  });
+  return units;
+}
+function outOfScopeCodes(text) {
+  const codes = [];
+  let inside = false;
+  for (const line of norm(text).split(/\r?\n/)) {
+    if (/^#{1,4}\s/.test(line)) inside = /^#{2,4}\s*Ngoài phạm vi/i.test(line);
+    else if (inside) codes.push(...[...line.matchAll(CODE_RE)].map((m) => m[1]).filter((c) => c.startsWith("D-")));
+  }
+  return codes;
+}
+function parseLedger(text) {
+  const D = /* @__PURE__ */ new Map();
+  const U = /* @__PURE__ */ new Map();
+  const errors = [];
+  for (const tb of parseTables(text)) {
+    for (const r of tb.rows) {
+      const code = r.cells[0] ?? "";
+      if (!/^[DU]-\d+$/.test(code)) continue;
+      const map = code.startsWith("D") ? D : U;
+      if (map.has(code)) {
+        errors.push(`01b-ledger.md:${r.line} ${code} b\u1ECB tr\xF9ng`);
+        continue;
+      }
+      if (code.startsWith("D")) map.set(code, { quote: r.cells[1] ?? "", where: r.cells[2] ?? "", note: r.cells[3] ?? "", line: r.line });
+      else map.set(code, { question: r.cells[1] ?? "", answer: r.cells[2] ?? "", date: r.cells[3] ?? "", line: r.line });
+    }
+  }
+  return { D, U, errors };
+}
+function listArtifacts(dir) {
+  const out = [];
+  for (const e of fs7.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name.startsWith(".") || e.name === "observe") continue;
+    const p = path8.join(dir, e.name);
+    if (e.isDirectory()) out.push(...listArtifacts(p));
+    else if (ARTIFACTS.has(e.name)) out.push(p);
+  }
+  return out;
+}
+function traceCheck(cardDir) {
+  const errors = [];
+  const read = (f) => {
+    try {
+      return norm(fs7.readFileSync(path8.join(cardDir, f), "utf8"));
+    } catch {
+      return null;
+    }
+  };
+  const dossier = read("01-dossier.md");
+  const ledgerText = read("01b-ledger.md");
+  if (dossier === null) errors.push("thi\u1EBFu 01-dossier.md");
+  if (ledgerText === null) {
+    errors.push("thi\u1EBFu 01b-ledger.md \u2014 l\u1EADp ledger tr\u01B0\u1EDBc khi vi\u1EBFt Brief");
+    return { ok: false, errors, counts: { D: 0, U: 0 } };
+  }
+  const ledger = parseLedger(ledgerText);
+  errors.push(...ledger.errors);
+  if (dossier !== null) {
+    const units = dossierUnits(dossier);
+    const index = /* @__PURE__ */ new Map();
+    for (const u of units) for (const k of [u.line, ...u.sentences]) if (!index.has(k)) index.set(k, u);
+    const quotes = /* @__PURE__ */ new Set();
+    for (const [code, e] of ledger.D) {
+      const q = squash(stripLinePrefix(e.quote));
+      if (!q) {
+        errors.push(`01b-ledger.md:${e.line} ${code}: tr\xEDch r\u1ED7ng`);
+        continue;
+      }
+      quotes.add(q);
+      const u = index.get(q);
+      if (!u) {
+        errors.push(`01b-ledger.md:${e.line} ${code}: tr\xEDch kh\xF4ng kh\u1EDBp nguy\xEAn 1 d\xF2ng ho\u1EB7c 1 c\xE2u trong 01-dossier.md`);
+        continue;
+      }
+      if (e.note.startsWith("b\u1ECF:") && !EXEMPT_SECTION_RE.test(u.section)) errors.push(`01b-ledger.md:${e.line} ${code}: "b\u1ECF:" ch\u1EC9 d\xF9ng cho d\xF2ng trong m\u1EE5c Comments ho\u1EB7c m\u1EE5c \u0111\u01B0\u1EE3c mi\u1EC5n (Ti\xEAu \u0111\u1EC1, Branch, Lo\u1EA1i, Th\xF4ng tin ti\u1EBFp nh\u1EADn)`);
+    }
+    for (const u of units) {
+      if (EXEMPT_SECTION_RE.test(u.section)) continue;
+      const covered = quotes.has(u.line) || u.sentences.length > 0 && u.sentences.every((x) => quotes.has(x));
+      if (!covered) errors.push(`01-dossier.md:${u.lineNo} ch\u01B0a c\xF3 trong ledger: "${u.line}"`);
+    }
+  }
+  const known = /* @__PURE__ */ new Set([...ledger.D.keys(), ...ledger.U.keys()]);
+  const referenced = /* @__PURE__ */ new Set();
+  const outOfScope = new Set(outOfScopeCodes(ledgerText));
+  for (const file of listArtifacts(cardDir)) {
+    const rel = path8.relative(cardDir, file).split(path8.sep).join("/");
+    const text = norm(fs7.readFileSync(file, "utf8"));
+    for (const c of outOfScopeCodes(text)) outOfScope.add(c);
+    for (const tb of parseTables(text)) {
+      const col = tb.header.findIndex((h) => squash(h).toLowerCase() === "ngu\u1ED3n");
+      if (col < 0) {
+        if (!tb.inAppendix) errors.push(`${rel}:${tb.line} b\u1EA3ng kh\xF4ng c\xF3 c\u1ED9t Ngu\u1ED3n (b\u1EA3ng tra c\u1EE9u th\xEC \u0111\u1EB7t d\u01B0\u1EDBi heading "Ph\u1EE5 l\u1EE5c")`);
+        continue;
+      }
+      for (const r of tb.rows) {
+        const codes = [...(r.cells[col] ?? "").matchAll(CODE_RE)].map((m) => m[1]);
+        if (!codes.length) errors.push(`${rel}:${r.line} d\xF2ng thi\u1EBFu ngu\u1ED3n (c\u1EA7n D-xx ho\u1EB7c U-xx)`);
+        for (const c of codes) {
+          if (known.has(c)) referenced.add(c);
+          else errors.push(`${rel}:${r.line} ${c} kh\xF4ng c\xF3 trong ledger`);
+        }
+      }
+    }
+  }
+  for (const [code, e] of ledger.D) {
+    if (e.note.startsWith("b\u1ECF:") || referenced.has(code) || outOfScope.has(code)) continue;
+    errors.push(`${code} ch\u01B0a \u0111\u01B0\u1EE3c d\xF2ng n\xE0o ph\u1EE7 v\xE0 kh\xF4ng n\u1EB1m trong "Ngo\xE0i ph\u1EA1m vi": "${e.quote}"`);
+  }
+  return { ok: errors.length === 0, errors, counts: { D: ledger.D.size, U: ledger.U.size } };
+}
+
+// scripts/cli/trace-check.mjs
+var summary4 = "trace-check <id> [--json] \u2014 m\u1ECDi d\xF2ng Brief/spec/design truy v\u1EC1 c\xE2u dossier ho\u1EB7c quy\u1EBFt \u0111\u1ECBnh user";
+async function run4(args, ctx) {
+  const [id, ...flags] = args;
+  if (!id) {
+    ctx.stderr.write("d\xF9ng: ff trace-check <id th\u1EBB> [--json]\n");
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("ff: kh\xF4ng th\u1EA5y ff.config.yaml. Ch\u1EA1y /ff-init.\n");
+    return 4;
+  }
+  let config;
+  try {
+    config = loadConfig(root).config;
+  } catch (e) {
+    if (!(e instanceof ConfigError)) throw e;
+    ctx.stderr.write(`ff: ${e.message}
+`);
+    return 4;
+  }
+  const card = findCardDir(root, config, id);
+  if (card.error) {
+    ctx.stderr.write(`ff: ${card.error}
+`);
+    return 2;
+  }
+  const r = traceCheck(card.dir);
+  if (flags.includes("--json")) ctx.stdout.write(JSON.stringify(r) + "\n");
+  else if (r.ok) ctx.stdout.write(`trace-check: xanh (${r.counts.D} m\xE3 D, ${r.counts.U} m\xE3 U)
+`);
+  else ctx.stdout.write(`trace-check: \u0110\u1ECE (${r.errors.length} l\u1ED7i)
+${r.errors.map((e) => `- ${e}`).join("\n")}
+`);
+  return r.ok ? 0 : 1;
+}
+
+// scripts/cli/notify.mjs
+var notify_exports = {};
+__export(notify_exports, {
+  run: () => run5,
+  summary: () => summary5
+});
+
+// scripts/lib/notify.mjs
+import fs8 from "node:fs";
+import path9 from "node:path";
+var KINDS = ["info", "gate", "ask", "attention", "error", "done"];
+function makeEvent({ kind, taskId = "", title, fields = {}, body = "" }) {
+  if (!KINDS.includes(kind)) throw new Error(`kind ph\u1EA3i l\xE0 m\u1ED9t trong: ${KINDS.join(", ")}`);
+  if (!title) throw new Error("thi\u1EBFu title");
+  return { kind, taskId: String(taskId), title: String(title), fields, body: String(body) };
+}
+async function notify(root, event, { timeoutMs = 1500, log = (s) => process.stderr.write(s) } = {}) {
+  let w = {};
+  try {
+    w = JSON.parse(fs8.readFileSync(path9.join(root, ".ff", "worker.json"), "utf8"));
+  } catch {
+  }
+  if (!w.port) {
+    log(`[ff notify] worker kh\xF4ng ch\u1EA1y \u2014 b\u1ECF qua: ${event.kind} ${event.title}
+`);
+    return { delivered: false };
+  }
+  try {
+    const res = await fetch(`http://127.0.0.1:${w.port}/notify`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${w.token ?? ""}` },
+      body: JSON.stringify(event),
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return { delivered: true };
+  } catch (e) {
+    log(`[ff notify] g\u1EEDi l\u1ED7i (${e.message}) \u2014 b\u1ECF qua
+`);
+    return { delivered: false };
+  }
+}
+
+// scripts/cli/notify.mjs
+var summary5 = "notify --kind <kind> --title <t> [--task <id>] [--body <b>] \u2014 g\u1EEDi th\xF4ng b\xE1o 1 chi\u1EC1u qua worker";
+async function run5(args, ctx) {
+  const opt = {};
+  for (let i = 0; i < args.length; i++) {
+    const m = /^--(kind|title|task|body)$/.exec(args[i]);
+    if (m) opt[m[1]] = args[++i];
+  }
+  let event;
+  try {
+    event = makeEvent({ kind: opt.kind, title: opt.title, taskId: opt.task ?? "", body: opt.body ?? "" });
+  } catch (e) {
+    ctx.stderr.write(`ff notify: ${e.message}
+`);
+    return 2;
+  }
+  const root = findRoot(ctx.cwd);
+  if (!root) {
+    ctx.stderr.write("[ff notify] kh\xF4ng th\u1EA5y ff.config.yaml \u2014 b\u1ECF qua\n");
+    return 0;
+  }
+  const r = await notify(root, event, { log: (s) => ctx.stderr.write(s) });
+  if (r.delivered) ctx.stdout.write("\u0111\xE3 g\u1EEDi\n");
+  return 0;
+}
+
 // scripts/cli/main.mjs
 var VERSION = "0.1.0";
 var COMMANDS = {
   cfg: cfg_exports,
   "env-example": env_example_exports,
-  doctor: doctor_exports
+  doctor: doctor_exports,
+  "trace-check": trace_check_exports,
+  notify: notify_exports
 };
 var defaultCtx = () => ({ cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr });
 async function main(argv, ctx = defaultCtx()) {

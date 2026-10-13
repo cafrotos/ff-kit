@@ -19,3 +19,9 @@ Phiên bản: Claude Code 2.1.296. Spike chạy headless (`claude -p`, model hai
 2. Chạy `claude`, nhờ hỏi 1 câu header `GATE_A`, câu hỏi `[#123] Duyệt Brief?`, trả lời `Duyệt`.
 3. Đối chiếu `.ff-spike/ask-post.jsonl` với `tests/fixtures/hooks/ask-post.json`; khác thì sửa fixture + `answerFor`.
 4. Thử `permissions.deny Read(./.ff.env)` trong phiên tương tác.
+
+## Smoke plugin Plan 1 (2026-10-13, `claude -p --plugin-dir ~/Workspaces/ff-kit --model haiku --permission-mode bypassPermissions`, workspace fixture)
+1. `git -C web stash` qua Bash → **bị chặn** bởi hook guard (cả ở `bypassPermissions`).
+2. Write `trellocards/123-x/brief.md` với `> Trạng thái: ĐÃ DUYỆT …` → **bị chặn**, lý do nhắc "trả lời Duyệt qua GATE_A của thẻ #123"; file không được tạo.
+3. `.ff/doctor.json` được hook SessionStart ghi: `{"ok":true,"groups":{"core":true,"worker":true,"e2e":true}}`.
+4. Chưa kiểm: đọc `.ff.env` (model tự từ chối vì luật CLAUDE.md của người dùng) — phần kiểm tay ở trên.
