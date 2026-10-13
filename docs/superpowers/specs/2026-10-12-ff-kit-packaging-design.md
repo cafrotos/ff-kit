@@ -41,6 +41,7 @@
 | D15 | ff-worker tự restart khi `ff.config.yaml`, `ff.config.lock.json` hoặc `.ff.env` đổi; config mới đỏ thì giữ config cũ và báo lỗi |
 | D16 | `.ff.env` bị cấm đọc bằng 3 lớp: `permissions.deny` trong `.claude/settings.json`, `guard.mjs`, dòng luật trong `CLAUDE.md`. `/ff-init` sinh/bổ sung `.ff.env.example` theo adapter đã chọn |
 | D17 | `workspace.cards_dir` mặc định `trellocards` |
+| D19 | Đăng nhập e2e kiểu `jwt-mint`: config chỉ mô tả **cách** ký và đưa token (file + key secret, thuật toán, payload, cách đưa, URL kiểm). **User nào** do từng bài test tự tạo/chọn, không nằm trong config. Có pre-check offline (doctor) và online (`ff e2e-auth-check --email`) |
 | D18 | Plugin kèm template `templates/ff-e2e/` (Playwright). `INSTALL.md` dựng `ff-e2e/` nằm chung workspace (không `git init` riêng) bằng `ff e2e-scaffold`, trừ khi người dùng chọn dùng bộ e2e có sẵn. Code test đọc thẳng `ff.config.yaml` |
 
 ## 3. Cấu trúc repo
@@ -102,7 +103,7 @@ e2e:
   auth_storage: ff-e2e/.auth/state.json
   apps: [{ name: web, base_url: http://localhost:3001 }]   # mỗi app 1 project Playwright
   health_urls: [http://localhost:8080/health]              # global-setup kiểm trước khi chạy suite
-  auth: { strategy: storage-state }   # storage-state | form-login | none; form-login thêm login_url, lấy E2E_USER/E2E_PASSWORD từ .ff.env
+  auth: { strategy: jwt-mint, jwt: {...} }   # storage-state | form-login | jwt-mint | none (§4.6); form-login thêm login_url, lấy E2E_USER/E2E_PASSWORD từ .ff.env
   up_cmd, down_cmd, test_cmd
 project_docs:                       # tùy chọn; thiếu thì skill bỏ bước liên quan và ghi "không áp dụng"
   roles_file: _project/environment.toml
@@ -131,7 +132,7 @@ secrets: { env_file: .ff.env }         # chỉ trỏ file, không chứa giá tr
 | `squash-check` | `repos[].{path,base_branch,commands.lint,commands.typecheck,commands.build}` |
 | `verify-up`, `verify-down` | `e2e.{up_cmd,down_cmd}`, `repos[].commands.migrate` |
 | `lock-tests`, `relock`, `ac-matrix`, `e2e-lint` | `e2e.{tests_dir,done_tests_dir,playwright_config}`, `workspace.cards_dir` |
-| `mcp-auth` | `e2e.{auth_storage,auth,apps}`, `project_docs.roles_file` |
+| `mcp-auth`, `e2e-auth-check` | `e2e.{auth_storage,auth,apps}`, `db.*`, `project_docs.roles_file` |
 | `e2e-scaffold` | `e2e.dir` (đích; mặc định `ff-e2e`), template `templates/ff-e2e/` |
 | `db-query` | `db.*`, `project_docs.verification_queries_dir` |
 | `design-check`, `trace-check`, `probe-slice` | `workspace.cards_dir`, `repos[].path` |
@@ -149,7 +150,7 @@ Tiền kiểm, tmux, `/init` của Claude và bộ e2e thuộc giai đoạn cài
 
 | Bước | Việc | Điều kiện xong / khi lỗi |
 |---|---|---|
-| 1. Dò workspace | Đọc `CLAUDE.md`, `AGENTS.md`, `package.json`/`Makefile`/CI của từng repo; tìm repo con bằng git; dò cổng dev server từ script `dev`/`start` (cho `e2e.apps`). Chi tiết `skills/ff-init/references/detect.md` | Danh sách ứng viên cho mọi trường bắt buộc |
+| 1. Dò workspace | Đọc `CLAUDE.md`, `AGENTS.md`, `package.json`/`Makefile`/CI của từng repo; tìm repo con bằng git; dò cổng dev server từ script `dev`/`start` (cho `e2e.apps`); dò cách đăng nhập: chỗ backend ký JWT (`jwt.sign`, `JwtService.sign` → payload, tên key secret), chỗ frontend nhận token (`searchParams.get(...)`, `localStorage.setItem(...)` → cách đưa token), endpoint kiểu `/me` (→ `verify.url`); mỗi giá trị kèm `file:line`. Chi tiết `skills/ff-init/references/detect.md` | Danh sách ứng viên cho mọi trường bắt buộc |
 | 2. Hỏi khi mơ hồ | Trường có bằng chứng → ghi kèm `source`. Mơ hồ/nhiều ứng viên → 1 câu `AskUserQuestion` có lựa chọn → `source: user`. Hỏi: adapter (TaskSource, Channel; mặc định `console`), app + base URL, health URL, cách đăng nhập e2e | Không trường bắt buộc nào thiếu nguồn |
 | 3. Ghi file | `ff.config.yaml` + lock; `ff env-example` (§4.5); khối luật vào `CLAUDE.md`; deny vào `.claude/settings.json`; `.gitignore` thêm `.ff.env`, `.ff/`, `ff-e2e/.auth/`, `ff-e2e/test-results/`, `ff-e2e/node_modules/` | `ff doctor --schema-only` xanh |
 | 4. `ff doctor` | Chạy đầy đủ. Thiếu key là bình thường ở lần đầu | Ghi kết quả vào báo cáo; không dừng vì thiếu key |
@@ -176,7 +177,7 @@ Tiền kiểm, tmux, `/init` của Claude và bộ e2e thuộc giai đoạn cài
    { "permissions": { "deny": ["Read(./.ff.env)", "Edit(./.ff.env)", "Write(./.ff.env)", "Read(./**/.env*)"] } }
    ```
    `Read(./**/.env*)` chỉ thêm khi người dùng đồng ý ở bước 4 (có repo cần agent đọc `.env.example`; plan kiểm deny không chặn nhầm `.env.example`).
-2. `guard.mjs`: chặn Bash có tham chiếu `.ff.env` (cat/less/head/tail/grep/sed/awk/source/cp/base64/`<`), trừ đúng các lệnh `ff …`.
+2. `guard.mjs`: chặn Bash có tham chiếu `.ff.env` (cat/less/head/tail/grep/sed/awk/source/cp/base64/`<`), trừ đúng các lệnh `ff …`. Cùng luật áp cho file secret của `jwt-mint` (`e2e.auth.jwt.secret.file`, vd `system-service/.env`): chặn tool đọc/sửa đúng file đó và chặn Bash nhắc tới tên file đó (so theo tên, nên `cd system-service && cat .env` cũng bị chặn).
 3. Khối luật trong `CLAUDE.md`: "Không đọc, in, chép `.ff.env`. Cần biết key có hay chưa → `ff doctor`."
 
 **`.ff.env.example`:** sinh bằng `ff env-example` từ danh sách key trong code (`ADAPTER_KEYS`) theo adapter đã chọn. Chỉ có tên key + comment chỉ chỗ lấy, giá trị rỗng. Đã có file → chỉ **thêm key còn thiếu**, không sửa/xóa dòng có sẵn. Key theo adapter:
@@ -204,11 +205,35 @@ YAML không chứa token. `doctor` đọc `.ff.env` trong process, chỉ in "có
 | `playwright.config.ts` | `workers: 1`, `retries: 0`, trace/ảnh khi fail, `globalSetup`; mỗi `e2e.apps[]` → 1 project (`baseURL`, `storageState` = `e2e.auth_storage`) | `e2e/playwright.config.ts` |
 | `global-setup.ts` | Health-check `e2e.health_urls` + base URL từng app; mọi phản hồi HTTP = đang chạy; lỗi → tiếng Việt, chỉ lệnh `ff verify-up <id> <app>`; không tự bật server | `e2e/global-setup.ts` |
 | `helpers/env.ts` | Tìm `ff.config.yaml` ngược lên, đọc khối `e2e`, `db`; đọc `E2E_USER`/`E2E_PASSWORD` và biến DB trong process, không log | `e2e/helpers/env.ts` (bỏ đường dẫn `system-service`, JWT) |
-| `helpers/auth.ts` | `storage-state`: dùng file do `ff mcp-auth` ghi. `form-login`: mở `login_url`, điền user/pass, lưu storage. `none`: bỏ qua. Dự án có cách đăng nhập riêng (vd tiniweb tự ký JWT) sửa file này; template chỉ copy 1 lần, sau đó là code của dự án | `e2e/helpers/auth.ts` (phần chung) |
+| `helpers/auth.ts`, `helpers/jwt.ts` | API cho test: `mintToken(user)`, `loginAs(page, app, path, user)`, `authHeader(user)`. `user` do bài test truyền vào (object có các field payload cần, vd `{ id, email }`). `jwt-mint`: ký bằng `node:crypto` theo `e2e.auth.jwt`, đưa token theo `deliver`. `storage-state`: dùng file do `ff mcp-auth` ghi. `form-login`: mở `login_url`, điền user/pass. `none`: bỏ qua. Template copy 1 lần, sau đó là code của dự án | `e2e/helpers/auth.ts`, `e2e/helpers/env.ts` (`jwtConfig`) |
 | `helpers/db.ts`, `helpers/restore.ts` | Kết nối DB, backup/restore dữ liệu test. Chỉ tạo khi có khối `db` | `e2e/helpers/{db,restore}.ts` |
 | `fixtures/test.ts` | Fixture `api` (luôn có), `db` (khi có khối `db`) | `e2e/fixtures/test.ts` |
 | `tests/README.md`, `tests/task-done/` | Quy ước `tests/<id>-<slug>/main-behavior.spec.ts` + `main.locators.ts` | `e2e/tests/README.md` |
 | `examples/000-sample/` | 1 thẻ mẫu (spec + locators) cho agent làm theo. Nằm ngoài `tests/` để lệnh chạy test không quét tới | 1 thẻ đã xong của tiniweb, đã bỏ dữ liệu riêng |
+
+**Đăng nhập `jwt-mint` (D19).** Config chỉ mô tả cách ký và đưa token; không có danh sách user:
+
+```yaml
+e2e:
+  auth:
+    strategy: jwt-mint
+    jwt:
+      secret: { file: system-service/.env, key: JWT_SECRET }   # đọc trong process, không in; guard chặn agent đọc file này
+      expires_in: { key: JWT_EXPIRES_IN, default: 2h }         # lấy từ cùng file secret, thiếu thì dùng default
+      algorithm: HS256                                          # HS256 | HS384 | HS512
+      payload: { sub: "{user.id}", email: "{user.email}", sid: "{uuid}" }   # {user.<field>} lấy từ object test truyền vào
+      deliver: { via: query, name: token }                      # query | local_storage | cookie
+      verify: { url: http://localhost:8080/api/v1/users/me, expect_status: 200 }
+      user_lookup: 'select id, email from "user" where email = $1'   # tùy chọn: CÁCH tra 1 user theo email (cho mcp-auth, auth-check, helper userByEmail); không phải danh sách user
+```
+
+- **User do test quyết định.** Bài test tự tạo user cần cho kịch bản (qua fixture `db`/`api`, có backup/restore) hoặc tự tra user có sẵn, rồi gọi `loginAs(page, 'web', '/path', user)`. Spec thẻ nêu role/dữ liệu nào thì test tạo đúng như vậy.
+- **Ký token** bằng `node:crypto`, không mượn `node_modules` của backend, không thêm dependency. Token không bao giờ được in hay ghi log.
+- **`ff mcp-auth --email <email>`** (cho Playwright MCP của agent quan sát app): tra user theo `--email` bằng `jwt.user_lookup` (cần khối `db`), ký token, ghi storage-state vào `e2e.auth_storage` quyền `0600`. Email do agent chọn theo Brief/thẻ, không lấy từ config.
+- **Pre-check:**
+  - Offline, trong `ff doctor`: file secret tồn tại, key có trong file (chỉ báo có/thiếu), `algorithm` hợp lệ, `payload` chỉ dùng biến `{user.*}`/`{uuid}`.
+  - Online, `ff e2e-auth-check --email <email>` (chạy khi server đang bật): tra user → ký → gọi `verify.url` → báo từng bước. Lỗi được dịch ra nguyên nhân: không có user trong DB; `401` = sai secret/payload; không kết nối được = server chưa bật.
+  - Chạy ở: cuối `/ff-init` (hỏi bạn 1 email có sẵn trong DB local để thử, bỏ qua được, email không ghi vào config); đầu `ff-verify` với user mà test của thẻ dùng; người dùng tự gọi.
 
 **`ff e2e-scaffold [--dir ff-e2e] [--db postgres|mysql]`** (xác định, không LLM):
 1. Đích đã tồn tại và không rỗng → dừng, không ghi đè.
@@ -389,6 +414,8 @@ Mỗi bước: lỗi thì dừng, báo nguyên lỗi + bước cần làm lại.
 - `/ff-init` trên fixture: `.ff.env` trống → báo cáo liệt kê key thiếu + bước `/ff-worker start`, **không** có session tmux nào được tạo; `.ff.env.example` có sẵn 1 key → chỉ thêm key thiếu; `.claude/settings.json` có sẵn → giữ mục cũ, thêm deny; chạy lại khi doctor xanh → hỏi bật worker; chạy lại → không ghi đè `source` cũ.
 - `/ff-worker start`: doctor đỏ → không spawn, báo lỗi; xanh → 1 session, báo cáo 5 mục.
 - `ff e2e-scaffold`: đích rỗng → đủ file, `playwright test --list` chạy được; không `--db` → không có `helpers/db.ts`, fixture `db`; đích đã có file → dừng, không ghi đè; không tạo `.git` trong đích.
+- `jwt-mint`: token ký bằng `node:crypto` khớp `jsonwebtoken.verify` cùng secret (test vector); payload thay đúng `{user.*}`, `{uuid}`; biến lạ trong payload → doctor đỏ; `deliver` query/local_storage/cookie đều đăng nhập được trên app mẫu; `ff e2e-auth-check` báo đúng 3 loại lỗi (không có user, 401, mất kết nối); không lệnh nào in token.
+- Guard: `cat system-service/.env`, `cd system-service && cat .env`, Read đúng file secret JWT → chặn.
 - Template ff-e2e: `playwright.config.ts` sinh đúng số project theo `e2e.apps`; `global-setup` báo lỗi tiếng Việt khi health URL không kết nối được; `helpers/env.ts` tìm được `ff.config.yaml` khi chạy từ thư mục con.
 - Chặn `.ff.env`: `Read(.ff.env)` bị từ chối bởi deny; `cat .ff.env`, `grep X .ff.env`, `source .ff.env` bị guard chặn; `ff doctor` vẫn báo có/thiếu key; `.env.example` của repo vẫn đọc được với mẫu deny mặc định.
 - **Đo trước/sau trên 2–3 thẻ cũ của tiniweb** (chạy bộ ff cũ và ff-kit trên cùng dossier). Chỉ số: số `D-xx` bị bỏ sót/bóp méo (người dùng chấm theo ledger); số lần người dùng phải hỏi lại tại Gate; `ff-gate-reader` trả lời đúng ở vòng 1; tổng token. ff-kit không được tệ hơn bản cũ ở chỉ số nào; dùng kết quả để chốt `effort`.
@@ -406,7 +433,8 @@ Mỗi bước: lỗi thì dừng, báo nguyên lỗi + bước cần làm lại.
 | `ff-gate-reader` (haiku) đánh giá sai, gây vòng viết lại vô ích | Tối đa 2 vòng; đo tỉ lệ đúng vòng 1 ở §8, tệ thì nâng model |
 | Docs model 5.x thay đổi theo phiên bản | Ghi ngày đọc docs trong `references/writing.md`; quyết định `effort` dựa trên đo thật, không dựa docs |
 | `claude -p "/init"` không chạy được ở chế độ headless | Kiểm ở spike (Plan 1 Task 1); không được thì `INSTALL.md` bước 4 nhờ người dùng gõ `/init` |
-| Template ff-e2e quá chung, dự án có cách đăng nhập riêng | 3 chiến lược sẵn (`storage-state`, `form-login`, `none`); `helpers/auth.ts` là code của dự án sau khi dựng, sửa tự do; `storage-state` + `ff mcp-auth` phủ được kiểu đăng nhập OAuth như tiniweb |
+| Template ff-e2e quá chung, dự án có cách đăng nhập riêng | 4 chiến lược sẵn; `jwt-mint` phủ kiểu backend chỉ có OAuth như tiniweb; `helpers/auth.ts` là code của dự án sau khi dựng, sửa tự do |
+| Thuật toán JWT khác HS* (RS256…) | Ngoài phạm vi bản đầu; schema chỉ nhận HS256/384/512; dự án cần RS* sửa `helpers/jwt.ts` |
 | Tải chromium chậm/bị chặn mạng | Hỏi trước khi tải; lỗi → in lệnh để người dùng tự chạy, doctor đỏ ở mục e2e tới khi cài xong |
 | Cài tmux cần `sudo` | Không bao giờ chạy `sudo` ngầm; luôn hỏi trước và để người dùng tự chạy qua `! <lệnh>` |
 | Restart khi config đổi làm mất task đang chạy | Phiên Claude của thẻ nằm ở tmux session riêng, không bị dừng; worker mới khôi phục bằng cơ chế startup sẵn có; có test ở §8 |
@@ -485,7 +513,7 @@ Số trong ngoặc = (dòng / số chỗ hardcode / số chỗ giọng gắt) đ
 | `playwright.config.ts` | giữ | Project sinh từ `e2e.apps`; `storageState` = `e2e.auth_storage` |
 | `global-setup.ts` | giữ | Health URL từ `e2e.health_urls`; bỏ đường dẫn `/Users/...` và `run.dev.sh`, thay bằng `ff verify-up <id> <app>` |
 | `helpers/env.ts` | giữ | Đọc `ff.config.yaml`; bỏ `SS_ROOT`, `borrow()` từ `system-service`, `jwtConfig` |
-| `helpers/auth.ts` | giữ | Giữ khung `loginAs`/`authHeader`; bỏ mint JWT (riêng tiniweb); thêm 3 chiến lược §4.6 |
+| `helpers/auth.ts` | giữ | Giữ `loginAs`/`authHeader`/`mintToken`, nhận `user` từ test; khái quát mint JWT thành `jwt-mint` đọc `e2e.auth.jwt` (§4.6); bỏ mượn `jsonwebtoken`/`dotenv` từ `system-service` |
 | `helpers/db.ts`, `helpers/restore.ts`, `fixtures/test.ts` | giữ | Đọc cấu hình DB theo `db.*`; tạo khi có `--db` |
 | `helpers/xlsx.ts` | **không chuyển** | Riêng 1 thẻ tiniweb |
 | `tests/README.md` | giữ | Bỏ tên thẻ tiniweb |

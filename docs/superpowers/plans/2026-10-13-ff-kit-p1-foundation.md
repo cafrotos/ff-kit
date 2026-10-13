@@ -505,12 +505,27 @@ test('validate bắt thiếu repos, khóa lạ, repo trùng tên, trello thiếu
   assert.ok(validate(parseConfigText(YAML.stringify(t)).config).length > 0)
 })
 
-test('validate khối e2e: form-login bắt buộc login_url, base_url phải là URL', () => {
+test('validate khối e2e: form-login cần login_url, jwt-mint cần jwt, base_url phải là URL', () => {
   const c = baseConfig()
   c.e2e = { dir: 'ff-e2e', apps: [{ name: 'web', base_url: 'http://localhost:3001' }], health_urls: ['http://localhost:8080/health'], auth: { strategy: 'storage-state' } }
   assert.deepEqual(validate(parseConfigText(YAML.stringify(c)).config), [])
   c.e2e.auth = { strategy: 'form-login' }
   assert.ok(validate(parseConfigText(YAML.stringify(c)).config).some((e) => /login_url/.test(e)))
+  c.e2e.auth = { strategy: 'jwt-mint' }
+  assert.ok(validate(parseConfigText(YAML.stringify(c)).config).some((e) => /jwt/.test(e)))
+  c.e2e.auth = {
+    strategy: 'jwt-mint',
+    jwt: {
+      secret: { file: 'api/.env', key: 'JWT_SECRET' },
+      algorithm: 'HS256',
+      payload: { sub: '{user.id}', email: '{user.email}' },
+      deliver: { via: 'query', name: 'token' },
+      verify: { url: 'http://localhost:8080/me', expect_status: 200 },
+    },
+  }
+  assert.deepEqual(validate(parseConfigText(YAML.stringify(c)).config), [])
+  c.e2e.auth.jwt.algorithm = 'RS256'
+  assert.ok(validate(parseConfigText(YAML.stringify(c)).config).some((e) => /algorithm/.test(e)))
   c.e2e.auth = { strategy: 'none' }
   c.e2e.apps[0].base_url = 'localhost:3001'
   assert.ok(validate(parseConfigText(YAML.stringify(c)).config).some((e) => /base_url/.test(e)))
@@ -717,11 +732,46 @@ export function getKey(obj, key) {
           "required": ["strategy"],
           "additionalProperties": false,
           "properties": {
-            "strategy": { "enum": ["storage-state", "form-login", "none"] },
-            "login_url": { "type": "string", "pattern": "^https?://" }
+            "strategy": { "enum": ["storage-state", "form-login", "jwt-mint", "none"] },
+            "login_url": { "type": "string", "pattern": "^https?://" },
+            "jwt": {
+              "type": "object",
+              "required": ["secret", "algorithm", "payload", "deliver"],
+              "additionalProperties": false,
+              "properties": {
+                "secret": {
+                  "type": "object",
+                  "required": ["file", "key"],
+                  "additionalProperties": false,
+                  "properties": { "file": { "$ref": "#/definitions/relpath" }, "key": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" } }
+                },
+                "expires_in": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": { "key": { "type": "string" }, "default": { "type": "string", "pattern": "^[0-9]+[smhd]$" } }
+                },
+                "algorithm": { "enum": ["HS256", "HS384", "HS512"] },
+                "payload": { "type": "object", "minProperties": 1, "additionalProperties": { "type": "string" } },
+                "deliver": {
+                  "type": "object",
+                  "required": ["via", "name"],
+                  "additionalProperties": false,
+                  "properties": { "via": { "enum": ["query", "local_storage", "cookie"] }, "name": { "type": "string", "minLength": 1 } }
+                },
+                "verify": {
+                  "type": "object",
+                  "required": ["url"],
+                  "additionalProperties": false,
+                  "properties": { "url": { "type": "string", "pattern": "^https?://" }, "expect_status": { "type": "integer" } }
+                },
+                "user_lookup": { "type": "string", "minLength": 1 }
+              }
+            }
           },
-          "if": { "properties": { "strategy": { "const": "form-login" } } },
-          "then": { "required": ["login_url"] }
+          "allOf": [
+            { "if": { "properties": { "strategy": { "const": "form-login" } } }, "then": { "required": ["login_url"] } },
+            { "if": { "properties": { "strategy": { "const": "jwt-mint" } } }, "then": { "required": ["jwt"] } }
+          ]
         },
         "up_cmd": { "$ref": "#/definitions/cmd" },
         "down_cmd": { "$ref": "#/definitions/cmd" },
@@ -3274,8 +3324,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `ARTIFACT_GATE`, `isApproved`, `recordGates` (Task 10); `makeGuard` (Task 8).
 - Produces: `evaluate()` thêm 4 luật, chạy trước luật cũ:
-  1. Bash có tham chiếu file secrets (`secrets.env_file`, so theo tên file, không khớp `.ff.env.example`) mà lệnh đầu đoạn không phải `ff` → chặn.
-  2. Mọi tool có `file` trỏ đúng file secrets (Read, Grep, Edit, Write…) → chặn.
+  1. Bash có tham chiếu file secret (`secrets.env_file` và `e2e.auth.jwt.secret.file`, so theo tên file, không khớp `<tên>.example`) mà lệnh đầu đoạn không phải `ff` → chặn.
+  2. Mọi tool có `file` trỏ đúng một file secret (Read, Grep, Edit, Write…) → chặn.
   3. Edit/Write làm **xuất hiện** dòng `> Trạng thái: ĐÃ DUYỆT` trong `brief.md`/`03-design.md`/`05-verify-report.md` dưới `cards_dir` mà chưa có Gate tương ứng được duyệt trong 24 giờ → chặn.
   4. Bash vừa chứa `ĐÃ DUYỆT` vừa ghi file (verb ghi hoặc redirect) → chặn (marker chỉ ghi bằng Edit/Write).
 
@@ -3326,6 +3376,18 @@ test('tool đọc/sửa file .ff.env bị chặn', (t) => {
   assert.notEqual(ev({ file: '.ff.env', tool: 'Grep' }), null)
   assert.notEqual(ev({ file: '.ff.env', tool: 'Edit' }), null)
   assert.equal(ev({ file: '.ff.env.example', tool: 'Read' }), null)
+})
+
+test('file secret của jwt-mint cũng bị chặn', (t) => {
+  const { ev } = setup(t, (c) => ({
+    ...c,
+    e2e: { dir: 'ff-e2e', auth: { strategy: 'jwt-mint', jwt: { secret: { file: 'api/.env', key: 'JWT_SECRET' }, algorithm: 'HS256', payload: { sub: '{user.id}' }, deliver: { via: 'query', name: 'token' } } } },
+  }))
+  assert.notEqual(ev({ cmd: 'cat api/.env' }), null)
+  assert.notEqual(ev({ cmd: 'cd api && grep JWT .env' }), null)
+  assert.notEqual(ev({ file: 'api/.env', tool: 'Read' }), null)
+  assert.equal(ev({ cmd: 'cat api/.env.example' }), null)
+  assert.equal(ev({ file: 'api/.env.example', tool: 'Read' }), null)
 })
 
 test('env_file tùy chỉnh', (t) => {
@@ -3409,14 +3471,14 @@ Trong `makeGuard`, ngay trước `function checkLockedFile`, thêm:
 
 ```js
   const cardsDir = path.resolve(root, config.workspace.cards_dir)
-  const envName = config.secrets.env_file
-  const envAbs = path.resolve(root, envName)
-  const envRe = new RegExp(`(^|[\\s<>='"/])${escapeRe(path.basename(envName))}(?![\\w.-])`)
-  const secretMsg = `Không đọc, sửa hay chép ${envName} (chứa secret). Cần biết key có hay chưa → \`ff doctor\`.`
+  const secretFiles = [config.secrets.env_file, config.e2e?.auth?.jwt?.secret?.file].filter(Boolean)
+  const secretAbs = new Set(secretFiles.map((f) => path.resolve(root, f)))
+  const secretRes = secretFiles.map((f) => new RegExp(`(^|[\\s<>='"/])${escapeRe(path.basename(f))}(?![\\w.-])`))
+  const secretMsg = `Không đọc, sửa hay chép file secret (${secretFiles.join(', ')}). Cần biết key có hay chưa → \`ff doctor\`.`
 
   function checkSecretsBash(cmd) {
     for (const seg of segments(cmd)) {
-      if (!envRe.test(seg)) continue
+      if (!secretRes.some((re) => re.test(seg))) continue
       const head = stripPrefix(tokenize(seg))[0] ?? ''
       if (head === 'ff' || head.endsWith('/ff')) continue
       return secretMsg
@@ -3424,7 +3486,7 @@ Trong `makeGuard`, ngay trước `function checkLockedFile`, thêm:
     return null
   }
 
-  const checkSecretsFile = (abs) => (abs === envAbs ? secretMsg : null)
+  const checkSecretsFile = (abs) => (secretAbs.has(abs) ? secretMsg : null)
 
   function introducesMarker(tool, input, abs) {
     if (['Write', 'write', 'write_to_file'].includes(tool)) {
