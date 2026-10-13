@@ -4,6 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { tokenize, stripHeredocs, segments, stripPrefix, headTokens } from './shell.mjs'
 import { realish } from './paths.mjs'
+import { ARTIFACT_GATE, hasMarker, isApproved } from './gates.mjs'
 
 const SHIP_MARKER_TTL_S = 2 * 60 * 60
 const ALLOW_TTL_S = 4 * 60 * 60
@@ -12,6 +13,30 @@ const WRITE_VERB_RE = /\bsed\s+(?:-\w*i|--in-place)|\bperl\s+-\w*i|\btee\b|\bcp\
 const WRAPPER_RE = /\b(?:ba|z)?sh\s+-\w*c\b|\beval\b|\$\(|`|\bxargs\b/
 const FF_EXEMPT_RE = /(?:^|[\s/])ff\s+(?:relock|lock-tests)\b/
 const FF_ASK_RE = /(?:^|[\s/])ff\s+(?:ship-approve|relock)\b/
+const INTERP_RE = /(?:^|[\s/])(?:python3?|node|perl|ruby|deno|bun)(?=\s|$)/
+const SUBST_RE = /\$\(|`|<\(/
+const REDIRECT_TARGET_RE = /(?<![\d&=-])>>?\s*(['"]?)([^\s'"]+)\1/g
+const PATHLIKE_RE = /[\w.~/-]+\.(?:md|json)\b/g
+const COPY_LIKE = new Set(['cp', 'mv', 'install', 'rsync', 'ln'])
+const EDIT_LIKE = new Set(['tee', 'truncate', 'rm', 'chmod', 'chflags', 'touch'])
+const INPLACE = new Set(['sed', 'perl'])
+const isFfCall = (seg) => {
+  const head = headTokens(seg)[0] ?? ''
+  return (head === 'ff' || head.endsWith('/ff')) && !SUBST_RE.test(seg)
+}
+
+// Đường dẫn mà 1 đoạn lệnh GHI vào (ước lượng): đích redirect, đích cp/mv, đối số tee/rm/…, file của sed -i/perl -i,
+// và chuỗi giống đường dẫn .md/.json trong lệnh chạy trình thông dịch. Chỉ nhắc tên file thì không tính là ghi.
+function writeTargets(seg, tokens) {
+  const out = [...seg.matchAll(REDIRECT_TARGET_RE)].map((m) => m[2])
+  const [head, ...rest] = tokens
+  const args = rest.filter((t) => !t.startsWith('-'))
+  if (COPY_LIKE.has(head) && args.length) out.push(args[args.length - 1])
+  if (EDIT_LIKE.has(head)) out.push(...args)
+  if (INPLACE.has(head) && rest.some((t) => /^-\w*i/.test(t) || t === '--in-place')) out.push(...args)
+  if (INTERP_RE.test(seg)) out.push(...(seg.match(PATHLIKE_RE) ?? []))
+  return out
+}
 
 const under = (p, dir) => (p + path.sep).startsWith(dir + path.sep)
 const expandHome = (p) => (p === '~' || p.startsWith('~/') ? path.join(os.homedir(), p.slice(1)) : p)
@@ -69,6 +94,65 @@ export function makeGuard(rootIn, config) {
     return slugs.flatMap(lockedOf)
   }
   const lockMsg = (slug) => `file test đã khóa; đổi qua: ff relock ${idOf(slug)} --reason "…" (cần user cho phép)`
+
+  const cardsDir = path.resolve(root, config.workspace.cards_dir)
+  const ffDirAbs = path.join(root, '.ff')
+  const secretFiles = [config.secrets.env_file, config.db?.env_file, config.e2e?.auth?.jwt?.secret?.file, config.e2e?.auth_storage, '.ff/worker.json'].filter(Boolean)
+  const secretAbs = new Set(secretFiles.map((f) => path.resolve(root, f)))
+  const secretRes = secretFiles.map((f) => new RegExp(`(^|[\\s<>='"/])${escapeRe(path.basename(f))}(?![\\w.-])`))
+  const secretMsg = `Không đọc, sửa hay chép file secret (${secretFiles.join(', ')}). Cần biết key có hay chưa → \`ff doctor\`.`
+
+  function checkBashNew(cmd, cwd) {
+    let dir = cwd
+    for (const seg of segments(cmd)) {
+      const tokens = headTokens(seg)
+      if (tokens[0] === 'cd') {
+        dir = resolveDir(dir, tokens[1] ?? os.homedir())
+        continue
+      }
+      if (secretRes.some((re) => re.test(seg)) && !isFfCall(seg)) return secretMsg
+      if (isFfCall(seg)) continue
+      for (const t of writeTargets(seg, tokens)) {
+        const abs = realish(path.resolve(dir, expandHome(t)))
+        if (abs === ffDirAbs || under(abs, ffDirAbs)) return '`.ff/` do hook và lệnh `ff` ghi; agent không sửa thư mục này.'
+        if (under(abs, cardsDir) && ARTIFACT_GATE[path.basename(abs)])
+          return 'Sửa brief.md / 03-design.md / 05-verify-report.md trong thư mục thẻ bằng Edit/Write (để hook kiểm Gate), không ghi bằng Bash.'
+      }
+    }
+    return null
+  }
+
+  function resultingContent(tool, input, abs) {
+    let old = ''
+    try { old = fs.readFileSync(abs, 'utf8') } catch {}
+    if (['Write', 'write', 'write_to_file'].includes(tool)) return { old, next: String(input.content ?? input.CodeContent ?? '') }
+    if (tool === 'NotebookEdit') return { old, next: String(input.new_source ?? '') + '\n' + old }
+    let next = old
+    for (const e of Array.isArray(input.edits) ? input.edits : [input]) {
+      const o = String(e?.old_string ?? e?.oldString ?? e?.TargetContent ?? '')
+      const n = String(e?.new_string ?? e?.newString ?? e?.ReplacementContent ?? '')
+      if (!o) next = n + next
+      else next = e?.replace_all ? next.split(o).join(n) : next.replace(o, () => n)
+    }
+    return { old, next }
+  }
+
+  function checkFileNew(tool, input, abs) {
+    if (secretAbs.has(abs)) return secretMsg
+    if (!isEdit(tool)) return null
+    if (under(abs, ffDirAbs)) return '`.ff/` do hook và lệnh `ff` ghi; agent không sửa thư mục này.'
+    if (!under(abs, cardsDir)) return null
+    const gate = ARTIFACT_GATE[path.basename(abs)]
+    if (!gate) return null
+    const { next } = resultingContent(tool, input, abs)
+    if (!hasMarker(next)) return null
+    const rel = path.relative(cardsDir, abs).split(path.sep)
+    const cardId = rel[0].split('-')[0]
+    let ledger = null
+    try { ledger = fs.readFileSync(path.join(cardsDir, rel[0], '01b-ledger.md'), 'utf8') } catch {}
+    if (isApproved(root, cardId, gate, rel.slice(1).join('/'), next, ledger)) return null
+    return `Chưa có câu trả lời "Duyệt" cho ${gate} của thẻ #${cardId} khớp nội dung hiện tại. Trình Gate bằng AskUserQuestion (header ${gate}, câu hỏi bắt đầu "[#${cardId}]", lựa chọn "Duyệt"/"Cần sửa") rồi mới ghi marker ĐÃ DUYỆT; sửa nội dung sau khi duyệt thì phải bỏ marker và trình lại.`
+  }
 
   function checkLockedFile(tool, abs) {
     if (!isEdit(tool)) return null
@@ -212,8 +296,8 @@ export function makeGuard(rootIn, config) {
     const c = realish(cwd)
     const abs = file ? realish(path.resolve(c, expandHome(file))) : null
     let reason = null
-    if (cmd) reason = checkLockedBash(cmd, c) ?? checkBash(cmd, c, mode)
-    if (!reason && abs) reason = checkLockedFile(tool, abs) ?? checkAllowlist(tool, abs)
+    if (cmd) reason = checkBashNew(cmd, c) ?? checkLockedBash(cmd, c) ?? checkBash(cmd, c, mode)
+    if (!reason && abs) reason = checkFileNew(tool, input ?? {}, abs) ?? checkLockedFile(tool, abs) ?? checkAllowlist(tool, abs)
     if (!reason && mode === 'feature-flow' && abs) reason = checkMirrorFile(tool, abs)
     return reason
   }

@@ -65,7 +65,9 @@ if (reason) {
   process.stderr.write(msg + '\n')
   process.exit(2)
 }
-if (args.format === 'agy' && cmd && G.needsAsk(cmd)) {
-  process.stdout.write(JSON.stringify({ decision: 'force_ask', reason: '[ff-guard] cần user xác nhận trước khi chạy ship-approve/relock' }) + '\n')
+if (cmd && G.needsAsk(cmd)) {
+  const reason = '[ff-guard] ship-approve/relock cần người dùng xác nhận'
+  if (args.format === 'agy') process.stdout.write(JSON.stringify({ decision: 'force_ask', reason }) + '\n')
+  else process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n')
 }
 process.exit(0)
