@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import YAML from 'yaml'
+import { leafKeys } from '../../scripts/lib/lock.mjs'
 
 export function git(cwd, ...args) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' })
@@ -25,7 +26,7 @@ export function baseConfig() {
 }
 
 // Tạo workspace tạm: repo git thật (nhánh base_branch, 1 commit), cards_dir, worktrees_dir, ff.config.yaml, file thêm.
-export function makeWorkspace({ config = baseConfig(), files = {}, gitRepos = true } = {}) {
+export function makeWorkspace({ config = baseConfig(), files = {}, gitRepos = true, lock = true } = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'ff-kit-')))
   const cfg = config ?? {}
   for (const r of cfg.repos ?? []) {
@@ -39,10 +40,17 @@ export function makeWorkspace({ config = baseConfig(), files = {}, gitRepos = tr
   fs.mkdirSync(path.join(root, cfg.workspace?.cards_dir ?? 'trellocards'), { recursive: true })
   fs.mkdirSync(path.join(root, cfg.workspace?.worktrees_dir ?? 'worktrees'), { recursive: true })
   if (config !== null) fs.writeFileSync(path.join(root, 'ff.config.yaml'), YAML.stringify(config))
+  if (config !== null && lock) writeLock(root, config)
   for (const [rel, content] of Object.entries(files)) {
     const f = path.join(root, rel)
     fs.mkdirSync(path.dirname(f), { recursive: true })
     fs.writeFileSync(f, content)
   }
   return { root, cleanup: () => fs.rmSync(root, { recursive: true, force: true }) }
+}
+
+export function writeLock(root, raw, source = 'user') {
+  const sources = Object.fromEntries(leafKeys(raw).map(({ key }) => [key, source]))
+  fs.writeFileSync(path.join(root, 'ff.config.lock.json'), JSON.stringify({ version: 1, sources }, null, 2))
+  return sources
 }
