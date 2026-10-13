@@ -951,7 +951,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `findRoot`, `loadConfig`, `getKey`, `ConfigError`, `CONFIG_FILE`, `LOCK_FILE` (Task 3).
-- Produces (`scripts/lib/state.mjs`): `ffDir(root): string`, `writeDoctorState(root, ok: boolean): void`, `doctorStatus(root): 'green' | 'red' | 'missing' | 'stale'`.
+- Produces (`scripts/lib/state.mjs`): `ffDir(root): string`, `writeDoctorState(root, ok: boolean, groups?: { core, worker, e2e }): void` (thiếu `groups` → cả 3 nhóm = `ok`), `doctorStatus(root, group = 'core'): 'green' | 'red' | 'missing' | 'stale'` (D20: `cfg get` chỉ xét nhóm `core`).
 - Produces (CLI): `ff cfg get <key> [--abs]` — in giá trị (scalar thô; object/mảng JSON 1 dòng); `--abs` đổi đường dẫn tương đối thành tuyệt đối theo gốc workspace. Exit `3` thiếu key, `4` config chưa sẵn sàng.
 
 - [ ] **Step 1: Viết test (fail)**
@@ -1028,6 +1028,16 @@ test('config sửa sau doctor → stale → exit 4', async (t) => {
   assert.equal(await main(['cfg', 'get', 'version'], ctx), 4)
 })
 
+test('nhóm worker đỏ, core xanh → cfg get vẫn chạy (D20)', async (t) => {
+  const ws = makeWorkspace()
+  t.after(ws.cleanup)
+  writeDoctorState(ws.root, false, { core: true, worker: false, e2e: true })
+  const { ctx, buf } = capture(ws.root)
+  assert.equal(await main(['cfg', 'get', 'repos.web.base_branch'], ctx), 0)
+  assert.equal(buf.out, 'dev\n')
+  assert.equal(doctorStatus(ws.root, 'worker'), 'red')
+})
+
 test('config hỏng → exit 4', async (t) => {
   const ws = ready(t)
   fs.writeFileSync(path.join(ws.root, 'ff.config.yaml'), 'repos: [\n')
@@ -1067,13 +1077,13 @@ function configMtime(root) {
   }))
 }
 
-export function writeDoctorState(root, ok) {
+export function writeDoctorState(root, ok, groups = { core: ok, worker: ok, e2e: ok }) {
   fs.mkdirSync(ffDir(root), { recursive: true })
-  const state = { ok, at: new Date().toISOString(), configMtimeMs: configMtime(root) }
+  const state = { ok, groups, at: new Date().toISOString(), configMtimeMs: configMtime(root) }
   fs.writeFileSync(path.join(ffDir(root), 'doctor.json'), JSON.stringify(state) + '\n')
 }
 
-export function doctorStatus(root) {
+export function doctorStatus(root, group = 'core') {
   let s
   try {
     s = JSON.parse(fs.readFileSync(path.join(ffDir(root), 'doctor.json'), 'utf8'))
@@ -1081,7 +1091,7 @@ export function doctorStatus(root) {
     return 'missing'
   }
   if (s.configMtimeMs !== configMtime(root)) return 'stale'
-  return s.ok ? 'green' : 'red'
+  return (s.groups?.[group] ?? s.ok) ? 'green' : 'red'
 }
 ```
 
@@ -1097,7 +1107,7 @@ export const summary = 'cfg get <key> [--abs] — đọc giá trị trong ff.con
 const STATUS_MSG = {
   missing: 'chưa chạy ff doctor trong workspace này. Chạy: ff doctor',
   stale: 'ff.config.yaml đã đổi sau lần ff doctor gần nhất. Chạy: ff doctor',
-  red: 'ff doctor đang đỏ. Chạy: ff doctor để xem lỗi, sửa bằng /ff-init',
+  red: 'ff doctor đang đỏ ở nhóm core. Chạy: ff doctor để xem lỗi, sửa bằng /ff-init',
 }
 
 export async function run(args, ctx) {
@@ -1172,7 +1182,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `findRoot`, `loadConfig`, `ConfigError` (Task 3).
-- Produces (`scripts/lib/env.mjs`): `ADAPTER_KEYS: Record<string, { key: string, hint: string }[]>`; `FEATURE_KEYS` (`e2e-form-login` → `E2E_USER`, `E2E_PASSWORD`); `requiredKeys(config): string[]`; `parseEnvKeys(text, { withValueOnly?: boolean }): Set<string>`; `presentKeys(file): Set<string> | null` (chỉ key có giá trị; `null` khi không có file); `mergeEnvExample(exampleFile, config): string[]` (key đã thêm).
+- Produces (`scripts/lib/env.mjs`): `ADAPTER_KEYS: Record<string, { key: string, hint: string }[]>`; `FEATURE_KEYS` (`e2e-form-login` → `E2E_USER`, `E2E_PASSWORD`); `requiredKeysByGroup(config): { worker: string[], e2e: string[] }`; `requiredKeys(config): string[]`; `parseEnvKeys(text, { withValueOnly?: boolean }): Set<string>`; `presentKeys(file): Set<string> | null` (chỉ key có giá trị; `null` khi không có file); `mergeEnvExample(exampleFile, config): string[]` (key đã thêm).
 - Produces (CLI): `ff env-example` — tạo/bổ sung `<secrets.env_file>.example`, không đọc `.ff.env`, không cần doctor xanh.
 
 - [ ] **Step 1: Viết test (fail)**
@@ -1184,7 +1194,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
-import { parseEnvKeys, presentKeys, requiredKeys, mergeEnvExample } from '../scripts/lib/env.mjs'
+import { parseEnvKeys, presentKeys, requiredKeys, requiredKeysByGroup, mergeEnvExample } from '../scripts/lib/env.mjs'
 import { parseConfigText } from '../scripts/lib/config.mjs'
 import { main } from '../scripts/cli/main.mjs'
 import { makeWorkspace, baseConfig } from './helpers/fixture.mjs'
@@ -1205,6 +1215,8 @@ test('requiredKeys theo adapter đã chọn', () => {
   assert.deepEqual(rc, ['TRELLO_API_KEY', 'TRELLO_API_TOKEN', 'RC_URL', 'RC_USER_ID', 'RC_AUTH_TOKEN', 'RC_ROOM_ID'])
   const fl = requiredKeys(cfg((c) => { c.e2e = { dir: 'ff-e2e', auth: { strategy: 'form-login', login_url: 'http://localhost:3000/login' } }; return c }))
   assert.deepEqual(fl, ['TRELLO_API_KEY', 'TRELLO_API_TOKEN', 'E2E_USER', 'E2E_PASSWORD'])
+  const c = cfg((c) => { c.e2e = { dir: 'ff-e2e', auth: { strategy: 'form-login', login_url: 'http://localhost:3000/login' } }; return c })
+  assert.deepEqual(requiredKeysByGroup(c), { worker: ['TRELLO_API_KEY', 'TRELLO_API_TOKEN'], e2e: ['E2E_USER', 'E2E_PASSWORD'] })
 })
 
 test('presentKeys: không có file → null', () => {
@@ -1287,6 +1299,13 @@ function neededEntries(config) {
 }
 
 export const requiredKeys = (config) => neededEntries(config).map((k) => k.key)
+
+// D20: key adapter thuộc nhóm worker; key đăng nhập e2e thuộc nhóm e2e.
+export function requiredKeysByGroup(config) {
+  const e2e = new Set(FEATURE_KEYS['e2e-form-login'].map((k) => k.key))
+  const all = requiredKeys(config)
+  return { worker: all.filter((k) => !e2e.has(k)), e2e: all.filter((k) => e2e.has(k)) }
+}
 
 export function parseEnvKeys(text, { withValueOnly = true } = {}) {
   const keys = new Set()
@@ -1597,7 +1616,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `validate` (Task 3), `presentKeys`, `requiredKeys` (Task 5), `checkLock` (Task 6), `writeDoctorState` (Task 4).
 - Produces (`scripts/lib/shell.mjs`): `tokenize(seg): string[]`, `stripHeredocs(cmd): string`, `segments(cmd): string[]`, `stripPrefix(tokens): string[]`, `commandBinaries(cmd): string[]`.
-- Produces (`scripts/lib/doctor.mjs`): `runDoctor(root, { config, raw }, { which? }): { ok: boolean, checks: { ok: boolean, msg: string }[] }`; `whichInPath(bin, cwd): boolean`.
+- Produces (`scripts/lib/doctor.mjs`): `runDoctor(root, { config, raw }, { which? }): { ok: boolean, groups: { core, worker, e2e }: boolean, checks: { ok: boolean, msg: string, group: 'core' | 'worker' | 'e2e' }[] }`; `whichInPath(bin, cwd): boolean`. Nhóm theo D20: key adapter → `worker`; key `form-login` → `e2e` (Plan 2 thêm kiểm bộ Playwright, secret `jwt-mint` vào nhóm `e2e`); còn lại → `core`.
 - Produces (CLI): `ff doctor [--schema-only] [--json]` — exit `0` xanh, `1` đỏ, `4` không có workspace. Ghi `.ff/doctor.json` (trừ `--schema-only`).
 
 - [ ] **Step 1: Viết test shell (fail)**
@@ -1759,10 +1778,12 @@ test('binary của lệnh không có trong PATH', (t) => {
   assert.match(fails(doctor(ws.root)), /lệnh build cần "khong-ton-tai-xyz"/)
 })
 
-test('thiếu file .ff.env và thiếu key', (t) => {
+test('thiếu file .ff.env và thiếu key → chỉ nhóm worker đỏ', (t) => {
   const ws = makeWorkspace()
   t.after(ws.cleanup)
-  assert.match(fails(doctor(ws.root)), /\.ff\.env chưa có — cần: TRELLO_API_KEY, TRELLO_API_TOKEN/)
+  const r0 = doctor(ws.root)
+  assert.match(fails(r0), /\.ff\.env chưa có — cần: TRELLO_API_KEY, TRELLO_API_TOKEN/)
+  assert.deepEqual(r0.groups, { core: true, worker: false, e2e: true })
   fs.writeFileSync(path.join(ws.root, '.ff.env'), 'TRELLO_API_KEY=SECRET123\n')
   const msg = fails(doctor(ws.root))
   assert.match(msg, /thiếu key: TRELLO_API_TOKEN/)
@@ -1797,12 +1818,22 @@ test('CLI: xanh → exit 0 và ghi trạng thái green', async (t) => {
   assert.equal(doctorStatus(ws.root), 'green')
 })
 
-test('CLI: đỏ → exit 1, trạng thái red', async (t) => {
+test('CLI: chỉ thiếu key → exit 1, core xanh, worker đỏ', async (t) => {
   const ws = makeWorkspace()
   t.after(ws.cleanup)
   const { ctx, buf } = capture(ws.root)
   assert.equal(await main(['doctor'], ctx), 1)
-  assert.match(buf.out, /✗/)
+  assert.match(buf.out, /✗ \[worker\]/)
+  assert.match(buf.out, /skill vẫn chạy/)
+  assert.equal(doctorStatus(ws.root), 'green')
+  assert.equal(doctorStatus(ws.root, 'worker'), 'red')
+})
+
+test('CLI: core đỏ → trạng thái core red', async (t) => {
+  const ws = green(t)
+  fs.rmSync(path.join(ws.root, 'trellocards'), { recursive: true })
+  const { ctx } = capture(ws.root)
+  assert.equal(await main(['doctor'], ctx), 1)
   assert.equal(doctorStatus(ws.root), 'red')
 })
 
@@ -1836,7 +1867,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { validate } from './schema.mjs'
-import { presentKeys, requiredKeys } from './env.mjs'
+import { presentKeys, requiredKeysByGroup } from './env.mjs'
 import { checkLock } from './lock.mjs'
 import { commandBinaries } from './shell.mjs'
 
@@ -1857,12 +1888,16 @@ const git = (cwd, args) => spawnSync('git', args, { cwd, encoding: 'utf8' })
 
 export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
   const checks = []
-  const ok = (msg) => checks.push({ ok: true, msg })
-  const bad = (msg) => checks.push({ ok: false, msg })
+  const ok = (msg, group = 'core') => checks.push({ ok: true, msg, group })
+  const bad = (msg, group = 'core') => checks.push({ ok: false, msg, group })
+  const finish = () => {
+    const groups = Object.fromEntries(['core', 'worker', 'e2e'].map((g) => [g, checks.filter((c) => c.group === g).every((c) => c.ok)]))
+    return { ok: checks.every((c) => c.ok), groups, checks }
+  }
   const errs = validate(config)
   if (errs.length) {
     for (const e of errs) bad(`schema ${e}`)
-    return { ok: false, checks }
+    return finish()
   }
   ok('schema hợp lệ')
 
@@ -1904,19 +1939,20 @@ export function runDoctor(root, { config, raw }, { which = whichInPath } = {}) {
   }
   if (config.db && !fs.existsSync(path.resolve(root, config.db.env_file))) bad(`db.env_file không tồn tại: ${config.db.env_file}`)
 
-  const need = requiredKeys(config)
-  if (need.length) {
-    const envName = config.secrets.env_file
-    const keys = presentKeys(path.resolve(root, envName))
-    if (!keys) bad(`${envName} chưa có — cần: ${need.join(', ')}`)
+  const envName = config.secrets.env_file
+  const keys = presentKeys(path.resolve(root, envName))
+  for (const [group, need] of Object.entries(requiredKeysByGroup(config))) {
+    if (!need.length) continue
+    const label = group === 'worker' ? 'adapter đã chọn' : 'đăng nhập e2e'
+    if (!keys) bad(`${envName} chưa có — cần: ${need.join(', ')}`, group)
     else {
       const miss = need.filter((k) => !keys.has(k))
-      miss.length ? bad(`${envName} thiếu key: ${miss.join(', ')}`) : ok(`${envName} đủ key cho adapter đã chọn`)
+      miss.length ? bad(`${envName} thiếu key: ${miss.join(', ')}`, group) : ok(`${envName} đủ key cho ${label}`, group)
     }
   }
 
-  checks.push(...checkLock(root, raw, config.secrets.env_file))
-  return { ok: checks.every((c) => c.ok), checks }
+  checks.push(...checkLock(root, raw, envName).map((c) => ({ ...c, group: 'core' })))
+  return finish()
 }
 ```
 
@@ -1942,18 +1978,22 @@ export async function run(args, ctx) {
   try {
     const loaded = loadConfig(root)
     result = schemaOnly
-      ? (() => { const errs = validate(loaded.config); return { ok: !errs.length, checks: errs.length ? errs.map((e) => ({ ok: false, msg: `schema ${e}` })) : [{ ok: true, msg: 'schema hợp lệ' }] } })()
+      ? (() => { const errs = validate(loaded.config); return { ok: !errs.length, groups: { core: !errs.length, worker: !errs.length, e2e: !errs.length }, checks: errs.length ? errs.map((e) => ({ ok: false, msg: `schema ${e}`, group: 'core' })) : [{ ok: true, msg: 'schema hợp lệ', group: 'core' }] } })()
       : runDoctor(root, loaded)
   } catch (e) {
     if (!(e instanceof ConfigError)) throw e
-    result = { ok: false, checks: [{ ok: false, msg: e.message }] }
+    result = { ok: false, groups: { core: false, worker: false, e2e: false }, checks: [{ ok: false, msg: e.message, group: 'core' }] }
   }
-  if (!schemaOnly) writeDoctorState(root, result.ok)
+  if (!schemaOnly) writeDoctorState(root, result.ok, result.groups)
   if (json) ctx.stdout.write(JSON.stringify(result) + '\n')
   else {
-    for (const c of result.checks) ctx.stdout.write(`${c.ok ? '✓' : '✗'} ${c.msg}\n`)
+    for (const c of result.checks) ctx.stdout.write(`${c.ok ? '✓' : '✗'} [${c.group}] ${c.msg}\n`)
     const n = result.checks.filter((c) => !c.ok).length
-    ctx.stdout.write(result.ok ? 'ff doctor: xanh\n' : `ff doctor: ĐỎ (${n} lỗi) — sửa bằng /ff-init, không sửa ff.config.yaml bằng tay\n`)
+    const g = result.groups
+    let tail = 'ff doctor: xanh\n'
+    if (!g.core) tail = `ff doctor: ĐỎ nhóm core (${n} lỗi) — skill không chạy được tới khi sửa; sửa bằng /ff-init, không sửa ff.config.yaml bằng tay\n`
+    else if (!result.ok) tail = `ff doctor: ĐỎ nhóm ${['worker', 'e2e'].filter((k) => !g[k]).join(', ')} (${n} lỗi) — skill vẫn chạy; ${!g.worker ? '/ff-worker start sẽ từ chối' : ''}${!g.worker && !g.e2e ? '; ' : ''}${!g.e2e ? 'ff-verify sẽ dừng' : ''}\n`
+    ctx.stdout.write(tail)
   }
   return result.ok ? 0 : 1
 }
@@ -3324,7 +3364,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: `ARTIFACT_GATE`, `isApproved`, `recordGates` (Task 10); `makeGuard` (Task 8).
 - Produces: `evaluate()` thêm 4 luật, chạy trước luật cũ:
-  1. Bash có tham chiếu file secret (`secrets.env_file` và `e2e.auth.jwt.secret.file`, so theo tên file, không khớp `<tên>.example`) mà lệnh đầu đoạn không phải `ff` → chặn.
+  1. Bash có tham chiếu file secret (`secrets.env_file`, `db.env_file`, `e2e.auth.jwt.secret.file`, `e2e.auth_storage`, so theo tên file, không khớp `<tên>.example`) mà lệnh đầu đoạn không phải `ff` → chặn.
   2. Mọi tool có `file` trỏ đúng một file secret (Read, Grep, Edit, Write…) → chặn.
   3. Edit/Write làm **xuất hiện** dòng `> Trạng thái: ĐÃ DUYỆT` trong `brief.md`/`03-design.md`/`05-verify-report.md` dưới `cards_dir` mà chưa có Gate tương ứng được duyệt trong 24 giờ → chặn.
   4. Bash vừa chứa `ĐÃ DUYỆT` vừa ghi file (verb ghi hoặc redirect) → chặn (marker chỉ ghi bằng Edit/Write).
@@ -3388,6 +3428,14 @@ test('file secret của jwt-mint cũng bị chặn', (t) => {
   assert.notEqual(ev({ file: 'api/.env', tool: 'Read' }), null)
   assert.equal(ev({ cmd: 'cat api/.env.example' }), null)
   assert.equal(ev({ file: 'api/.env.example', tool: 'Read' }), null)
+})
+
+test('db.env_file và e2e.auth_storage cũng bị chặn', (t) => {
+  const { ev } = setup(t, (c) => ({ ...c, db: { driver: 'postgres', env_file: 'api/.env.DATABASE' }, e2e: { dir: 'ff-e2e', auth_storage: 'ff-e2e/.auth/state.json' } }))
+  assert.notEqual(ev({ cmd: 'cat api/.env.DATABASE' }), null)
+  assert.notEqual(ev({ file: 'api/.env.DATABASE', tool: 'Read' }), null)
+  assert.notEqual(ev({ cmd: 'cat ff-e2e/.auth/state.json' }), null)
+  assert.notEqual(ev({ file: 'ff-e2e/.auth/state.json', tool: 'Read' }), null)
 })
 
 test('env_file tùy chỉnh', (t) => {
@@ -3471,7 +3519,7 @@ Trong `makeGuard`, ngay trước `function checkLockedFile`, thêm:
 
 ```js
   const cardsDir = path.resolve(root, config.workspace.cards_dir)
-  const secretFiles = [config.secrets.env_file, config.e2e?.auth?.jwt?.secret?.file].filter(Boolean)
+  const secretFiles = [config.secrets.env_file, config.db?.env_file, config.e2e?.auth?.jwt?.secret?.file, config.e2e?.auth_storage].filter(Boolean)
   const secretAbs = new Set(secretFiles.map((f) => path.resolve(root, f)))
   const secretRes = secretFiles.map((f) => new RegExp(`(^|[\\s<>='"/])${escapeRe(path.basename(f))}(?![\\w.-])`))
   const secretMsg = `Không đọc, sửa hay chép file secret (${secretFiles.join(', ')}). Cần biết key có hay chưa → \`ff doctor\`.`
@@ -3634,9 +3682,15 @@ test('session-start: xanh và đỏ, luôn exit 0', async (t) => {
   assert.match(g.out, /ff doctor: xanh/)
   assert.equal(doctorStatus(root), 'green')
   fs.rmSync(path.join(root, '.ff.env'))
+  const w = await runHook('session-start', { cwd: root })
+  assert.equal(w.status, 0)
+  assert.match(w.out, /\/ff-worker start/)
+  assert.equal(doctorStatus(root), 'green')
+  assert.equal(doctorStatus(root, 'worker'), 'red')
+  fs.rmSync(path.join(root, 'trellocards'), { recursive: true })
   const r = await runHook('session-start', { cwd: root })
   assert.equal(r.status, 0)
-  assert.match(r.out, /ĐỎ/)
+  assert.match(r.out, /ĐỎ nhóm core/)
   assert.equal(doctorStatus(root), 'red')
 })
 
@@ -3727,15 +3781,16 @@ if (!root) process.exit(0)
 let lines
 try {
   const r = runDoctor(root, loadConfig(root))
-  writeDoctorState(root, r.ok)
-  lines = r.ok
-    ? ['ff doctor: xanh.']
-    : ['ff doctor: ĐỎ — `ff cfg get` sẽ từ chối tới khi sửa xong:', ...r.checks.filter((c) => !c.ok).map((c) => `- ${c.msg}`), 'Sửa bằng /ff-init, không sửa ff.config.yaml bằng tay.']
+  writeDoctorState(root, r.ok, r.groups)
+  const errs = r.checks.filter((c) => !c.ok).map((c) => `- [${c.group}] ${c.msg}`)
+  if (r.ok) lines = ['ff doctor: xanh.']
+  else if (!r.groups.core) lines = ['ff doctor: ĐỎ nhóm core — `ff cfg get` sẽ từ chối tới khi sửa xong:', ...errs, 'Sửa bằng /ff-init, không sửa ff.config.yaml bằng tay.']
+  else lines = ['ff doctor: skill chạy được; còn thiếu:', ...errs, !r.groups.worker ? 'Điền .ff.env rồi gõ /ff-worker start.' : '']
 } catch (e) {
-  writeDoctorState(root, false)
+  writeDoctorState(root, false, { core: false, worker: false, e2e: false })
   lines = [`ff doctor: ĐỎ — ${e.message}`, 'Sửa bằng /ff-init.']
 }
-process.stdout.write(lines.join('\n') + '\n')
+process.stdout.write(lines.filter(Boolean).join('\n') + '\n')
 process.exit(0)
 ```
 

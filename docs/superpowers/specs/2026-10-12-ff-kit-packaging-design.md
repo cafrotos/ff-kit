@@ -10,7 +10,7 @@
 **Tiêu chí thành công**
 1. Làm theo `INSTALL.md` trong workspace bất kỳ: có plugin, `CLAUDE.md`, bộ e2e chạy được (`ff-e2e/` hoặc bộ có sẵn), và `ff.config.yaml` hợp lệ do `/ff-init` sinh.
 2. Skills/agents/hooks/scripts không chứa tên repo, đường dẫn, lệnh build/test cứng. Mọi giá trị lấy qua `ff cfg get`.
-3. Config sai/thiếu → `ff doctor` fail rõ ràng, phiên ff bị chặn. Agent không tự bịa giá trị.
+3. Config sai/thiếu → `ff doctor` fail rõ ràng; nhóm core đỏ thì `ff cfg get` từ chối nên skill không chạy tiếp được (D20). Agent không tự bịa giá trị.
 4. ff-worker chạy qua `npx`, daemon trong tmux. `INSTALL.md` đủ để một AI như Claude tự cài.
 5. Channel thông báo là adapter thay được. Mặc định `console`. `rocketchat` đi kèm. Channel **chỉ 1 chiều**.
 6. Mọi dòng Brief/AC/design truy được về câu dossier hoặc quyết định người dùng (`ff trace-check` xanh). Người duyệt quyết được Gate mà không phải hỏi lại để agent diễn đạt lại.
@@ -41,8 +41,9 @@
 | D15 | ff-worker tự restart khi `ff.config.yaml`, `ff.config.lock.json` hoặc `.ff.env` đổi; config mới đỏ thì giữ config cũ và báo lỗi |
 | D16 | `.ff.env` bị cấm đọc bằng 3 lớp: `permissions.deny` trong `.claude/settings.json`, `guard.mjs`, dòng luật trong `CLAUDE.md`. `/ff-init` sinh/bổ sung `.ff.env.example` theo adapter đã chọn |
 | D17 | `workspace.cards_dir` mặc định `trellocards` |
-| D19 | Đăng nhập e2e kiểu `jwt-mint`: config chỉ mô tả **cách** ký và đưa token (file + key secret, thuật toán, payload, cách đưa, URL kiểm). **User nào** do từng bài test tự tạo/chọn, không nằm trong config. Có pre-check offline (doctor) và online (`ff e2e-auth-check --email`) |
 | D18 | Plugin kèm template `templates/ff-e2e/` (Playwright). `INSTALL.md` dựng `ff-e2e/` nằm chung workspace (không `git init` riêng) bằng `ff e2e-scaffold`, trừ khi người dùng chọn dùng bộ e2e có sẵn. Code test đọc thẳng `ff.config.yaml` |
+| D19 | Đăng nhập e2e kiểu `jwt-mint`: config chỉ mô tả **cách** ký và đưa token (file + key secret, thuật toán, payload, cách đưa, URL kiểm). **User nào** do từng bài test tự tạo/chọn, không nằm trong config. Có pre-check offline (doctor) và online (`ff e2e-auth-check --email`) |
+| D20 | `ff doctor` chia 3 nhóm kiểm: **core** (schema, repo, lệnh, nguồn), **worker** (key adapter), **e2e** (bộ Playwright, key/secret đăng nhập). Chỉ core đỏ mới làm `ff cfg get` từ chối; worker đỏ chỉ chặn `/ff-worker start`; e2e đỏ chỉ chặn ff-verify. Chạy skill tay khi chưa có key Trello vẫn được |
 
 ## 3. Cấu trúc repo
 
@@ -140,7 +141,7 @@ secrets: { env_file: .ff.env }         # chỉ trỏ file, không chứa giá tr
 | `worker start/stop/status/logs` | `worker.*`, `secrets.env_file` |
 
 ### 4.2 `ff.config.lock.json`
-Cạnh YAML, ghi `source` cho từng giá trị: `file:line` (đọc từ repo/AGENTS.md) hoặc `user` (người dùng xác nhận). Giá trị không có nguồn thì không được ghi.
+Cạnh YAML, ghi `source` cho từng giá trị: `file:<path>:<dòng>` (đọc từ repo/AGENTS.md), `user` (người dùng xác nhận) hoặc `default` (chỉ hợp lệ khi giá trị bằng mặc định của ff-kit). Giá trị không có nguồn thì không được ghi. Không dùng file secret làm nguồn.
 
 ### 4.3 `/ff-init` (có LLM; chạy lần đầu, chạy lại được)
 
@@ -152,9 +153,10 @@ Tiền kiểm, tmux, `/init` của Claude và bộ e2e thuộc giai đoạn cài
 |---|---|---|
 | 1. Dò workspace | Đọc `CLAUDE.md`, `AGENTS.md`, `package.json`/`Makefile`/CI của từng repo; tìm repo con bằng git; dò cổng dev server từ script `dev`/`start` (cho `e2e.apps`); dò cách đăng nhập: chỗ backend ký JWT (`jwt.sign`, `JwtService.sign` → payload, tên key secret), chỗ frontend nhận token (`searchParams.get(...)`, `localStorage.setItem(...)` → cách đưa token), endpoint kiểu `/me` (→ `verify.url`); mỗi giá trị kèm `file:line`. Chi tiết `skills/ff-init/references/detect.md` | Danh sách ứng viên cho mọi trường bắt buộc |
 | 2. Hỏi khi mơ hồ | Trường có bằng chứng → ghi kèm `source`. Mơ hồ/nhiều ứng viên → 1 câu `AskUserQuestion` có lựa chọn → `source: user`. Hỏi: adapter (TaskSource, Channel; mặc định `console`), app + base URL, health URL, cách đăng nhập e2e | Không trường bắt buộc nào thiếu nguồn |
-| 3. Ghi file | `ff.config.yaml` + lock; `ff env-example` (§4.5); khối luật vào `CLAUDE.md`; deny vào `.claude/settings.json`; `.gitignore` thêm `.ff.env`, `.ff/`, `ff-e2e/.auth/`, `ff-e2e/test-results/`, `ff-e2e/node_modules/` | `ff doctor --schema-only` xanh |
-| 4. `ff doctor` | Chạy đầy đủ. Thiếu key là bình thường ở lần đầu | Ghi kết quả vào báo cáo; không dừng vì thiếu key |
-| 5. Hỏi bật worker | **Chỉ khi doctor xanh** (vd chạy lại `/ff-init` khi key đã có): hỏi "Bật worker ngay? / Để sau". Đồng ý → `ff worker start` (§6.6) | — |
+| 3. Ghi file | `ff.config.yaml` + lock; `ff env-example` (§4.5); khối luật vào `CLAUDE.md`; deny vào `.claude/settings.json` (§4.5); `.gitignore` thêm `.ff.env`, `.ff/`, `<e2e.dir>/.auth/`, `<e2e.dir>/test-results/`, `<e2e.dir>/node_modules/` | `ff doctor --schema-only` xanh |
+| 4. `ff doctor` | Chạy đầy đủ. Nhóm worker/e2e đỏ vì thiếu key là bình thường ở lần đầu (D20) | Core đỏ → báo lỗi + cách sửa, dừng. Worker/e2e đỏ → ghi vào báo cáo, chạy tiếp |
+| 4b. Thử đăng nhập e2e | Chỉ khi `jwt-mint`/`form-login` và server đang bật: hỏi 1 email có sẵn trong DB local (bỏ qua được) → `ff e2e-auth-check --email <email>`. Email không ghi vào config | Kết quả (hoặc "chưa kiểm") vào báo cáo |
+| 5. Hỏi bật worker | **Chỉ khi nhóm core và worker đều xanh** (vd chạy lại `/ff-init` khi key đã có): hỏi "Bật worker ngay? / Để sau". Đồng ý → `ff worker start` (§6.6) | — |
 | 6. Báo cáo | Theo khuôn `references/report.md` (dưới) | — |
 
 **Khuôn báo cáo cuối `/ff-init`** (viết theo `references/writing.md`):
@@ -167,18 +169,19 @@ Tiền kiểm, tmux, `/init` của Claude và bộ e2e thuộc giai đoạn cài
 - Kiểm: path tồn tại; repo là git repo; `base_branch` tồn tại; binary lệnh có trong PATH; adapter đã chọn đủ credential trong `secrets.env_file`.
 - Kiểm `source` còn đúng (dòng đó vẫn chứa giá trị) để phát hiện config lỗi thời.
 - Kiểm e2e: `e2e.dir` có `node_modules/@playwright/test`; trình duyệt chromium của Playwright đã cài; `npx playwright test --list` trong `e2e.dir` chạy được (không cần bật server); `auth.strategy: form-login` → `.ff.env` có `E2E_USER`, `E2E_PASSWORD`.
-- Lỗi → exit ≠ 0. Hook `SessionStart` và `ff cfg get` chặn phiên khi doctor đỏ.
+- Mỗi kiểm thuộc 1 nhóm (D20): core / worker (key adapter) / e2e (bộ Playwright, key `form-login`, secret `jwt-mint`). Ghi `.ff/doctor.json` gồm trạng thái từng nhóm.
+- Có lỗi → exit ≠ 0. Core đỏ → `ff cfg get` từ chối (exit 4). Worker đỏ → `/ff-worker start` từ chối. E2e đỏ → ff-verify dừng ở bước đầu. Hook `SessionStart` chạy doctor và đưa kết quả vào ngữ cảnh phiên; hook không chặn được phiên, việc chặn nằm ở `ff cfg get`.
 
 ### 4.5 Secrets (D16)
 
 **Không ai đọc `.ff.env` ngoài process của worker và CLI `ff`.** 3 lớp chặn:
 1. `.claude/settings.json` của workspace (ff-init thêm, không xóa mục có sẵn):
    ```json
-   { "permissions": { "deny": ["Read(./.ff.env)", "Edit(./.ff.env)", "Write(./.ff.env)", "Read(./**/.env*)"] } }
+   { "permissions": { "deny": ["Read(./.ff.env)", "Edit(./.ff.env)", "Write(./.ff.env)", "Read(./<db.env_file>)", "Read(./<e2e.auth.jwt.secret.file>)", "Read(./<e2e.auth_storage>)"] } }
    ```
-   `Read(./**/.env*)` chỉ thêm khi người dùng đồng ý ở bước 4 (có repo cần agent đọc `.env.example`; plan kiểm deny không chặn nhầm `.env.example`).
-2. `guard.mjs`: chặn Bash có tham chiếu `.ff.env` (cat/less/head/tail/grep/sed/awk/source/cp/base64/`<`), trừ đúng các lệnh `ff …`. Cùng luật áp cho file secret của `jwt-mint` (`e2e.auth.jwt.secret.file`, vd `system-service/.env`): chặn tool đọc/sửa đúng file đó và chặn Bash nhắc tới tên file đó (so theo tên, nên `cd system-service && cat .env` cũng bị chặn).
-3. Khối luật trong `CLAUDE.md`: "Không đọc, in, chép `.ff.env`. Cần biết key có hay chưa → `ff doctor`."
+   Mỗi mục `<…>` chỉ thêm khi trường đó có trong config. Mẫu rộng `Read(./**/.env*)` chỉ thêm khi người dùng đồng ý ở bước 2 của `/ff-init` (spike Plan 1 kiểm deny không chặn nhầm `.env.example`).
+2. `guard.mjs`: chặn Bash có tham chiếu `.ff.env` (cat/less/head/tail/grep/sed/awk/source/cp/base64/`<`), trừ đúng các lệnh `ff …`. Cùng luật áp cho mọi file secret trong config: `db.env_file`, `e2e.auth.jwt.secret.file` (vd `system-service/.env`), `e2e.auth_storage` (chứa token): chặn tool đọc/sửa đúng file đó và chặn Bash nhắc tới tên file đó (so theo tên, nên `cd system-service && cat .env` cũng bị chặn).
+3. Khối luật trong `CLAUDE.md`: "Không đọc, in, chép `.ff.env` và các file secret liệt kê trong `ff.config.yaml` (`db.env_file`, `e2e.auth.jwt.secret.file`, `e2e.auth_storage`). Cần biết key có hay chưa → `ff doctor`."
 
 **`.ff.env.example`:** sinh bằng `ff env-example` từ danh sách key trong code (`ADAPTER_KEYS`) theo adapter đã chọn. Chỉ có tên key + comment chỉ chỗ lấy, giá trị rỗng. Đã có file → chỉ **thêm key còn thiếu**, không sửa/xóa dòng có sẵn. Key theo adapter:
 
@@ -260,12 +263,12 @@ e2e:
 
 | Hook | Matcher | Việc |
 |---|---|---|
-| `SessionStart` | | `ff doctor`; đỏ thì chặn |
-| `PreToolUse` | `AskUserQuestion` | `ff notify`: `kind: gate` nếu header khớp `GATE_*`, ngược lại `kind: ask` |
+| `SessionStart` | | `ff doctor`, đưa kết quả từng nhóm vào ngữ cảnh; worker chưa chạy mà nhóm worker xanh → nhắc `/ff-worker start`. Không chặn được phiên (chặn nằm ở `ff cfg get`, D20) |
+| `PreToolUse` | `AskUserQuestion` | Header `GATE_*` mà câu hỏi không bắt đầu `[#<id>]` → chặn. `GATE_A`/`GATE_B` mà `ff trace-check` đỏ → chặn kèm danh sách lỗi. Còn lại `ff notify`: `kind: gate` (kèm lệnh `tmux attach`) hoặc `kind: ask` |
 | `PostToolUse` | `AskUserQuestion` | ghi câu trả lời vào `.ff/gates/<id>-<gate>.json` |
 | `Notification` | permission/idle | `ff notify kind: attention` |
 | `Stop` | | `ff notify kind: info` nếu phase vừa xong |
-| `PreToolUse` | Bash, Edit/Write | `guard.mjs`: chặn như cũ **và chặn ghi marker `ĐÃ DUYỆT` nếu chưa có file gate chứa đáp án đồng ý** |
+| `PreToolUse` | Bash, Edit/Write/MultiEdit/NotebookEdit, Read, Grep | `guard.mjs`: chặn như cũ; chặn ghi marker `ĐÃ DUYỆT` nếu chưa có file gate chứa đáp án `Duyệt` trong 24 giờ; chặn đọc/sửa file secret (§4.5) |
 
 `ff notify` POST vào HTTP local của worker. Worker không chạy → in stderr, không làm hỏng phiên.
 
@@ -280,7 +283,7 @@ e2e:
    - có `D-xx` không được dòng nào trỏ tới và không nằm trong "Ngoài phạm vi";
    - có dòng trỏ tới mã không tồn tại, hoặc không có cột `Nguồn`;
    - trích nguyên văn trong ledger không còn khớp `01-dossier.md` (dossier đổi sau khi lập ledger).
-5. **Chặn:** `guard.mjs` không cho trình Gate A/B (`AskUserQuestion` header `GATE_A|GATE_B`) khi `trace-check` đỏ.
+5. **Chặn:** hook `PreToolUse(AskUserQuestion)` không cho trình Gate A/B (header `GATE_A|GATE_B`) khi `trace-check` đỏ (§5.2).
 6. **`ff-brief-adversary` thêm hướng 9 "bóp méo dossier":** với từng `D-xx`, so câu gốc với cách Brief diễn giải. Báo 3 loại: đổi nghĩa, bỏ sót, thêm suy luận dossier không nói. Agent nhận ledger + dossier + Brief, không nhận kết luận của người viết (theo addy `doubt-driven`).
 7. **Khi dossier mơ hồ hoặc mâu thuẫn với code:** ghi theo khuôn `MƠ HỒ: <trích D-xx> · Cách hiểu A/B · Hậu quả mỗi cách · Khuyến nghị + căn cứ` (theo addy `context-engineering`). Không tự chọn khi rơi vào 4 ranh giới dừng hỏi.
 
@@ -389,7 +392,7 @@ Giai đoạn **cài đặt** (D14). Chạy 1 lần cho mỗi workspace; chạy l
 |---|---|---|
 | 1. Tiền kiểm | `node -v` (theo `engines`), `git --version`, `claude --version`. Thiếu node/git → dừng, nói lệnh cài, không tự cài | Đủ 3 binary |
 | 2. tmux | `tmux -V`. Thiếu → hỏi (Cài giúp / Tôi tự cài / Hủy). Cài giúp: macOS `brew install tmux` (thiếu brew → không cài brew, chuyển "tự cài"); Debian/Ubuntu `sudo apt-get install -y tmux`; Fedora `sudo dnf install -y tmux`; khác → in lệnh. Lệnh có `sudo` để người dùng tự chạy qua `! <lệnh>`. Windows ngoài WSL → không hỗ trợ, dừng | `tmux -V` chạy được |
-| 3. Plugin | `/plugin marketplace add <repo>` rồi `/plugin install ff-kit` | `ff --version` chạy được |
+| 3. Plugin | `/plugin marketplace add <repo>` rồi `/plugin install ff-kit` | `ff --version` chạy được (cách gọi `ff` — trần hay `${CLAUDE_PLUGIN_ROOT}/bin/ff` — theo kết quả spike Plan 1 Task 1) |
 | 4. `/init` của Claude | Workspace chưa có `CLAUDE.md` → chạy `/init` (headless `claude -p "/init"` nếu spike xác nhận được; không thì nhờ người dùng gõ `/init`). Đã có → bỏ qua, không sửa | `CLAUDE.md` tồn tại |
 | 5. Bộ e2e | Tìm `playwright.config.*` (ngoài `node_modules`, sâu ≤ 3). Có → hỏi "Dùng bộ có sẵn / Dựng ff-e2e mới". Không có hoặc chọn dựng mới → hỏi có dùng DB trong test không, rồi `ff e2e-scaffold --dir ff-e2e [--db …]` (§4.6). Hỏi trước khi chạy `npx playwright install chromium` | `npx playwright test --list` chạy được trong thư mục e2e |
 | 6. `/ff-init` | Gọi `/ff-init` (§4.3) | Báo cáo của `/ff-init` |
@@ -399,14 +402,14 @@ Mỗi bước: lỗi thì dừng, báo nguyên lỗi + bước cần làm lại.
 
 ## 8. Kiểm thử
 
-- `ff doctor`: unit test theo từng loại lỗi (path thiếu, binary thiếu, source lệch, adapter thiếu credential).
+- `ff doctor`: unit test theo từng loại lỗi (path thiếu, binary thiếu, source lệch, adapter thiếu credential). Thiếu key Trello → nhóm worker đỏ nhưng `ff cfg get` vẫn chạy (D20).
 - `ff cfg get`: thiếu key → exit ≠ 0, không in giá trị mặc định.
 - `guard.mjs`: test chặn marker `ĐÃ DUYỆT` khi thiếu/khớp file gate (mở rộng `test-guard.sh`).
 - Adapter: contract test dùng chung cho `console` và `rocketchat` (mock HTTP); lỗi gửi không làm reject task.
 - Orchestrator: test chạy với `console` + TaskSource giả, xác nhận không còn nhánh đợi phản hồi.
 - Grep CI: repo không chứa `oe-hrm`, `system-service`, `trellisflow` (ngoài ví dụ trong docs), `/Users/`, `ff_ask_user`, `ff_submit_gate`.
 - Thử end-to-end: cài vào workspace tiniweb thật theo `INSTALL.md` (chọn "dùng bộ e2e có sẵn"), `/ff-init`, `/ff-worker start` → doctor xanh, worker `ready`. Thêm 1 workspace mẫu rỗng (2 repo giả) → dựng `ff-e2e` mới.
-- `ff trace-check`: unit test cho từng điều kiện fail ở §5.3 mục 4 (D-xx mồ côi, mã không tồn tại, thiếu cột `Nguồn`, trích lệch dossier). `guard.mjs` chặn header `GATE_A|GATE_B` khi trace-check đỏ.
+- `ff trace-check`: unit test cho từng điều kiện fail ở §5.3 mục 4 (D-xx mồ côi, mã không tồn tại, thiếu cột `Nguồn`, trích lệch dossier). Hook `ask-pre` chặn header `GATE_A|GATE_B` khi trace-check đỏ.
 - Grep CI: skills/agents không chứa `CẤM`, `Tuyệt đối`, `TUYỆT ĐỐI`, `BẮT BUỘC` viết hoa kiểu ra lệnh; mỗi `agents/*.md` có `model` và `effort`.
 - Worker reload: sửa YAML hợp lệ → exit `75`, supervisor chạy lại, task giả đang chạy vẫn còn session và được khôi phục; sửa YAML sai → worker giữ config cũ, có `notify(kind: error)`; crash 6 lần/10 phút → supervisor dừng, `state: crashed`.
 - `ff worker start` chạy 2 lần liên tiếp → chỉ 1 session.
@@ -415,7 +418,7 @@ Mỗi bước: lỗi thì dừng, báo nguyên lỗi + bước cần làm lại.
 - `/ff-worker start`: doctor đỏ → không spawn, báo lỗi; xanh → 1 session, báo cáo 5 mục.
 - `ff e2e-scaffold`: đích rỗng → đủ file, `playwright test --list` chạy được; không `--db` → không có `helpers/db.ts`, fixture `db`; đích đã có file → dừng, không ghi đè; không tạo `.git` trong đích.
 - `jwt-mint`: token ký bằng `node:crypto` khớp `jsonwebtoken.verify` cùng secret (test vector); payload thay đúng `{user.*}`, `{uuid}`; biến lạ trong payload → doctor đỏ; `deliver` query/local_storage/cookie đều đăng nhập được trên app mẫu; `ff e2e-auth-check` báo đúng 3 loại lỗi (không có user, 401, mất kết nối); không lệnh nào in token.
-- Guard: `cat system-service/.env`, `cd system-service && cat .env`, Read đúng file secret JWT → chặn.
+- Guard: `cat system-service/.env`, `cd system-service && cat .env`, Read đúng file secret JWT, `db.env_file`, `e2e.auth_storage` → chặn.
 - Template ff-e2e: `playwright.config.ts` sinh đúng số project theo `e2e.apps`; `global-setup` báo lỗi tiếng Việt khi health URL không kết nối được; `helpers/env.ts` tìm được `ff.config.yaml` khi chạy từ thư mục con.
 - Chặn `.ff.env`: `Read(.ff.env)` bị từ chối bởi deny; `cat .ff.env`, `grep X .ff.env`, `source .ff.env` bị guard chặn; `ff doctor` vẫn báo có/thiếu key; `.env.example` của repo vẫn đọc được với mẫu deny mặc định.
 - **Đo trước/sau trên 2–3 thẻ cũ của tiniweb** (chạy bộ ff cũ và ff-kit trên cùng dossier). Chỉ số: số `D-xx` bị bỏ sót/bóp méo (người dùng chấm theo ledger); số lần người dùng phải hỏi lại tại Gate; `ff-gate-reader` trả lời đúng ở vòng 1; tổng token. ff-kit không được tệ hơn bản cũ ở chỉ số nào; dùng kết quả để chốt `effort`.
@@ -464,7 +467,7 @@ Số trong ngoặc = (dòng / số chỗ hardcode / số chỗ giọng gắt) đ
 | `ff-understand/references/agents.md` (70/13/0) | giữ | H M. Bảng agent thêm `ff-gate-reader`; ghi `model` + `effort` từng agent; bỏ mô tả MCP bridge |
 | `ff-understand/briefs/adversary.md` (39/2/0) | giữ | H. Đầu vào: ledger + dossier + Brief. Thêm hướng 9 "bóp méo dossier" (§5.3 mục 6); định dạng kết quả thêm dòng 9 |
 | `ff-understand/briefs/design-review.md` (33/5/0) | giữ | H. Kiểm thêm: mỗi thành phần design có `Nguồn` |
-| `ff-understand/briefs/observe.md` (33/3/0) | giữ | H. `ff mcp-auth`; app/port lấy từ config |
+| `ff-understand/briefs/observe.md` (33/3/0) | giữ | H. `ff mcp-auth --email <email theo Brief>`; app/port lấy từ `e2e.apps` |
 | — | `ff-understand/briefs/gate-reader.md` (mới) | Brief cho `ff-gate-reader`: chỉ nhận phần chính Gate; 3 câu phải trả lời; định dạng `ĐỦ | THIẾU: <câu không trả lời được>` |
 | `ff-build/SKILL.md` (82/18/0) | giữ | H M P. Bỏ 3 `ff_notify`. Thêm đoạn giới hạn phạm vi. Mọi `ff.sh` → `ff` |
 | `ff-build/references/plan-slice.md` (78/5/1) | giữ | H P. `yarn tsc` → `repos[].commands.typecheck`. Slice trỏ `D-xx`/AC |
@@ -474,7 +477,7 @@ Số trong ngoặc = (dòng / số chỗ hardcode / số chỗ giọng gắt) đ
 | `ff-build/briefs/implement-micro.md` (34/2/0) | giữ | H P. Rút gọn cho Haiku; giữ yêu cầu chạy check thật |
 | `ff-build/briefs/test-writer.md` (31/3/1) | giữ | H P |
 | `ff-build/briefs/diff-review.md` (39/1/0) | giữ | H. Kiểm thêm: hunk ngoài các `D-xx`/AC → báo "ngoài phạm vi" |
-| `ff-verify/SKILL.md` (89/18/2) | giữ | H M P W. Gate C → `AskUserQuestion` theo khuôn §5.4 (kết luận ĐẠT/CHƯA ĐẠT, mỗi `D-xx` đạt/không). Verify lock → `ff verify-lock`. `yarn migration:run` → `repos[].commands.migrate` |
+| `ff-verify/SKILL.md` (89/18/2) | giữ | H M P W. Bước đầu: `ff doctor` nhóm e2e xanh, `ff e2e-auth-check --email <user test của thẻ>`. Gate C → `AskUserQuestion` theo khuôn §5.4 (kết luận ĐẠT/CHƯA ĐẠT, mỗi `D-xx` đạt/không). Verify lock → `ff verify-lock`. `yarn migration:run` → `repos[].commands.migrate` |
 | `ff-verify/references/report.md` (96/5/0) | giữ | H W. Bảng AC thêm cột `D-xx`. Phần chính theo khuôn Gate, bảng chi tiết vào phụ lục |
 | `ff-verify/references/measure.md` (94/12/2) | giữ | H P. `ff db-query`; file query mẫu từ `project_docs.verification_queries_dir` |
 | `ff-verify/references/proof-discipline.md` (112/4/1) | giữ | H P |
@@ -500,8 +503,9 @@ Số trong ngoặc = (dòng / số chỗ hardcode / số chỗ giọng gắt) đ
 |---|---|---|
 | `ff.sh` (491/45/5) | `bin/ff` + `scripts/cli/<lệnh>.mjs` | Viết lại bằng Node, mỗi lệnh 1 file: `sync state copy squash-check verify-up verify-down mcp-auth ship-approve ac-matrix e2e-lint design-check lock-tests relock allow db-query probe-slice` + mới `cfg doctor env-example notify verify-lock ship-request trace-check e2e-scaffold worker`. Thông báo lỗi giữ tiếng Việt |
 | `ff-common.mjs` (41/3/0) | `scripts/lib/config.mjs` | Bỏ `trellisflow` cứng; đọc YAML qua 1 loader dùng chung với `doctor` |
-| `guard.mjs` (359/10/0) | `scripts/guard.mjs` | Đọc `guard.*`, `repos[]` từ config. Thêm: chặn marker `ĐÃ DUYỆT` thiếu file gate (§5.2); chặn `GATE_A|GATE_B` khi trace-check đỏ (§5.3); chặn đọc `.ff.env` (§4.5) |
-| `allow.mjs`, `design-check.mjs`, `ac-matrix.mjs`, `e2e-lint.mjs`, `probe-slice.mjs`, `db-query.mjs`, `mcp-auth.mjs` | `scripts/cli/` | H; đường dẫn theo config; `db-query` đọc `db.env_file` trong process |
+| `guard.mjs` (359/10/0) | `scripts/guard.mjs` | Đọc `guard.*`, `repos[]` từ config. Thêm: chặn marker `ĐÃ DUYỆT` thiếu file gate (§5.2); chặn đọc file secret (§4.5). Chặn Gate khi trace-check đỏ nằm ở hook `ask-pre`, không ở guard |
+| `allow.mjs`, `design-check.mjs`, `ac-matrix.mjs`, `e2e-lint.mjs`, `probe-slice.mjs`, `db-query.mjs` | `scripts/cli/` | H; đường dẫn theo config; `db-query` đọc `db.env_file` trong process |
+| `mcp-auth.mjs` (55/4/0) | `scripts/cli/mcp-auth.mjs` + mới `e2e-auth-check.mjs`, `scripts/lib/jwt.mjs` | Viết lại theo `jwt-mint` (§4.6): nhận `--email`, tra bằng `jwt.user_lookup`, ký bằng `node:crypto`, ghi `e2e.auth_storage` quyền `0600`; bỏ mượn `pg`/`jsonwebtoken`/`dotenv` từ `system-service`, bỏ danh sách cổng cứng (lấy từ `e2e.apps`) |
 | `hook-dump.mjs` (26) | `scripts/dev/hook-dump.mjs` | Công cụ debug hook, không đăng ký hook mặc định |
 | `test-guard.sh` (199/71/0), `test-tools.sh` (167/7/0), `test-lock.mjs` (71/1/0) | `tests/` | Chạy trên fixture workspace giả trong `tests/fixtures/` (2 repo git giả, `ff.config.yaml` mẫu) thay vì tiniweb thật; giữ nguyên các ca kiểm |
 
