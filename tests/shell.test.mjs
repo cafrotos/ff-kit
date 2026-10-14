@@ -23,6 +23,14 @@ test('headTokens bỏ ( đầu subshell và tiền tố env/sudo', () => {
   assert.deepEqual(headTokens('sudo FOO=1 make x'), ['make', 'x'])
 })
 
+test('headTokens skips wrapper flags and their operands', () => {
+  assert.deepEqual(headTokens('/usr/bin/env -u TOKEN -- /usr/bin/git push'), ['/usr/bin/git', 'push'])
+  assert.deepEqual(headTokens('sudo -n -u root -- /usr/bin/git stash'), ['/usr/bin/git', 'stash'])
+  assert.deepEqual(headTokens('command -p -- git push'), ['git', 'push'])
+  assert.deepEqual(headTokens('timeout --signal=TERM 5s git push'), ['git', 'push'])
+  assert.deepEqual(headTokens("env -S 'git push'"), ['git', 'push'])
+})
+
 test('commandBinaries bỏ builtin, subshell, redirect', () => {
   assert.deepEqual(commandBinaries('cd web && FOO=1 yarn build && sudo make x'), ['yarn', 'make'])
   assert.deepEqual(commandBinaries('export NODE_ENV=test && yarn test'), ['yarn'])

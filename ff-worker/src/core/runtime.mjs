@@ -5,7 +5,7 @@ import { validate } from '../../../scripts/lib/schema.mjs'
 import { runDoctor } from '../../../scripts/lib/doctor.mjs'
 import { acquireVerifyLock, releaseVerifyLock, verifyLockPath } from '../../../scripts/lib/verify-lock.mjs'
 import { createAdapters } from '../adapters/index.mjs'
-import { processTasks } from './worker.mjs'
+import { processTasks, taskIsActive, expireTask, attemptTaskLaunch } from './worker.mjs'
 import { startWorkerHttp } from './http.mjs'
 import { watchConfig } from './reload.mjs'
 import { writeWorkerStatus } from './status.mjs'
@@ -13,7 +13,7 @@ import { Tmux } from './tmux.mjs'
 import { launchAgentTask } from './worker.mjs'
 import { readTask, writeTask } from './task-store.mjs'
 import { findCardDir } from '../../../scripts/lib/cards.mjs'
-import { isApproved } from '../../../scripts/lib/gates.mjs'
+import { isApproved, activeRevision, ledgerFor } from '../../../scripts/lib/gates.mjs'
 
 export function inspectConfig(root) {
   const loaded = loadConfig(root)
@@ -127,13 +127,13 @@ export async function checkCompletedTasks({ root, config, source, channel, tmux,
     if (!task || ['completed', 'failed'].includes(task.phase)) continue
     const card = findCardDir(root, config, id)
     if (!card.dir) continue
-    const report = path.join(card.dir, '05-verify-report.md')
+    const revision = activeRevision(card.dir)
+    const reportRel = [revision, '05-verify-report.md'].filter(Boolean).join('/')
+    const report = path.join(card.dir, reportRel)
     let content
     try { content = fs.readFileSync(report, 'utf8') } catch { continue }
-    const ledgerPath = path.join(card.dir, '01b-ledger.md')
-    let ledger = null
-    try { ledger = fs.readFileSync(ledgerPath, 'utf8') } catch {}
-    if (!isApproved(root, id, 'GATE_C', '05-verify-report.md', content, ledger)) continue
+    const ledger = ledgerFor(card.dir, revision ?? '')
+    if (!isApproved(root, id, 'GATE_C', reportRel, content, ledger)) continue
     const doneList = config.worker.task_source?.trello?.done_list
     try {
       if (!doneList) throw new Error('chưa cấu hình done_list')
@@ -157,17 +157,17 @@ async function recoverTasks(root, config, tmux, log) {
   const dir = path.join(root, '.ff', 'tasks')
   let files = []
   try { files = fs.readdirSync(dir).filter((name) => name.endsWith('.json')) } catch { return }
+  let active = files.map((f) => readTask(root, path.basename(f, '.json'))).filter((task) => task && taskIsActive(task)).length
   for (const file of files) {
     const id = path.basename(file, '.json')
     const task = readTask(root, id)
     if (!task || ['completed', 'failed'].includes(task.phase)) continue
+    const wasActive = taskIsActive(task)
+    if (expireTask({ root, config, task, log })) { active -= Number(wasActive); continue }
+    if (!wasActive && active >= config.worker.max_concurrent_tasks) continue
     const card = { id, trelloCardId: task.trelloCardId ?? id, name: task.slug.replace(/-/g, ' ') }
-    try {
-      const resumed = await launchAgentTask({ root, config, tmux, card, task, resume: true })
-      task.phase = 'running'
-      task.session = resumed.session
-      task.updatedAt = new Date().toISOString()
-      writeTask(root, task)
-    } catch (e) { log(`[ff-worker] không khôi phục được thẻ ${id} (${e.message})\n`) }
+    const running = await attemptTaskLaunch({ root, config, card, task, resume: true, log,
+      launchTask: (nextCard, nextTask, options) => launchAgentTask({ root, config, tmux, card: nextCard, task: nextTask, ...options }) })
+    active += Number(running) - Number(wasActive)
   }
 }

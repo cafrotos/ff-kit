@@ -5336,15 +5336,15 @@ var require_cst_scalar = __commonJS({
       }
       return null;
     }
-    function createScalarToken(value, context) {
-      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context;
+    function createScalarToken(value, context2) {
+      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context2;
       const source = stringifyString.stringifyString({ type, value }, {
         implicitKey,
         indent: indent > 0 ? " ".repeat(indent) : "",
         inFlow,
         options: { blockQuote: true, lineWidth: -1 }
       });
-      const end = context.end ?? [
+      const end = context2.end ?? [
         { type: "newline", offset: -1, indent, source: "\n" }
       ];
       switch (source[0]) {
@@ -5368,8 +5368,8 @@ var require_cst_scalar = __commonJS({
           return { type: "scalar", offset, indent, source, end };
       }
     }
-    function setScalarValue(token, value, context = {}) {
-      let { afterKey = false, implicitKey = false, inFlow = false, type } = context;
+    function setScalarValue(token, value, context2 = {}) {
+      let { afterKey = false, implicitKey = false, inFlow = false, type } = context2;
       let indent = "indent" in token ? token.indent : null;
       if (afterKey && typeof indent === "number")
         indent += 2;
@@ -9091,7 +9091,7 @@ var require_code2 = __commonJS({
       return allSchemaProperties(schemaMap).filter((p) => !(0, util_1.alwaysValidSchema)(it, schemaMap[p]));
     }
     exports.schemaProperties = schemaProperties;
-    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context, passSchema) {
+    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context2, passSchema) {
       const dataAndSchema = passSchema ? (0, codegen_1._)`${schemaCode}, ${data}, ${topSchemaRef}${schemaPath}` : data;
       const valCxt = [
         [names_1.default.instancePath, (0, codegen_1.strConcat)(names_1.default.instancePath, errorPath)],
@@ -9102,7 +9102,7 @@ var require_code2 = __commonJS({
       if (it.opts.dynamicRef)
         valCxt.push([names_1.default.dynamicAnchors, names_1.default.dynamicAnchors]);
       const args = (0, codegen_1._)`${dataAndSchema}, ${gen.object(...valCxt)}`;
-      return context !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context}, ${args})` : (0, codegen_1._)`${func}(${args})`;
+      return context2 !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context2}, ${args})` : (0, codegen_1._)`${func}(${args})`;
     }
     exports.callValidateCode = callValidateCode;
     var newRegExp = (0, codegen_1._)`new RegExp`;
@@ -14936,10 +14936,10 @@ function findCardDir(root2, config, id) {
 }
 
 // scripts/lib/gates.mjs
+var import_yaml2 = __toESM(require_dist(), 1);
 var GATES = ["GATE_A", "GATE_B", "GATE_C"];
 var APPROVE_LABEL = "Duy\u1EC7t";
-var ARTIFACT_GATE = { "brief.md": "GATE_A", "03-design.md": "GATE_B", "05-verify-report.md": "GATE_C" };
-var GATE_ARTIFACT = Object.fromEntries(Object.entries(ARTIFACT_GATE).map(([f, g]) => [g, f]));
+var GATE_ARTIFACT = { GATE_A: "brief.md", GATE_B: "03-design.md", GATE_C: "05-verify-report.md" };
 var STATUS_LINE_RE = /^\s*>?\s*Trạng thái:\s*(?:CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA)\b[\s\d-]*$/;
 var CARD_PREFIX_RE = /^\s*\[#([A-Za-z0-9]+)\]/;
 var lines = (text) => text.replace(/^\uFEFF/, "").normalize("NFC").split(/\r?\n/);
@@ -14972,40 +14972,185 @@ function answerFor(resp, question) {
   }
   return null;
 }
-function artifactHashes(cardDir, gate) {
-  const name = GATE_ARTIFACT[gate];
-  const out = {};
-  const walk = (dir) => {
-    for (const e of fs4.readdirSync(dir, { withFileTypes: true })) {
-      if (e.name.startsWith(".")) continue;
-      const p = path4.join(dir, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (e.name === name) out[path4.relative(cardDir, p).split(path4.sep).join("/")] = bodyHash(fs4.readFileSync(p, "utf8"));
+function activeRevision(cardDir) {
+  const revs = fs4.readdirSync(cardDir, { withFileTypes: true }).filter((e) => e.isDirectory() && /^rev-[1-9]\d*$/.test(e.name)).map((e) => e.name).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
+  return revs[0] ?? null;
+}
+function validateScope(cardDir, scope = "") {
+  if (scope && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope)) throw new Error("scope Gate kh\xF4ng h\u1EE3p l\u1EC7");
+  const dir = path4.resolve(cardDir, scope);
+  const real = fs4.realpathSync(dir), base = fs4.realpathSync(cardDir);
+  if (real !== base && !real.startsWith(base + path4.sep)) throw new Error("scope Gate v\u01B0\u1EE3t kh\u1ECFi th\u1EBB");
+  return dir;
+}
+function gateScope(question) {
+  const rev = question.match(/\[(rev-[1-9]\d*)\]/)?.[1];
+  const task = question.match(/\[(task-\d+(?:-[A-Za-z0-9-]+)?)\]/)?.[1];
+  return [rev, task].filter(Boolean).join("/");
+}
+function validateGateQuestion(cardDir, question) {
+  const scope = gateScope(question), revision = activeRevision(cardDir);
+  if (revision && scope.split("/")[0] !== revision || !revision && scope.startsWith("rev-")) throw new Error(`Gate ph\u1EA3i ch\u1EC9 \u0111\xFAng revision hi\u1EC7n t\u1EA1i ${revision ?? "g\u1ED1c"}`);
+  validateScope(cardDir, scope);
+  return scope;
+}
+function gateFile(root2, cardId, gate, scope = "") {
+  if (!/^[A-Za-z0-9]+$/.test(String(cardId)) || !GATES.includes(gate) || scope && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope)) throw new Error("Gate kh\xF4ng h\u1EE3p l\u1EC7");
+  return path4.join(ffDir(root2), "gates", `${cardId}${scope ? "-" + scope.replaceAll("/", "-") : ""}-${gate}.json`);
+}
+function scopeOf(relPath) {
+  const parts = relPath.split("/");
+  return parts.length > 1 ? parts.slice(0, -1).join("/") : "";
+}
+function scopedFiles(cardDir, scope, filename) {
+  const dir = validateScope(cardDir, scope), out = {};
+  function walk(current) {
+    for (const entry of fs4.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || !scope && /^rev-\d+$/.test(entry.name)) continue;
+      const file = path4.join(current, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (entry.isFile() && entry.name === filename) out[path4.relative(cardDir, file).split(path4.sep).join("/")] = bodyHash(fs4.readFileSync(file, "utf8"));
     }
-  };
-  walk(cardDir);
+  }
+  walk(dir);
   return out;
 }
-var gateFile = (root2, cardId, gate) => path4.join(ffDir(root2), "gates", `${cardId}-${gate}.json`);
+function designArtifacts(cardDir, scope = "") {
+  const hashes = scopedFiles(cardDir, scope, "03-design.md");
+  const parent = [scope, "03-design.md"].filter(Boolean).join("/");
+  if (Object.keys(hashes).some((rel) => rel !== parent && /(?:^|\/)task-\d+(?:-[A-Za-z0-9-]+)?\/03-design\.md$/.test(rel))) delete hashes[parent];
+  return hashes;
+}
+function ledgerFor(cardDir, scope = "") {
+  const scoped = readOr(path4.join(validateScope(cardDir, scope), "01b-ledger.md"));
+  return scoped ?? readOr(path4.join(cardDir, "01b-ledger.md"));
+}
+function readReceipt(root2, id, gate, scope = "") {
+  try {
+    return JSON.parse(fs4.readFileSync(gateFile(root2, id, gate, scope), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function receiptDigest(root2, id, gate, scope = "") {
+  const text = readOr(gateFile(root2, id, gate, scope));
+  return text === null ? null : sha(text);
+}
+function context(cardDir, scope, gate) {
+  const hashes = {};
+  if (gate !== "GATE_A") {
+    Object.assign(hashes, scopedFiles(cardDir, scope, "02-spec.md"));
+    const aScope = parentScope(scope), aFile = /^rev-/.test(aScope) ? "delta.md" : "brief.md";
+    const rel = [aScope, aFile].filter(Boolean).join("/"), body = readOr(path4.join(cardDir, rel));
+    if (body !== null) hashes[rel] = bodyHash(body);
+    if (scope.includes("/") || /^task-/.test(scope)) {
+      const parentDesign = [parentScope(scope), "03-design.md"].filter(Boolean).join("/"), shared = readOr(path4.join(cardDir, parentDesign));
+      if (shared !== null) hashes[parentDesign] = bodyHash(shared);
+    }
+  }
+  if (gate === "GATE_C") Object.assign(hashes, scopedFiles(cardDir, scope, "03-design.md"));
+  return {
+    dossierHash: readOr(path4.join(cardDir, "01-dossier.md")) === null ? null : sha(readOr(path4.join(cardDir, "01-dossier.md"))),
+    rootLedgerHash: readOr(path4.join(cardDir, "01b-ledger.md")) === null ? null : sha(readOr(path4.join(cardDir, "01b-ledger.md"))),
+    contextHashes: hashes
+  };
+}
+function storeReceipt(root2, id, gate, scope, receipt) {
+  const file = gateFile(root2, id, gate, scope);
+  fs4.mkdirSync(path4.dirname(file), { recursive: true, mode: 448 });
+  const dir = fs4.realpathSync(path4.dirname(file));
+  if (!dir.startsWith(fs4.realpathSync(root2) + path4.sep) || fs4.existsSync(file) && fs4.lstatSync(file).isSymbolicLink()) throw new Error("\u0111\u01B0\u1EDDng d\u1EABn Gate kh\xF4ng an to\xE0n");
+  const temp = `${file}.${crypto.randomUUID()}.tmp`;
+  fs4.writeFileSync(temp, JSON.stringify(receipt, null, 2) + "\n", { mode: 384 });
+  fs4.renameSync(temp, file);
+}
+function parentScope(scope) {
+  return scope.includes("/") ? scope.split("/")[0] : /^task-/.test(scope) ? "" : scope;
+}
+function dependenciesFor(root2, id, cardDir, scope, gate) {
+  if (gate === "GATE_A") return [];
+  const dependencies = [], aScope = parentScope(scope);
+  const add = (sourceGate, rel) => {
+    const ownScope = scopeOf(rel);
+    const rec = readReceipt(root2, id, sourceGate, ownScope) ?? (!ownScope.startsWith("rev-") ? readReceipt(root2, id, sourceGate) : null);
+    if (!rec) {
+      if (scope.startsWith("rev-")) throw new Error(`${sourceGate} hi\u1EC7n t\u1EA1i ch\u01B0a c\xF3 b\u1EA3n ghi`);
+      return;
+    }
+    if (!["approved", "auto_passed"].includes(gateStatus(root2, id, sourceGate, rel, readOr(path4.join(cardDir, rel)), ledgerFor(cardDir, ownScope)))) throw new Error(`${sourceGate} hi\u1EC7n t\u1EA1i ch\u01B0a h\u1EE3p l\u1EC7`);
+    const receiptScope = rec.scope ?? "";
+    if (!dependencies.some((d) => d.gate === sourceGate && d.scope === receiptScope)) dependencies.push({ gate: sourceGate, scope: receiptScope, digest: receiptDigest(root2, id, sourceGate, receiptScope) });
+  };
+  add("GATE_A", [aScope, scope.startsWith("rev-") ? "delta.md" : "brief.md"].filter(Boolean).join("/"));
+  if (gate === "GATE_C") {
+    const designs = designArtifacts(cardDir, scope);
+    for (const rel of Object.keys(designs)) add("GATE_B", rel);
+    if (!Object.keys(designs).length && scope.startsWith("rev-")) throw new Error("revision thi\u1EBFu design/Gate B");
+  }
+  return dependencies;
+}
+function gateStatus(root2, cardId, gate, relPath, content, ledgerText = null) {
+  const scope = scopeOf(relPath);
+  const r = readReceipt(root2, cardId, gate, scope) ?? (!scope.startsWith("rev-") ? readReceipt(root2, cardId, gate) : null);
+  if (!r || r.approved !== true && r.status !== "auto_passed") return "pending";
+  try {
+    const receiptScope = r.scope ?? "";
+    const cardDir = r.cardDir ? path4.resolve(root2, r.cardDir) : null;
+    if (r.hashes?.[relPath] !== bodyHash(content ?? "")) return "stale";
+    const effectiveLedger = cardDir && scope !== receiptScope ? ledgerFor(cardDir, receiptScope) : ledgerText;
+    if (r.ledgerHash != null && (effectiveLedger === null || sha(effectiveLedger) !== r.ledgerHash)) return "stale";
+    if (cardDir) {
+      if (!fs4.realpathSync(cardDir).startsWith(fs4.realpathSync(root2) + path4.sep)) return "stale";
+      validateScope(cardDir, receiptScope);
+      for (const [rel, expected] of Object.entries({ ...r.hashes, ...r.contextHashes })) {
+        const actual = readOr(path4.join(cardDir, rel));
+        if (actual === null || bodyHash(actual) !== expected) return "stale";
+      }
+      const now = context(cardDir, receiptScope, gate);
+      if (now.dossierHash !== r.dossierHash || now.rootLedgerHash !== r.rootLedgerHash) return "stale";
+      if (JSON.stringify(now.contextHashes) !== JSON.stringify(r.contextHashes ?? {})) return "stale";
+      for (const dep of r.dependencies ?? []) {
+        if (receiptDigest(root2, cardId, dep.gate, dep.scope) !== dep.digest) return "stale";
+        const receipt = readReceipt(root2, cardId, dep.gate, dep.scope);
+        for (const rel of Object.keys(receipt?.hashes ?? {})) {
+          const actual = readOr(path4.join(cardDir, rel));
+          if (!["approved", "auto_passed"].includes(gateStatus(root2, cardId, dep.gate, rel, actual, ledgerFor(cardDir, dep.scope)))) return "stale";
+        }
+      }
+    }
+    return r.status === "auto_passed" ? "auto_passed" : "approved";
+  } catch {
+    return "stale";
+  }
+}
 function recordGates(root2, config, toolInput, toolResponse, now = /* @__PURE__ */ new Date()) {
   const out = [];
   for (const g of gateQuestions(toolInput)) {
     if (!g.cardId) continue;
     const answer = answerFor(toolResponse, g.question) ?? answerFor(toolInput, g.question);
     const card = findCardDir(root2, config, g.cardId);
+    if (card.error) throw new Error(card.error);
+    const scope = validateGateQuestion(card.dir, g.question);
+    const filename = g.gate === "GATE_A" && scope.startsWith("rev-") ? "delta.md" : GATE_ARTIFACT[g.gate];
+    const artifact = path4.join(card.dir, scope, filename);
+    const hashes = g.gate === "GATE_A" ? fs4.existsSync(artifact) ? { [[scope, filename].filter(Boolean).join("/")]: bodyHash(fs4.readFileSync(artifact, "utf8")) } : {} : scopedFiles(card.dir, scope, filename);
     const rec = {
+      version: 2,
+      receiptId: crypto.randomUUID(),
+      scope,
+      cardDir: path4.relative(root2, card.dir),
       gate: g.gate,
       cardId: g.cardId,
       question: g.question,
       answer,
       approved: (answer ?? "").normalize("NFC").trim() === APPROVE_LABEL,
       at: now.toISOString(),
-      hashes: card.dir ? artifactHashes(card.dir, g.gate) : {},
-      ledgerHash: card.dir && readOr(path4.join(card.dir, "01b-ledger.md")) !== null ? sha(readOr(path4.join(card.dir, "01b-ledger.md"))) : null
+      hashes,
+      ledgerHash: ledgerFor(card.dir, scope) === null ? null : sha(ledgerFor(card.dir, scope)),
+      ...context(card.dir, scope, g.gate),
+      dependencies: (answer ?? "").normalize("NFC").trim() === APPROVE_LABEL ? dependenciesFor(root2, g.cardId, card.dir, scope, g.gate) : []
     };
-    const f = gateFile(root2, g.cardId, g.gate);
-    fs4.mkdirSync(path4.dirname(f), { recursive: true });
-    fs4.writeFileSync(f, JSON.stringify(rec, null, 2) + "\n");
+    storeReceipt(root2, g.cardId, g.gate, scope, rec);
     out.push(rec);
   }
   return out;

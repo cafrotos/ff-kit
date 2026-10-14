@@ -4,11 +4,14 @@
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/session-start.mjs\"", "timeout": 30 }] }
     ],
     "PreToolUse": [
-      { "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/guard.mjs\" --mode base", "timeout": 10 }] },
+      { "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit|Read|Grep", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/guard.mjs\" --mode feature-flow", "timeout": 10 }] },
       { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/ask-pre.mjs\"", "timeout": 15 }] }
     ],
     "PostToolUse": [
       { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/ask-post.mjs\"", "timeout": 10 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/stop.mjs\"", "timeout": 10 }] }
     ],
     "Notification": [
       { "matcher": "permission_prompt|idle_prompt", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/notification.mjs\"", "timeout": 10 }] }

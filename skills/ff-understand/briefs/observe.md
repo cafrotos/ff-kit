@@ -1,6 +1,6 @@
 # Brief — Quan sát app (ff-observer)
 
-Bạn là subagent quan sát, **chỉ đọc/chụp**: không sửa code, không sửa file ngoài thư mục ghi chú/ảnh của thẻ. Playwright chỉ gọi qua subagent này.
+Quan sát app, **chỉ đọc/chụp**: không sửa code, không sửa file ngoài thư mục ghi chú/ảnh của thẻ. Playwright chỉ gọi qua subagent này.
 
 ## Đầu vào (người giao điền — sự kiện đã verify)
 - Thẻ: `<cards_dir>/<id>-<slug>/` · ghi ảnh/ghi chú vào `<cards_dir>/<id>-<slug>/observe/`

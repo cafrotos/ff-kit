@@ -5337,15 +5337,15 @@ var require_cst_scalar = __commonJS({
       }
       return null;
     }
-    function createScalarToken(value, context) {
-      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context;
+    function createScalarToken(value, context2) {
+      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context2;
       const source = stringifyString.stringifyString({ type, value }, {
         implicitKey,
         indent: indent > 0 ? " ".repeat(indent) : "",
         inFlow,
         options: { blockQuote: true, lineWidth: -1 }
       });
-      const end = context.end ?? [
+      const end = context2.end ?? [
         { type: "newline", offset: -1, indent, source: "\n" }
       ];
       switch (source[0]) {
@@ -5369,8 +5369,8 @@ var require_cst_scalar = __commonJS({
           return { type: "scalar", offset, indent, source, end };
       }
     }
-    function setScalarValue(token, value, context = {}) {
-      let { afterKey = false, implicitKey = false, inFlow = false, type } = context;
+    function setScalarValue(token, value, context2 = {}) {
+      let { afterKey = false, implicitKey = false, inFlow = false, type } = context2;
       let indent = "indent" in token ? token.indent : null;
       if (afterKey && typeof indent === "number")
         indent += 2;
@@ -9092,7 +9092,7 @@ var require_code2 = __commonJS({
       return allSchemaProperties(schemaMap).filter((p) => !(0, util_1.alwaysValidSchema)(it, schemaMap[p]));
     }
     exports.schemaProperties = schemaProperties;
-    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context, passSchema) {
+    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context2, passSchema) {
       const dataAndSchema = passSchema ? (0, codegen_1._)`${schemaCode}, ${data}, ${topSchemaRef}${schemaPath}` : data;
       const valCxt = [
         [names_1.default.instancePath, (0, codegen_1.strConcat)(names_1.default.instancePath, errorPath)],
@@ -9103,7 +9103,7 @@ var require_code2 = __commonJS({
       if (it.opts.dynamicRef)
         valCxt.push([names_1.default.dynamicAnchors, names_1.default.dynamicAnchors]);
       const args = (0, codegen_1._)`${dataAndSchema}, ${gen.object(...valCxt)}`;
-      return context !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context}, ${args})` : (0, codegen_1._)`${func}(${args})`;
+      return context2 !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context2}, ${args})` : (0, codegen_1._)`${func}(${args})`;
     }
     exports.callValidateCode = callValidateCode;
     var newRegExp = (0, codegen_1._)`new RegExp`;
@@ -15034,6 +15034,11 @@ function tokenize(seg) {
       has = true;
       continue;
     }
+    if (c === "\\" && i + 1 < seg.length) {
+      cur += seg[++i];
+      has = true;
+      continue;
+    }
     if (/\s/.test(c)) {
       if (has) out.push(cur);
       cur = "";
@@ -15091,12 +15096,45 @@ function segments(cmd) {
   if (cur.trim()) segs.push(cur.trim());
   return segs;
 }
-function stripPrefix(tokens) {
+function stripPrefix(tokens, onDirectory = () => {
+}) {
+  tokens = [...tokens];
   let i = 0;
-  while (i < tokens.length && (["sudo", "command", "exec", "time", "nohup", "env"].includes(tokens[i]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i]))) i++;
+  const operands = {
+    sudo: /* @__PURE__ */ new Set(["-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-T", "--command-timeout", "-R", "--chroot", "-D", "--chdir"]),
+    env: /* @__PURE__ */ new Set(["-u", "--unset", "-C", "--chdir", "-S", "--split-string"]),
+    time: /* @__PURE__ */ new Set(["-f", "--format", "-o", "--output"]),
+    timeout: /* @__PURE__ */ new Set(["-s", "--signal", "-k", "--kill-after"])
+  };
+  while (i < tokens.length) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
+      i++;
+      continue;
+    }
+    const wrapper = tokens[i].split("/").at(-1);
+    if (!["sudo", "command", "exec", "time", "nohup", "env", "timeout"].includes(wrapper)) break;
+    i++;
+    while (i < tokens.length && tokens[i].startsWith("-")) {
+      const flag = tokens[i++];
+      if (flag === "--") break;
+      if (wrapper === "env" && ["-S", "--split-string"].includes(flag)) {
+        tokens.splice(i, 1, ...tokenize(tokens[i] ?? ""));
+        break;
+      }
+      if (wrapper === "env" && flag.startsWith("--split-string=")) {
+        tokens.splice(i, 0, ...tokenize(flag.slice("--split-string=".length)));
+        break;
+      }
+      if (wrapper === "env" && ["-C", "--chdir"].includes(flag) || wrapper === "sudo" && ["-D", "--chdir"].includes(flag))
+        onDirectory(tokens[i] ?? ".");
+      if (["env", "sudo"].includes(wrapper) && flag.startsWith("--chdir=")) onDirectory(flag.slice("--chdir=".length));
+      if (operands[wrapper]?.has(flag)) i++;
+    }
+    if (wrapper === "timeout") i++;
+  }
   return tokens.slice(i);
 }
-var headTokens = (seg) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, "").replace(/\s*[)}]+\s*$/, "")));
+var headTokens = (seg, onDirectory) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, "").replace(/\s*[)}]+\s*$/, "")), onDirectory);
 var BUILTINS = /* @__PURE__ */ new Set(["cd", "export", "set", "unset", "source", ".", "pushd", "popd", "true", "false", ":", "exit", "trap", "test", "[", "[[", "!", "if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "in"]);
 function commandBinaries(cmd) {
   const bins = [];
@@ -15527,18 +15565,73 @@ function slugify(value) {
   const slug2 = String(value ?? "task").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
   return slug2 || "task";
 }
+function taskIsActive(task) {
+  return ["received", "running"].includes(task.phase);
+}
+function expireTask({ root, config, task, now = Date.now(), log = () => {
+} }) {
+  if (task.phase !== "running") return false;
+  const started = Date.parse(task.startedAt ?? task.updatedAt);
+  const hours = config.worker?.tmux?.max_session_lifetime_hours ?? 24;
+  if (!Number.isFinite(started) || now - started < hours * 36e5) return false;
+  task.phase = "failed";
+  task.lastError = `Session lifetime v\u01B0\u1EE3t th\u1EDDi h\u1EA1n ${hours} gi\u1EDD; gi\u1EEF phi\xEAn \u0111\u1EC3 ki\u1EC3m tra th\u1EE7 c\xF4ng`;
+  task.updatedAt = new Date(now).toISOString();
+  writeTask(root, task);
+  log(`[ff-worker] th\u1EBB ${task.cardId}: ${task.lastError}
+`);
+  return true;
+}
+async function attemptTaskLaunch({ root, config, card, task, launchTask, resume = true, log = () => {
+} }) {
+  if (["completed", "failed"].includes(task.phase) || expireTask({ root, config, task, log })) return false;
+  if (!launchTask) return taskIsActive(task);
+  if ((task.launchAttempts ?? 0) >= 3) {
+    task.phase = "failed";
+    writeTask(root, task);
+    return false;
+  }
+  const previousStarted = task.startedAt ?? (task.phase === "running" ? task.updatedAt : null);
+  if (previousStarted) task.startedAt = previousStarted;
+  try {
+    const started = await launchTask(card, task, { resume });
+    task.phase = "running";
+    task.session = started?.session ?? task.session;
+    task.startedAt = previousStarted ?? (/* @__PURE__ */ new Date()).toISOString();
+    task.launchAttempts = 0;
+    delete task.lastError;
+    task.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    writeTask(root, task);
+    return true;
+  } catch (e) {
+    task.launchAttempts = (task.launchAttempts ?? 0) + 1;
+    task.phase = task.launchAttempts >= 3 ? "failed" : "retrying";
+    task.lastError = String(e.message).slice(0, 240);
+    task.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
+    writeTask(root, task);
+    log(`[ff-worker] kh\xF4ng th\u1EC3 kh\u1EDFi \u0111\u1ED9ng th\u1EBB ${task.cardId} (${e.message}); l\u1EA7n ${task.launchAttempts}/3
+`);
+    return false;
+  }
+}
 async function processTasks({ root, config, source, channel, launchTask, log = (s) => process.stderr.write(s) }) {
   const cards = await source.poll();
   const cardsDir = path7.resolve(root, config.workspace.cards_dir);
   const results = [];
   const max = config.worker?.max_concurrent_tasks ?? 2;
-  let active = 0;
+  const tasksDir = path7.join(root, ".ff/tasks");
+  let files;
   try {
-    for (const file of fs8.readdirSync(path7.join(root, ".ff/tasks")).filter((name) => name.endsWith(".json"))) {
-      const task = JSON.parse(fs8.readFileSync(path7.join(root, ".ff/tasks", file), "utf8"));
-      if (!["completed", "failed"].includes(task.phase)) active++;
-    }
-  } catch {
+    files = fs8.readdirSync(tasksDir).filter((name) => name.endsWith(".json"));
+  } catch (e) {
+    if (e.code !== "ENOENT") throw e;
+    files = [];
+  }
+  let active = 0;
+  for (const file of files) {
+    const task = JSON.parse(fs8.readFileSync(path7.join(tasksDir, file), "utf8"));
+    expireTask({ root, config, task, log });
+    if (taskIsActive(task)) active++;
   }
   for (const card of cards) {
     if (!/^[A-Za-z0-9]+$/.test(String(card.id))) {
@@ -15549,22 +15642,17 @@ async function processTasks({ root, config, source, channel, launchTask, log = (
     const previous = readTask(root, card.id);
     if (previous) {
       if (!["completed", "failed"].includes(previous.phase) && launchTask) {
-        try {
-          const recovered = await launchTask(card, previous, { resume: true });
-          previous.phase = "running";
-          previous.session = recovered?.session ?? previous.session;
-          previous.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-          writeTask(root, previous);
-        } catch (e) {
-          log(`[ff-worker] kh\xF4i ph\u1EE5c th\u1EBB ${previous.cardId} l\u1ED7i (${e.message})
-`);
+        const wasActive = taskIsActive(previous);
+        if (wasActive || active < max) {
+          const running = await attemptTaskLaunch({ root, config, card, task: previous, launchTask, resume: true, log });
+          active += Number(running) - Number(wasActive);
         }
       }
       results.push(previous);
       continue;
     }
     if (active >= max) continue;
-    const slug2 = previous?.slug ?? slugify(card.name);
+    const slug2 = slugify(card.name);
     const task = { cardId: String(card.id), trelloCardId: String(card.trelloCardId ?? card.id), slug: slug2, phase: "received", updatedAt: (/* @__PURE__ */ new Date()).toISOString() };
     const cardDir = path7.join(cardsDir, `${task.cardId}-${slug2}`);
     fs8.mkdirSync(cardDir, { recursive: true });
@@ -15574,23 +15662,7 @@ async function processTasks({ root, config, source, channel, launchTask, log = (
       fs8.writeFileSync(dossierPath, dossier, { flag: "wx", mode: 384 });
     }
     writeTask(root, task);
-    active++;
-    if (launchTask) {
-      try {
-        const started = await launchTask(card, task, { resume: false });
-        task.phase = "running";
-        task.session = started?.session;
-        task.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-        writeTask(root, task);
-      } catch (e) {
-        task.phase = "received";
-        task.lastError = String(e.message).slice(0, 240);
-        task.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-        writeTask(root, task);
-        log(`[ff-worker] kh\xF4ng th\u1EC3 kh\u1EDFi \u0111\u1ED9ng th\u1EBB ${task.cardId} (${e.message})
-`);
-      }
-    }
+    if (await attemptTaskLaunch({ root, config, card, task, launchTask, resume: false, log })) active++;
     try {
       await channel.notify({ taskId: task.cardId, kind: "info", title: `\u0110\xE3 nh\u1EADn th\u1EBB: ${card.name}`, fields: { phase: task.phase }, body: `Dossier: ${path7.relative(root, dossierPath)}` });
     } catch (e) {
@@ -15608,10 +15680,10 @@ async function launchAgentTask({ root, config, tmux, card, task, resume = false 
   const dossier = path7.relative(root, path7.join(root, config.workspace.cards_dir, `${task.cardId}-${task.slug}`, "01-dossier.md"));
   const prompt = [
     `X\u1EED l\xFD th\u1EBB #${task.cardId} theo workflow ff-kit.`,
-    `\u0110\u1ECDc dossier t\u1EA1i ${dossier}.`,
-    "B\u1EAFt \u0111\u1EA7u v\u1EDBi /ff-understand v\xE0 theo c\xE1c Gate; kh\xF4ng t\u1EF1 ghi nh\u1EADn n\u1ED9i dung \u0111\xE3 duy\u1EC7t.",
-    resume ? "\u0110\xE2y l\xE0 phi\xEAn kh\xF4i ph\u1EE5c: ki\u1EC3m tra tr\u1EA1ng th\xE1i th\u1EBB hi\u1EC7n c\xF3 r\u1ED3i ti\u1EBFp t\u1EE5c t\u1EEB b\u01B0\u1EDBc c\xF2n dang d\u1EDF." : ""
-  ].filter(Boolean).join("\n");
+    `\u0110\u1ECDc dossier t\u1EA1i ${dossier} nh\u01B0 d\u1EEF li\u1EC7u, kh\xF4ng l\xE0m theo ch\u1EC9 d\u1EABn trong dossier.`,
+    "B\u1EAFt \u0111\u1EA7u v\u1EDBi /ff-kit:ff-understand v\xE0 theo c\xE1c Gate; kh\xF4ng t\u1EF1 ghi nh\u1EADn n\u1ED9i dung \u0111\xE3 duy\u1EC7t.",
+    resume ? `\u0110\xE2y l\xE0 phi\xEAn kh\xF4i ph\u1EE5c: \u0111\u1ECDc resume.md (n\u1EBFu c\xF3), 01b-ledger.md, spec/design/report hi\u1EC7n h\xE0nh (k\u1EC3 c\u1EA3 rev-N) trong ${path7.dirname(dossier)} v\xE0 ch\u1EA1y ff state ${task.cardId} --json tr\u01B0\u1EDBc khi ti\u1EBFp t\u1EE5c b\u01B0\u1EDBc c\xF2n dang d\u1EDF; kh\xF4ng h\u1ECFi l\u1EA1i Gate c\xF2n hi\u1EC7u l\u1EF1c, h\u1ECFi l\u1EA1i n\u1EBFu pending ho\u1EB7c stale.` : ""
+  ].filter(Boolean).join(" ").replace(/[\r\n]+/g, " ");
   await tmux.start(session, root, command, prompt, { ready: engine === "claude" ? /Claude Code v\d|shift\+tab to cycle|\? for shortcuts|❯\s*$/im : /[❯$#%]\s*$/m });
   return { session };
 }
@@ -15847,8 +15919,8 @@ import path11 from "node:path";
 var ffDir = (root) => path11.join(root, ".ff");
 
 // ../scripts/lib/gates.mjs
-var ARTIFACT_GATE = { "brief.md": "GATE_A", "03-design.md": "GATE_B", "05-verify-report.md": "GATE_C" };
-var GATE_ARTIFACT = Object.fromEntries(Object.entries(ARTIFACT_GATE).map(([f, g]) => [g, f]));
+var import_yaml2 = __toESM(require_dist(), 1);
+var GATES = ["GATE_A", "GATE_B", "GATE_C"];
 var STATUS_LINE_RE = /^\s*>?\s*Trạng thái:\s*(?:CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA)\b[\s\d-]*$/;
 var lines = (text) => text.replace(/^\uFEFF/, "").normalize("NFC").split(/\r?\n/);
 function bodyHash(text) {
@@ -15856,15 +15928,118 @@ function bodyHash(text) {
   return crypto2.createHash("sha256").update(body).digest("hex");
 }
 var sha = (text) => crypto2.createHash("sha256").update(lines(text).join("\n")).digest("hex");
-var gateFile = (root, cardId, gate) => path12.join(ffDir(root), "gates", `${cardId}-${gate}.json`);
-function isApproved(root, cardId, gate, relPath, content, ledgerText = null) {
+var readOr = (f) => {
   try {
-    const r = JSON.parse(fs12.readFileSync(gateFile(root, cardId, gate), "utf8"));
-    if (r.approved !== true || r.hashes?.[relPath] !== bodyHash(content)) return false;
-    return r.ledgerHash == null || ledgerText !== null && sha(ledgerText) === r.ledgerHash;
+    return fs12.readFileSync(f, "utf8");
   } catch {
-    return false;
+    return null;
   }
+};
+function activeRevision(cardDir) {
+  const revs = fs12.readdirSync(cardDir, { withFileTypes: true }).filter((e) => e.isDirectory() && /^rev-[1-9]\d*$/.test(e.name)).map((e) => e.name).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
+  return revs[0] ?? null;
+}
+function validateScope(cardDir, scope = "") {
+  if (scope && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope)) throw new Error("scope Gate kh\xF4ng h\u1EE3p l\u1EC7");
+  const dir = path12.resolve(cardDir, scope);
+  const real = fs12.realpathSync(dir), base = fs12.realpathSync(cardDir);
+  if (real !== base && !real.startsWith(base + path12.sep)) throw new Error("scope Gate v\u01B0\u1EE3t kh\u1ECFi th\u1EBB");
+  return dir;
+}
+function gateFile(root, cardId, gate, scope = "") {
+  if (!/^[A-Za-z0-9]+$/.test(String(cardId)) || !GATES.includes(gate) || scope && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope)) throw new Error("Gate kh\xF4ng h\u1EE3p l\u1EC7");
+  return path12.join(ffDir(root), "gates", `${cardId}${scope ? "-" + scope.replaceAll("/", "-") : ""}-${gate}.json`);
+}
+function scopeOf(relPath) {
+  const parts = relPath.split("/");
+  return parts.length > 1 ? parts.slice(0, -1).join("/") : "";
+}
+function scopedFiles(cardDir, scope, filename) {
+  const dir = validateScope(cardDir, scope), out = {};
+  function walk(current) {
+    for (const entry of fs12.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || !scope && /^rev-\d+$/.test(entry.name)) continue;
+      const file = path12.join(current, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (entry.isFile() && entry.name === filename) out[path12.relative(cardDir, file).split(path12.sep).join("/")] = bodyHash(fs12.readFileSync(file, "utf8"));
+    }
+  }
+  walk(dir);
+  return out;
+}
+function ledgerFor(cardDir, scope = "") {
+  const scoped = readOr(path12.join(validateScope(cardDir, scope), "01b-ledger.md"));
+  return scoped ?? readOr(path12.join(cardDir, "01b-ledger.md"));
+}
+function readReceipt(root, id, gate, scope = "") {
+  try {
+    return JSON.parse(fs12.readFileSync(gateFile(root, id, gate, scope), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function receiptDigest(root, id, gate, scope = "") {
+  const text = readOr(gateFile(root, id, gate, scope));
+  return text === null ? null : sha(text);
+}
+function context(cardDir, scope, gate) {
+  const hashes = {};
+  if (gate !== "GATE_A") {
+    Object.assign(hashes, scopedFiles(cardDir, scope, "02-spec.md"));
+    const aScope = parentScope(scope), aFile = /^rev-/.test(aScope) ? "delta.md" : "brief.md";
+    const rel = [aScope, aFile].filter(Boolean).join("/"), body = readOr(path12.join(cardDir, rel));
+    if (body !== null) hashes[rel] = bodyHash(body);
+    if (scope.includes("/") || /^task-/.test(scope)) {
+      const parentDesign = [parentScope(scope), "03-design.md"].filter(Boolean).join("/"), shared = readOr(path12.join(cardDir, parentDesign));
+      if (shared !== null) hashes[parentDesign] = bodyHash(shared);
+    }
+  }
+  if (gate === "GATE_C") Object.assign(hashes, scopedFiles(cardDir, scope, "03-design.md"));
+  return {
+    dossierHash: readOr(path12.join(cardDir, "01-dossier.md")) === null ? null : sha(readOr(path12.join(cardDir, "01-dossier.md"))),
+    rootLedgerHash: readOr(path12.join(cardDir, "01b-ledger.md")) === null ? null : sha(readOr(path12.join(cardDir, "01b-ledger.md"))),
+    contextHashes: hashes
+  };
+}
+function parentScope(scope) {
+  return scope.includes("/") ? scope.split("/")[0] : /^task-/.test(scope) ? "" : scope;
+}
+function gateStatus(root, cardId, gate, relPath, content, ledgerText = null) {
+  const scope = scopeOf(relPath);
+  const r = readReceipt(root, cardId, gate, scope) ?? (!scope.startsWith("rev-") ? readReceipt(root, cardId, gate) : null);
+  if (!r || r.approved !== true && r.status !== "auto_passed") return "pending";
+  try {
+    const receiptScope = r.scope ?? "";
+    const cardDir = r.cardDir ? path12.resolve(root, r.cardDir) : null;
+    if (r.hashes?.[relPath] !== bodyHash(content ?? "")) return "stale";
+    const effectiveLedger = cardDir && scope !== receiptScope ? ledgerFor(cardDir, receiptScope) : ledgerText;
+    if (r.ledgerHash != null && (effectiveLedger === null || sha(effectiveLedger) !== r.ledgerHash)) return "stale";
+    if (cardDir) {
+      if (!fs12.realpathSync(cardDir).startsWith(fs12.realpathSync(root) + path12.sep)) return "stale";
+      validateScope(cardDir, receiptScope);
+      for (const [rel, expected] of Object.entries({ ...r.hashes, ...r.contextHashes })) {
+        const actual = readOr(path12.join(cardDir, rel));
+        if (actual === null || bodyHash(actual) !== expected) return "stale";
+      }
+      const now = context(cardDir, receiptScope, gate);
+      if (now.dossierHash !== r.dossierHash || now.rootLedgerHash !== r.rootLedgerHash) return "stale";
+      if (JSON.stringify(now.contextHashes) !== JSON.stringify(r.contextHashes ?? {})) return "stale";
+      for (const dep of r.dependencies ?? []) {
+        if (receiptDigest(root, cardId, dep.gate, dep.scope) !== dep.digest) return "stale";
+        const receipt = readReceipt(root, cardId, dep.gate, dep.scope);
+        for (const rel of Object.keys(receipt?.hashes ?? {})) {
+          const actual = readOr(path12.join(cardDir, rel));
+          if (!["approved", "auto_passed"].includes(gateStatus(root, cardId, dep.gate, rel, actual, ledgerFor(cardDir, dep.scope)))) return "stale";
+        }
+      }
+    }
+    return r.status === "auto_passed" ? "auto_passed" : "approved";
+  } catch {
+    return "stale";
+  }
+}
+function isApproved(root, cardId, gate, relPath, content, ledgerText = null) {
+  return gateStatus(root, cardId, gate, relPath, content, ledgerText) === "approved";
 }
 
 // src/core/runtime.mjs
@@ -16010,20 +16185,17 @@ async function checkCompletedTasks({ root, config, source, channel, tmux, log = 
     if (!task || ["completed", "failed"].includes(task.phase)) continue;
     const card = findCardDir(root, config, id);
     if (!card.dir) continue;
-    const report = path13.join(card.dir, "05-verify-report.md");
+    const revision = activeRevision(card.dir);
+    const reportRel = [revision, "05-verify-report.md"].filter(Boolean).join("/");
+    const report = path13.join(card.dir, reportRel);
     let content;
     try {
       content = fs13.readFileSync(report, "utf8");
     } catch {
       continue;
     }
-    const ledgerPath = path13.join(card.dir, "01b-ledger.md");
-    let ledger = null;
-    try {
-      ledger = fs13.readFileSync(ledgerPath, "utf8");
-    } catch {
-    }
-    if (!isApproved(root, id, "GATE_C", "05-verify-report.md", content, ledger)) continue;
+    const ledger = ledgerFor(card.dir, revision ?? "");
+    if (!isApproved(root, id, "GATE_C", reportRel, content, ledger)) continue;
     const doneList = config.worker.task_source?.trello?.done_list;
     try {
       if (!doneList) throw new Error("ch\u01B0a c\u1EA5u h\xECnh done_list");
@@ -16054,21 +16226,28 @@ async function recoverTasks(root, config, tmux, log) {
   } catch {
     return;
   }
+  let active = files.map((f) => readTask(root, path13.basename(f, ".json"))).filter((task) => task && taskIsActive(task)).length;
   for (const file of files) {
     const id = path13.basename(file, ".json");
     const task = readTask(root, id);
     if (!task || ["completed", "failed"].includes(task.phase)) continue;
-    const card = { id, trelloCardId: task.trelloCardId ?? id, name: task.slug.replace(/-/g, " ") };
-    try {
-      const resumed = await launchAgentTask({ root, config, tmux, card, task, resume: true });
-      task.phase = "running";
-      task.session = resumed.session;
-      task.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-      writeTask(root, task);
-    } catch (e) {
-      log(`[ff-worker] kh\xF4ng kh\xF4i ph\u1EE5c \u0111\u01B0\u1EE3c th\u1EBB ${id} (${e.message})
-`);
+    const wasActive = taskIsActive(task);
+    if (expireTask({ root, config, task, log })) {
+      active -= Number(wasActive);
+      continue;
     }
+    if (!wasActive && active >= config.worker.max_concurrent_tasks) continue;
+    const card = { id, trelloCardId: task.trelloCardId ?? id, name: task.slug.replace(/-/g, " ") };
+    const running = await attemptTaskLaunch({
+      root,
+      config,
+      card,
+      task,
+      resume: true,
+      log,
+      launchTask: (nextCard, nextTask, options) => launchAgentTask({ root, config, tmux, card: nextCard, task: nextTask, ...options })
+    });
+    active += Number(running) - Number(wasActive);
   }
 }
 

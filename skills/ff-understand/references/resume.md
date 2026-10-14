@@ -5,8 +5,8 @@ File, không phải hội thoại, giữ trạng thái.
 
 ## Phục hồi phiên
 
-1. Đọc theo thứ tự, file nào có thì đọc: dossier, `01b-ledger.md`, `brief.md`, `03-design.md`, `04-plan.md`, `05-verify-report.md`.
-2. Chạy `ff state <id>`. Có bản copy thì chạy `git status` trong đó.
+1. Chạy `ff state <id> --json`, lấy `activeRevision`, `activeDir` và full slug. Đọc dossier/`01b-ledger.md` cấp thẻ; root đọc `brief.md`, revision đọc `<activeDir>/delta.md`; spec/design/plan/report chỉ từ `activeDir` (cụm `task-N/` nếu có).
+2. Có bản copy theo `workspace.worktrees_dir` thì chạy `git status` trong đó. Gate `pending`/`stale` không được coi là đã qua; Gate B `auto_passed` là tự qua có hash, không phải user duyệt.
 3. Nêu 2–3 dòng: đang ở pha nào, việc dở, đang chờ gì. Ví dụ: "Brief đã duyệt, design còn thiếu hợp đồng API; đang chờ bạn chọn Q2."
 4. Gate đã `Duyệt` theo bản ghi Gate và hash thì giữ nguyên. Không suy ra "đã duyệt" từ hội thoại cũ; chỉ bản ghi Gate có giá trị.
 5. Chạy lại lệnh kiểm khi kết quả cũ không được ghi lại, khi code đã đổi, hoặc khi bước sau phụ thuộc vào nó.

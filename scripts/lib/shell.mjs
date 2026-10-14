@@ -18,6 +18,11 @@ export function tokenize(seg) {
       has = true
       continue
     }
+    if (c === '\\' && i + 1 < seg.length) {
+      cur += seg[++i]
+      has = true
+      continue
+    }
     if (/\s/.test(c)) {
       if (has) out.push(cur)
       cur = ''
@@ -81,14 +86,75 @@ export function segments(cmd) {
 }
 
 // Bỏ tiền tố `env`, `A=b`, `sudo`, `command`, `exec`, `time`, `nohup`.
-export function stripPrefix(tokens) {
+export function stripPrefix(tokens, onDirectory = () => {}) {
+  tokens = [...tokens]
   let i = 0
-  while (i < tokens.length && (['sudo', 'command', 'exec', 'time', 'nohup', 'env'].includes(tokens[i]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i]))) i++
+  const operands = {
+    sudo: new Set(['-u', '--user', '-g', '--group', '-h', '--host', '-p', '--prompt', '-C', '--close-from', '-T', '--command-timeout', '-R', '--chroot', '-D', '--chdir']),
+    env: new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']),
+    time: new Set(['-f', '--format', '-o', '--output']),
+    timeout: new Set(['-s', '--signal', '-k', '--kill-after']),
+  }
+  while (i < tokens.length) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) { i++; continue }
+    const wrapper = tokens[i].split('/').at(-1)
+    if (!['sudo', 'command', 'exec', 'time', 'nohup', 'env', 'timeout'].includes(wrapper)) break
+    i++
+    while (i < tokens.length && tokens[i].startsWith('-')) {
+      const flag = tokens[i++]
+      if (flag === '--') break
+      if (wrapper === 'env' && ['-S', '--split-string'].includes(flag)) {
+        tokens.splice(i, 1, ...tokenize(tokens[i] ?? ''))
+        break
+      }
+      if (wrapper === 'env' && flag.startsWith('--split-string=')) {
+        tokens.splice(i, 0, ...tokenize(flag.slice('--split-string='.length)))
+        break
+      }
+      if ((wrapper === 'env' && ['-C', '--chdir'].includes(flag)) || (wrapper === 'sudo' && ['-D', '--chdir'].includes(flag)))
+        onDirectory(tokens[i] ?? '.')
+      if (['env', 'sudo'].includes(wrapper) && flag.startsWith('--chdir=')) onDirectory(flag.slice('--chdir='.length))
+      if (operands[wrapper]?.has(flag)) i++
+    }
+    if (wrapper === 'timeout') i++ // duration follows timeout's options
+  }
   return tokens.slice(i)
 }
 
+// Only unquoted redirections are shell writes; quoted interpreter code is data here.
+// This is deliberately a small shell parser, not an execution sandbox.
+export function redirections(seg) {
+  const out = []
+  let q = null
+  for (let i = 0; i < seg.length; i++) {
+    const c = seg[i]
+    if (c === '\\' && q !== "'") { i++; continue }
+    if (q) { if (c === q) q = null; continue }
+    if (c === '"' || c === "'") { q = c; continue }
+    if (c !== '>' && c !== '<') continue
+    const start = i
+    const write = c === '>'
+    if (seg[i + 1] === c) i++
+    if (seg[i + 1] === '&') { i++; while (/\d|-/.test(seg[i + 1] ?? '') && i + 1 < seg.length) i++; continue }
+    while (/\s/.test(seg[i + 1] ?? '') && i + 1 < seg.length) i++
+    const targetStart = i + 1
+    let targetQ = null
+    while (i + 1 < seg.length) {
+      const next = seg[i + 1]
+      if (next === '\\' && targetQ !== "'") { i += 2; continue }
+      if (targetQ) { i++; if (next === targetQ) targetQ = null; continue }
+      if (next === '"' || next === "'") { targetQ = next; i++; continue }
+      if (/\s|[;&|<>]/.test(next)) break
+      i++
+    }
+    const target = tokenize(seg.slice(targetStart, i + 1))[0]
+    if (target) out.push({ target, write, start, end: i + 1 })
+  }
+  return out
+}
+
 // Token của 1 đoạn lệnh, bỏ `(`/`{` mở và `)`/`}` đóng subshell, bỏ tiền tố.
-export const headTokens = (seg) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, '').replace(/\s*[)}]+\s*$/, '')))
+export const headTokens = (seg, onDirectory) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, '').replace(/\s*[)}]+\s*$/, '')), onDirectory)
 
 const BUILTINS = new Set(['cd', 'export', 'set', 'unset', 'source', '.', 'pushd', 'popd', 'true', 'false', ':', 'exit', 'trap', 'test', '[', '[[', '!', 'if', 'then', 'else', 'elif', 'fi', 'for', 'while', 'until', 'do', 'done', 'case', 'esac', 'in'])
 

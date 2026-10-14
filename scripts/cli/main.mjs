@@ -20,6 +20,8 @@ import { acMatrix, designCheck } from './spec-checks.mjs'
 import * as worker from './worker.mjs'
 import * as verifyLock from './verify-lock.mjs'
 import * as shipRequest from './ship-request.mjs'
+import * as gateAuto from './gate-auto.mjs'
+import * as reopen from './reopen.mjs'
 const VERSION = '0.1.0'
 
 export const COMMANDS = {
@@ -32,6 +34,8 @@ export const COMMANDS = {
   'e2e-auth-check': e2eAuthCheck,
   'e2e-scaffold': e2eScaffold,
   state,
+  'gate-auto': gateAuto,
+  reopen,
   sync,
   copy,
   'squash-check': squashCheck,

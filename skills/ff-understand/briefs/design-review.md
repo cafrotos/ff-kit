@@ -2,11 +2,12 @@
 
 Làm theo `${CLAUDE_PLUGIN_ROOT}/skills/ff-understand/references/doubt.md` (prompt, nhãn, trích).
 
-Bạn review design của một task độc lập với người viết. Chỉ đọc — không sửa file nào.
+Review design của một task độc lập với người viết. Chỉ đọc — không sửa file nào.
 
 ## Đầu vào (người giao việc điền)
-- Brief đã duyệt: `<cards_dir>/<id>-<slug>/[task-x/]brief.md` và spec/AC `02-spec.md` (nếu có; AC sinh từ Brief)
-- Design: `<cards_dir>/<id>-<slug>/[task-x/]03-design.md`
+- activeDir `<đường dẫn từ ff state --json>` · activeRevision `<null | rev-N>`; Brief gốc hoặc delta hiện tại, spec/design/plan lấy trong activeDir.
+- Brief/delta đã duyệt: `<activeDir>/[task-N/]<brief.md hoặc delta.md>` và spec/AC `02-spec.md` (nếu có; AC sinh từ Brief)
+- Design: `<activeDir>/[task-N/]03-design.md`
 - Repo/worktree: lấy từ cấu hình (`ff cfg get repos`) và `ff state <id>`
 
 ## Cách đọc code

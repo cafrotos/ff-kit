@@ -50,14 +50,14 @@ Nhãn trong cây chẩn đoán: `[đã kiểm — nguồn]` (user xác nhận t�
 ## 2. Nhãn theo từng mục
 | Nhãn | Đầu vào bắt buộc | Cách thu thập | Đầu ra |
 |---|---|---|---|
-| **Fix bug** | Triệu chứng (Symptom), Cây giả thuyết (≥2), Thử nghiệm phản chứng | Tái hiện qua Playwright/browser; Tam giác đạc (Code - DB - Runtime); query `project_docs.verification_queries_dir` | Khung chẩn đoán xác nhận nguyên nhân gốc; test tái hiện (fail trước, pass sau); sửa tối thiểu |
+| **Fix bug** | Triệu chứng (Symptom), giả thuyết cạnh tranh nếu chưa rõ nguyên nhân, phép thử phản chứng | Tái hiện qua Playwright/browser; Tam giác đạc (Code - DB - Runtime); query `project_docs.verification_queries_dir` | Khung chẩn đoán xác nhận nguyên nhân gốc; test tái hiện (fail trước, pass sau); sửa tối thiểu |
 | **Nâng cấp** | hiện trạng thật; chỗ khác đọc cùng dữ liệu | `ff-observer` chụp màn hiện tại; codegraph | Trước→Sau; bất biến "phần không đổi giữ nguyên"; AC hồi quy |
 | **Mới** | 2–3 màn đã làm việc tương tự | `ff-observer` chạy màn precedent; codegraph tìm component tái dùng | bảng đối chiếu thành phần (giống / lệch / MỚI + nguồn) |
 
 Task là tập các mục (thẻ 123 = Nâng cấp + Mới).
 
 ### Khung chẩn đoán lỗi cho nhãn "Fix bug" (Hypothesis Diagnosis Framework)
-Khi một mục mang nhãn **Fix bug**, bắt buộc áp dụng quy trình chẩn đoán 3 bước trước khi chốt nguyên nhân và giải pháp:
+Bug Nhỏ đã tái hiện, nguyên nhân trực tiếp có bằng chứng thì ghi triệu chứng → nguyên nhân → test hồi quy. Khi nguyên nhân chưa rõ hoặc có nhiều cách giải thích, áp dụng ba bước sau trước khi chốt:
 1. **Triệu chứng (Symptom)**:
    - *Role*: Người dùng thuộc role nào gặp lỗi (đối chiếu `project_docs.roles_file`).
    - *Bước tái hiện*: Trình tự thao tác chính xác từng bước dẫn đến lỗi.
@@ -74,7 +74,7 @@ Khi một mục mang nhãn **Fix bug**, bắt buộc áp dụng quy trình chẩ
 
 **Khoanh vùng Là / Không là** trước khi dựng cây: bảng 4 dòng Ở đâu / Khi nào / Ai hoặc cái gì / Dạng nào, hai cột Là và Không là. Khác biệt giữa hai cột là ứng viên nguyên nhân; thay đổi trùng thời điểm khởi phát cũng là ứng viên. Bảng chỉ khoanh vùng, chưa kết luận.
 
-**Bảng kiểm** cho mỗi ứng viên: `Nếu đúng thì sẽ thấy…` · `Cách kiểm rẻ nhất` · `Kết quả`. Giữ ít nhất hai ứng viên cạnh tranh; ưu tiên phép thử phân biệt giữa hai ứng viên hơn phép thử chỉ xác nhận một.
+**Bảng kiểm** cho mỗi ứng viên: `Nếu đúng thì sẽ thấy…` · `Cách kiểm rẻ nhất` · `Kết quả`. Khi chưa rõ nguyên nhân, giữ ít nhất hai ứng viên cạnh tranh; ưu tiên phép thử phân biệt giữa hai ứng viên hơn phép thử chỉ xác nhận một.
 
 **Phép thử dừng:** "sửa nguyên nhân này thì lỗi có hết tái diễn không?". Không chắc có thì đó mới là nguyên nhân góp phần; đi tiếp.
 

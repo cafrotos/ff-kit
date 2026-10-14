@@ -41,7 +41,7 @@ test('ff copy refuses a dossier without a branch and keeps existing worktree', a
   assert.equal(fs.existsSync(path.join(ws.root, 'worktrees/123-sample')), false)
 })
 
-test('ff squash-check accepts an unchanged copy and warns about dirty files', async (t) => {
+test('ff squash-check accepts an unchanged copy and rejects dirty files', async (t) => {
   const ws = makeWorkspace({ files: cardFiles() })
   t.after(ws.cleanup)
   const first = capture(ws.root)
@@ -52,6 +52,6 @@ test('ff squash-check accepts an unchanged copy and warns about dirty files', as
   assert.match(ok.buf.out, /squash-check đạt/)
   fs.writeFileSync(path.join(copied, 'dirty.txt'), 'dirty\n')
   const dirty = capture(ws.root)
-  assert.equal(await main(['squash-check', '123'], dirty.ctx), 0)
+  assert.equal(await main(['squash-check', '123'], dirty.ctx), 1)
   assert.match(dirty.buf.out, /chưa commit/)
 })

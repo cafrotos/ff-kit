@@ -1,6 +1,6 @@
 # Luật chung ff-understand / ff-build / ff-verify
 
-Mỗi `SKILL.md` phả mở bằng: "Đọc `rules.md` trước mọi việc." Output tiếng Việt, ngắn, action-first; giữ nguyen code/lệnh/identifier.
+Mỗi `SKILL.md` phải mở bằng: "Đọc `rules.md` trước mọi việc." Output tiếng Việt, ngắn, action-first; giữ nguyên code/lệnh/identifier.
 
 ## 1. Ba điều cấm
 1. Không `git push`. Ngoại lệ duy nhất: `/ff-kit:ship-to-dev` sau khi user xác nhận — vì push có thể cuốn thay đổi lạ vào nhánh chính. Verify PASS không phải là đồng ý.
@@ -10,7 +10,7 @@ Mỗi `SKILL.md` phả mở bằng: "Đọc `rules.md` trước mọi việc." O
 Bị `[ff-guard]` chặn: đọc lý do, làm theo. Không tìm đường vòng (`sed -i` thay Edit, bọc `bash -c`) — vòng guard là phá vỡ hệ thống phân quyền.
 
 ## 2. Repo, nhánh, worktree
-- Workspace gốc là bản gương `base_branch`; **không sửa**. Code chỉ trong `<worktrees_dir>/<id>-<slug>/` do `ff copy <id>` tạo (`ff cfg get workspace.worktrees_dir`).
+- Workspace gốc là bản gương `base_branch`; **không sửa**. Code chỉ trong `<worktrees_dir>/<slug>/` do `ff copy <id>` tạo (`ff cfg get workspace.worktrees_dir`).
 - Branch lấy từ mục Branch của dossier; không đọc được thì dừng báo user.
 - Không add/commit `CLAUDE.md` của repo con.
 
@@ -22,7 +22,7 @@ Bị `[ff-guard]` chặn: đọc lý do, làm theo. Không tìm đường vòng 
 
 ## 4. Subagent
 - Chỉ `sonnet`/`haiku`/`model` trong `agents/*.md`; dùng agent `ff-*`, không `general-purpose`.
-- Brief nêu sự kiện đã verify (repo, branch, đường dẫn, lệnh), không nêu điều kiện. Playwright chỉ qua subagent. Đăng nhập `ff mcp-auth --email <email>`.
+- Brief nêu sự kiện đã verify (repo, branch, đường dẫn, lệnh), không nêu điều kiện. Quan sát browser/Playwright MCP qua subagent; phiên chính chạy lượt CLI nghiệm thu cuối theo ff-verify. Đăng nhập `ff mcp-auth --email <email>`.
 
 ## 5. Service, lint, test
 - Bật/tắt service chỉ qua `ff verify-up`/`ff verify-down`; không `kill`; port bị giữ → báo PID + cwd.
@@ -40,27 +40,31 @@ Bị `[ff-guard]` chặn: đọc lý do, làm theo. Không tìm đường vòng 
 ## 7. Cỡ task
 | Cỡ | Tiêu chí | Quy trình |
 |---|---|---|
-| Nhỏ | ≤3 mục dossier **và** không mục nào Mới **và** mỗi mục 1 màn/luồng. Kiểm lại sau design: ≤5 file, không migration; vượt → nâng "vừa", ghi lý do vào Brief | Brief + design 1 trang; bỏ P1b trừ khi có dòng MỚI; 1 slice; Gate A là gate duy nhất |
+| Nhỏ | ≤3 mục dossier **và** không mục nào Mới **và** mỗi mục 1 màn/luồng. Kiểm lại sau design: ≤5 file, không migration; vượt → nâng "vừa", ghi lý do vào Brief | Brief + design 1 trang; bỏ P1b trừ khi có dòng MỚI; 1 slice; Gate A là lượt duyệt understand duy nhất khi Gate B đủ điều kiện auto_passed; vẫn cần Gate C |
 | Vừa | không Nhỏ, không Lớn | 1 Brief, vài slice, 1 cụm |
 | Lớn | >6 mục dossier **hoặc** >5 quyết định chốt | `references/big-task.md` |
 
 ## 8. Hỏi và duyệt
 Bốn ranh giới dừng hỏi: (1) việc không đảo ngược khi sai (migration, đổi mô hình, xóa dữ liệu); (2) thêm hành vi dossier không xin; (3) hai cách hiểu dẫn tới mô hình dữ liệu khác; (4) quyền/role ảnh hưởng ai thấy gì. Trong 4 ranh giới này, dù đoán được câu trả lời cũng dừng.
 
-`AskUserQuestion`: mỗi lượt 1–4 câu, mỗi câu 2–4 lựa chọn, `header` ≤ 12 ký tự. Câu cần chọn: `Q<n>`. Câu duyệt: lượt riêng, header `GATE_A|GATE_B|GATE_C`, câu hỏi bắt đầu `[#<id>]`, lựa chọn `Duyệt` / `Cần sửa`. Lý do: hai lựa chọn cụ thể giúp user quyết nhanh hơn một câu mở.
+`AskUserQuestion`: mỗi lượt 1–4 câu, mỗi câu 2–4 lựa chọn, `header` ≤ 12 ký tự. Câu cần chọn: `Q<n>`. Câu duyệt: lượt riêng, header `GATE_A|GATE_B|GATE_C`, câu hỏi bắt đầu `[#<id>]`; revision thêm `[rev-N]`, cụm có thể thêm `[task-N]`, lựa chọn `Duyệt` / `Cần sửa`. Lý do: hai lựa chọn cụ thể giúp user quyết nhanh hơn một câu mở.
 
-Thông báo do hook `Notification`/`Stop` lo; không tự ghi `ff_notify`.
+Thông báo do hook `Notification`/`Stop` lo; không tự gọi công cụ thông báo ngoài luồng.
 
 Khuôn Gate trỏ `${CLAUDE_PLUGIN_ROOT}/references/writing.md`.
 
-## 9. Trạng thái file → skill kế tiếp
-| Trạng thái (đọc bằng `ff state <id>`) | Chạy |
+## 9. Trạng thái hiện tại → skill kế tiếp
+Đọc `ff state <id> --json`, dùng `activeRevision`/`activeDir` và `gates`. Root dùng `brief.md`; revision dùng `delta.md`. Marker không cấp quyền.
+
+| Trạng thái Gate hiện tại | Chạy |
 |---|---|
-| Chưa có `brief.md`, hoặc chưa qua Gate A, hoặc chưa có `03-design.md` | `/ff-kit:ff-understand <id>` |
-| Brief + design đã duyệt, chưa có commit trong bản copy | `/ff-kit:ff-build <id>` |
-| Có commit squash + `ff squash-check` xanh, chưa báo cáo verify | `/ff-kit:ff-verify <id>` |
-| Báo cáo verify xong, user xác nhận | `/ff-kit:ship-to-dev` (từ thư mục bản copy) |
-| Có comment mới sau ngày ship, user báo "reopen thẻ X" | `/ff-kit:ff-understand reopen <id>` |
+| Gate A `pending`/`stale`, hoặc Gate B `pending`/`stale` | `/ff-kit:ff-understand <id>` |
+| Gate A `approved`, Gate B `approved`/`auto_passed`, chưa squash | `/ff-kit:ff-build <id>` |
+| Squash-check xanh, Gate C chưa `approved` với report hiện tại | `/ff-kit:ff-verify <id>` |
+| Gate C hiện tại `approved`, user yêu cầu ship và xác nhận ship riêng | `/ff-kit:ship-to-dev` từ bản copy |
+| User yêu cầu reopen | `/ff-kit:ff-understand reopen <id>`; không dùng Gate C cũ |
+
+Auto Gate B do `ff gate-auto` ghi hash, không phải user approval. Hooks/guard hỗ trợ quy trình, không phải OS sandbox; không lách chúng.
 
 ## 10. Để lại dấu
 Commit squash mang trailer `Trello: #<id>` (khớp `scripts/cli/squash-check.mjs`); reopen thêm `Rev: N`. Code vẫn là nguồn sự thật hơn tài liệu cũ.

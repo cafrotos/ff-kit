@@ -35,12 +35,15 @@ function fromHookJson(j) {
   if (!j) return {}
   const tc = j.toolCall ?? {}
   const ti = j.tool_input ?? j.toolInput ?? tc.args ?? j.args ?? j.input ?? j.parameters ?? {}
+  const patch = typeof ti === 'string' ? ti : pick(ti.patch, ti.patchText, ti.input)
+  const files = typeof patch === 'string' ? [...patch.matchAll(/^\*\*\* (?:Update File|Add File|Delete File|Move to):\s*(.+)$/gm)].map((m) => m[1].trim()) : []
   return {
     tool: pick(j.tool_name, j.toolName, tc.name, j.tool, j.name),
     cmd: pick(ti.command, ti.cmd, ti.CommandLine, j.command),
     file: pick(ti.file_path, ti.filePath, ti.notebook_path, ti.path, ti.target_file, ti.TargetFile, ti.AbsolutePath),
     cwd: pick(j.cwd, ti.cwd, ti.workdir, ti.Cwd),
     input: ti,
+    files,
   }
 }
 
@@ -48,13 +51,18 @@ const args = parseArgs(process.argv.slice(2))
 const hook = fromHookJson(readStdinJson())
 const cmd = args.cmd ?? hook.cmd
 const file = args.file ?? hook.file
+const files = args.file ? [args.file] : [...new Set([file, ...(hook.files ?? [])].filter(Boolean))]
 const tool = args.tool ?? hook.tool
 const cwd = path.resolve(args.cwd ?? hook.cwd ?? process.cwd())
-const root = findRoot(cwd) ?? (file ? findRoot(path.dirname(path.resolve(cwd, file))) : null)
+const root = findRoot(cwd) ?? (files[0] ? findRoot(path.dirname(path.resolve(cwd, files[0]))) : null)
 if (!root) process.exit(0)
 
 const G = makeGuard(root, loadConfigOrDefaults(root).config)
-const reason = G.evaluate({ cmd, file, tool, cwd, mode: args.mode, input: hook.input ?? {} })
+let reason = G.evaluate({ cmd, file: files[0], tool, cwd, mode: args.mode, input: hook.input ?? {} })
+for (const target of files.slice(1)) {
+  if (reason) break
+  reason = G.evaluate({ file: target, tool, cwd, mode: args.mode, input: hook.input ?? {} })
+}
 
 if (reason) {
   const msg = `[ff-guard] ${reason}`

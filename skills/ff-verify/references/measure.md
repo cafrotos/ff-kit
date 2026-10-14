@@ -7,7 +7,7 @@ Chỉ ghi kết quả quan sát được trong môi trường đã bật theo `f
 - Nêu điều kiện, role test và dữ liệu đã chuẩn bị.
 - Ghi thao tác UI và kết quả hiển thị; đính kèm ảnh khi hữu ích.
 - Kiểm network request/response có liên quan và console/runtime error.
-- Kiểm DB chỉ khi có query read-only đã được dự án cấu hình. Ghi `chưa đo` khi thiếu quyền hoặc query.
+- Kiểm DB qua `ff db-query` với query SELECT/EXPLAIN đã cấu hình ở `project_docs.verification_queries_dir`; dùng credential least privilege chỉ đọc. CLI dùng transaction read-only, timeout và rollback, từ chối SELECT INTO/lệnh control/function không an toàn. Chế độ read-only không cách ly tác động ngoài DB của extension/hàm có side effect; không chạy SQL không tin cậy. Ghi `chưa đo` khi thiếu quyền hoặc query.
 - Ghi phiên bản/build, thời điểm và môi trường từ nguồn có thể xác minh.
 
 Không suy ra thành công từ việc trang mở được. Mỗi kết luận PASS phải gắn với AC và bằng chứng cụ thể; điều kiện không chạy được là `UNVERIFIED`, kèm lý do và bước còn thiếu.

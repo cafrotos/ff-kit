@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const CODE_RE = /\b([DU]-\d+)\b/g
-const ARTIFACTS = new Set(['brief.md', 'brief-chi-tiet.md', '02-spec.md', '03-design.md'])
+const ARTIFACTS = new Set(['brief.md', 'delta.md', 'brief-chi-tiet.md', '02-spec.md', '03-design.md'])
 const norm = (s) => s.replace(/^\uFEFF/, '').normalize('NFC')
 const squash = (s) => norm(s).replace(/\\\|/g, '|').replace(/[*_`]/g, '').replace(/\s+/g, ' ').trim()
 

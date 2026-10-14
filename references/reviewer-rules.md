@@ -27,7 +27,7 @@ Thêm nhãn vào cuối dòng phát hiện trong định dạng của brief, ví
 | `Ý KIẾN` | Bạn không đồng ý nhưng lập luận vẫn đứng vững; ghi là bất đồng, không phải lỗi |
 | `KHÔNG ĐÁNH GIÁ ĐƯỢC` | Cần kiến thức hoặc dữ liệu bạn không có; nêu rõ, không đoán |
 
-Báo cáo dài mà không có `Ý KIẾN` hay `KHÔNG ĐÁNH GIÁ ĐƯỢC` nào là đáng ngờ: bạn đang chấm như thể biết hết và không có quan điểm riêng.
+Chỉ dùng `Ý KIẾN` hoặc `KHÔNG ĐÁNH GIÁ ĐƯỢC` khi thực sự phù hợp. Không ép reviewer thêm bất đồng hay thiếu dữ liệu cho đủ nhãn; báo cáo không có phát hiện là hợp lệ nếu nêu điều đã kiểm.
 
 ## Mức độ
 

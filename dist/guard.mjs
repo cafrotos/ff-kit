@@ -5337,15 +5337,15 @@ var require_cst_scalar = __commonJS({
       }
       return null;
     }
-    function createScalarToken(value, context) {
-      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context;
+    function createScalarToken(value, context2) {
+      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context2;
       const source = stringifyString.stringifyString({ type, value }, {
         implicitKey,
         indent: indent > 0 ? " ".repeat(indent) : "",
         inFlow,
         options: { blockQuote: true, lineWidth: -1 }
       });
-      const end = context.end ?? [
+      const end = context2.end ?? [
         { type: "newline", offset: -1, indent, source: "\n" }
       ];
       switch (source[0]) {
@@ -5369,8 +5369,8 @@ var require_cst_scalar = __commonJS({
           return { type: "scalar", offset, indent, source, end };
       }
     }
-    function setScalarValue(token, value, context = {}) {
-      let { afterKey = false, implicitKey = false, inFlow = false, type } = context;
+    function setScalarValue(token, value, context2 = {}) {
+      let { afterKey = false, implicitKey = false, inFlow = false, type } = context2;
       let indent = "indent" in token ? token.indent : null;
       if (afterKey && typeof indent === "number")
         indent += 2;
@@ -9092,7 +9092,7 @@ var require_code2 = __commonJS({
       return allSchemaProperties(schemaMap).filter((p) => !(0, util_1.alwaysValidSchema)(it, schemaMap[p]));
     }
     exports.schemaProperties = schemaProperties;
-    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context, passSchema) {
+    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context2, passSchema) {
       const dataAndSchema = passSchema ? (0, codegen_1._)`${schemaCode}, ${data}, ${topSchemaRef}${schemaPath}` : data;
       const valCxt = [
         [names_1.default.instancePath, (0, codegen_1.strConcat)(names_1.default.instancePath, errorPath)],
@@ -9103,7 +9103,7 @@ var require_code2 = __commonJS({
       if (it.opts.dynamicRef)
         valCxt.push([names_1.default.dynamicAnchors, names_1.default.dynamicAnchors]);
       const args2 = (0, codegen_1._)`${dataAndSchema}, ${gen.object(...valCxt)}`;
-      return context !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context}, ${args2})` : (0, codegen_1._)`${func}(${args2})`;
+      return context2 !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context2}, ${args2})` : (0, codegen_1._)`${func}(${args2})`;
     }
     exports.callValidateCode = callValidateCode;
     var newRegExp = (0, codegen_1._)`new RegExp`;
@@ -14905,6 +14905,7 @@ function sanitize(c) {
 import fs4 from "node:fs";
 import path5 from "node:path";
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 
 // scripts/lib/shell.mjs
 function tokenize(seg) {
@@ -14922,6 +14923,11 @@ function tokenize(seg) {
     }
     if (c === '"' || c === "'") {
       q = c;
+      has = true;
+      continue;
+    }
+    if (c === "\\" && i + 1 < seg.length) {
+      cur += seg[++i];
       has = true;
       continue;
     }
@@ -14982,12 +14988,98 @@ function segments(cmd2) {
   if (cur.trim()) segs.push(cur.trim());
   return segs;
 }
-function stripPrefix(tokens) {
+function stripPrefix(tokens, onDirectory = () => {
+}) {
+  tokens = [...tokens];
   let i = 0;
-  while (i < tokens.length && (["sudo", "command", "exec", "time", "nohup", "env"].includes(tokens[i]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i]))) i++;
+  const operands = {
+    sudo: /* @__PURE__ */ new Set(["-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-T", "--command-timeout", "-R", "--chroot", "-D", "--chdir"]),
+    env: /* @__PURE__ */ new Set(["-u", "--unset", "-C", "--chdir", "-S", "--split-string"]),
+    time: /* @__PURE__ */ new Set(["-f", "--format", "-o", "--output"]),
+    timeout: /* @__PURE__ */ new Set(["-s", "--signal", "-k", "--kill-after"])
+  };
+  while (i < tokens.length) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
+      i++;
+      continue;
+    }
+    const wrapper = tokens[i].split("/").at(-1);
+    if (!["sudo", "command", "exec", "time", "nohup", "env", "timeout"].includes(wrapper)) break;
+    i++;
+    while (i < tokens.length && tokens[i].startsWith("-")) {
+      const flag = tokens[i++];
+      if (flag === "--") break;
+      if (wrapper === "env" && ["-S", "--split-string"].includes(flag)) {
+        tokens.splice(i, 1, ...tokenize(tokens[i] ?? ""));
+        break;
+      }
+      if (wrapper === "env" && flag.startsWith("--split-string=")) {
+        tokens.splice(i, 0, ...tokenize(flag.slice("--split-string=".length)));
+        break;
+      }
+      if (wrapper === "env" && ["-C", "--chdir"].includes(flag) || wrapper === "sudo" && ["-D", "--chdir"].includes(flag))
+        onDirectory(tokens[i] ?? ".");
+      if (["env", "sudo"].includes(wrapper) && flag.startsWith("--chdir=")) onDirectory(flag.slice("--chdir=".length));
+      if (operands[wrapper]?.has(flag)) i++;
+    }
+    if (wrapper === "timeout") i++;
+  }
   return tokens.slice(i);
 }
-var headTokens = (seg) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, "").replace(/\s*[)}]+\s*$/, "")));
+function redirections(seg) {
+  const out = [];
+  let q = null;
+  for (let i = 0; i < seg.length; i++) {
+    const c = seg[i];
+    if (c === "\\" && q !== "'") {
+      i++;
+      continue;
+    }
+    if (q) {
+      if (c === q) q = null;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      q = c;
+      continue;
+    }
+    if (c !== ">" && c !== "<") continue;
+    const start = i;
+    const write = c === ">";
+    if (seg[i + 1] === c) i++;
+    if (seg[i + 1] === "&") {
+      i++;
+      while (/\d|-/.test(seg[i + 1] ?? "") && i + 1 < seg.length) i++;
+      continue;
+    }
+    while (/\s/.test(seg[i + 1] ?? "") && i + 1 < seg.length) i++;
+    const targetStart = i + 1;
+    let targetQ = null;
+    while (i + 1 < seg.length) {
+      const next = seg[i + 1];
+      if (next === "\\" && targetQ !== "'") {
+        i += 2;
+        continue;
+      }
+      if (targetQ) {
+        i++;
+        if (next === targetQ) targetQ = null;
+        continue;
+      }
+      if (next === '"' || next === "'") {
+        targetQ = next;
+        i++;
+        continue;
+      }
+      if (/\s|[;&|<>]/.test(next)) break;
+      i++;
+    }
+    const target = tokenize(seg.slice(targetStart, i + 1))[0];
+    if (target) out.push({ target, write, start, end: i + 1 });
+  }
+  return out;
+}
+var headTokens = (seg, onDirectory) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, "").replace(/\s*[)}]+\s*$/, "")), onDirectory);
 
 // scripts/lib/paths.mjs
 import fs2 from "node:fs";
@@ -15017,8 +15109,9 @@ import path3 from "node:path";
 var ffDir = (root2) => path3.join(root2, ".ff");
 
 // scripts/lib/gates.mjs
-var ARTIFACT_GATE = { "brief.md": "GATE_A", "03-design.md": "GATE_B", "05-verify-report.md": "GATE_C" };
-var GATE_ARTIFACT = Object.fromEntries(Object.entries(ARTIFACT_GATE).map(([f, g]) => [g, f]));
+var import_yaml2 = __toESM(require_dist(), 1);
+var GATES = ["GATE_A", "GATE_B", "GATE_C"];
+var ARTIFACT_GATE = { "brief.md": "GATE_A", "delta.md": "GATE_A", "03-design.md": "GATE_B", "05-verify-report.md": "GATE_C" };
 var MARKER_RE = /Trạng thái:\s*ĐÃ DUYỆT/;
 var STATUS_LINE_RE = /^\s*>?\s*Trạng thái:\s*(?:CHỜ DUYỆT|ĐÃ DUYỆT|GATE B TỰ QUA)\b[\s\d-]*$/;
 var lines = (text) => text.replace(/^\uFEFF/, "").normalize("NFC").split(/\r?\n/);
@@ -15028,45 +15121,154 @@ function bodyHash(text) {
   return crypto.createHash("sha256").update(body).digest("hex");
 }
 var sha = (text) => crypto.createHash("sha256").update(lines(text).join("\n")).digest("hex");
-var gateFile = (root2, cardId, gate) => path4.join(ffDir(root2), "gates", `${cardId}-${gate}.json`);
-function isApproved(root2, cardId, gate, relPath, content, ledgerText = null) {
+var readOr = (f) => {
   try {
-    const r = JSON.parse(fs3.readFileSync(gateFile(root2, cardId, gate), "utf8"));
-    if (r.approved !== true || r.hashes?.[relPath] !== bodyHash(content)) return false;
-    return r.ledgerHash == null || ledgerText !== null && sha(ledgerText) === r.ledgerHash;
+    return fs3.readFileSync(f, "utf8");
   } catch {
-    return false;
+    return null;
   }
+};
+function validateScope(cardDir, scope = "") {
+  if (scope && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope)) throw new Error("scope Gate kh\xF4ng h\u1EE3p l\u1EC7");
+  const dir = path4.resolve(cardDir, scope);
+  const real = fs3.realpathSync(dir), base = fs3.realpathSync(cardDir);
+  if (real !== base && !real.startsWith(base + path4.sep)) throw new Error("scope Gate v\u01B0\u1EE3t kh\u1ECFi th\u1EBB");
+  return dir;
+}
+function gateFile(root2, cardId, gate, scope = "") {
+  if (!/^[A-Za-z0-9]+$/.test(String(cardId)) || !GATES.includes(gate) || scope && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope)) throw new Error("Gate kh\xF4ng h\u1EE3p l\u1EC7");
+  return path4.join(ffDir(root2), "gates", `${cardId}${scope ? "-" + scope.replaceAll("/", "-") : ""}-${gate}.json`);
+}
+function scopeOf(relPath) {
+  const parts = relPath.split("/");
+  return parts.length > 1 ? parts.slice(0, -1).join("/") : "";
+}
+function scopedFiles(cardDir, scope, filename) {
+  const dir = validateScope(cardDir, scope), out = {};
+  function walk(current) {
+    for (const entry of fs3.readdirSync(current, { withFileTypes: true })) {
+      if (entry.name.startsWith(".") || !scope && /^rev-\d+$/.test(entry.name)) continue;
+      const file2 = path4.join(current, entry.name);
+      if (entry.isDirectory()) walk(file2);
+      else if (entry.isFile() && entry.name === filename) out[path4.relative(cardDir, file2).split(path4.sep).join("/")] = bodyHash(fs3.readFileSync(file2, "utf8"));
+    }
+  }
+  walk(dir);
+  return out;
+}
+function ledgerFor(cardDir, scope = "") {
+  const scoped = readOr(path4.join(validateScope(cardDir, scope), "01b-ledger.md"));
+  return scoped ?? readOr(path4.join(cardDir, "01b-ledger.md"));
+}
+function readReceipt(root2, id, gate, scope = "") {
+  try {
+    return JSON.parse(fs3.readFileSync(gateFile(root2, id, gate, scope), "utf8"));
+  } catch {
+    return null;
+  }
+}
+function receiptDigest(root2, id, gate, scope = "") {
+  const text = readOr(gateFile(root2, id, gate, scope));
+  return text === null ? null : sha(text);
+}
+function context(cardDir, scope, gate) {
+  const hashes = {};
+  if (gate !== "GATE_A") {
+    Object.assign(hashes, scopedFiles(cardDir, scope, "02-spec.md"));
+    const aScope = parentScope(scope), aFile = /^rev-/.test(aScope) ? "delta.md" : "brief.md";
+    const rel = [aScope, aFile].filter(Boolean).join("/"), body = readOr(path4.join(cardDir, rel));
+    if (body !== null) hashes[rel] = bodyHash(body);
+    if (scope.includes("/") || /^task-/.test(scope)) {
+      const parentDesign = [parentScope(scope), "03-design.md"].filter(Boolean).join("/"), shared = readOr(path4.join(cardDir, parentDesign));
+      if (shared !== null) hashes[parentDesign] = bodyHash(shared);
+    }
+  }
+  if (gate === "GATE_C") Object.assign(hashes, scopedFiles(cardDir, scope, "03-design.md"));
+  return {
+    dossierHash: readOr(path4.join(cardDir, "01-dossier.md")) === null ? null : sha(readOr(path4.join(cardDir, "01-dossier.md"))),
+    rootLedgerHash: readOr(path4.join(cardDir, "01b-ledger.md")) === null ? null : sha(readOr(path4.join(cardDir, "01b-ledger.md"))),
+    contextHashes: hashes
+  };
+}
+function parentScope(scope) {
+  return scope.includes("/") ? scope.split("/")[0] : /^task-/.test(scope) ? "" : scope;
+}
+function gateStatus(root2, cardId, gate, relPath, content, ledgerText = null) {
+  const scope = scopeOf(relPath);
+  const r = readReceipt(root2, cardId, gate, scope) ?? (!scope.startsWith("rev-") ? readReceipt(root2, cardId, gate) : null);
+  if (!r || r.approved !== true && r.status !== "auto_passed") return "pending";
+  try {
+    const receiptScope = r.scope ?? "";
+    const cardDir = r.cardDir ? path4.resolve(root2, r.cardDir) : null;
+    if (r.hashes?.[relPath] !== bodyHash(content ?? "")) return "stale";
+    const effectiveLedger = cardDir && scope !== receiptScope ? ledgerFor(cardDir, receiptScope) : ledgerText;
+    if (r.ledgerHash != null && (effectiveLedger === null || sha(effectiveLedger) !== r.ledgerHash)) return "stale";
+    if (cardDir) {
+      if (!fs3.realpathSync(cardDir).startsWith(fs3.realpathSync(root2) + path4.sep)) return "stale";
+      validateScope(cardDir, receiptScope);
+      for (const [rel, expected] of Object.entries({ ...r.hashes, ...r.contextHashes })) {
+        const actual = readOr(path4.join(cardDir, rel));
+        if (actual === null || bodyHash(actual) !== expected) return "stale";
+      }
+      const now = context(cardDir, receiptScope, gate);
+      if (now.dossierHash !== r.dossierHash || now.rootLedgerHash !== r.rootLedgerHash) return "stale";
+      if (JSON.stringify(now.contextHashes) !== JSON.stringify(r.contextHashes ?? {})) return "stale";
+      for (const dep of r.dependencies ?? []) {
+        if (receiptDigest(root2, cardId, dep.gate, dep.scope) !== dep.digest) return "stale";
+        const receipt = readReceipt(root2, cardId, dep.gate, dep.scope);
+        for (const rel of Object.keys(receipt?.hashes ?? {})) {
+          const actual = readOr(path4.join(cardDir, rel));
+          if (!["approved", "auto_passed"].includes(gateStatus(root2, cardId, dep.gate, rel, actual, ledgerFor(cardDir, dep.scope)))) return "stale";
+        }
+      }
+    }
+    return r.status === "auto_passed" ? "auto_passed" : "approved";
+  } catch {
+    return "stale";
+  }
+}
+function isApproved(root2, cardId, gate, relPath, content, ledgerText = null) {
+  return gateStatus(root2, cardId, gate, relPath, content, ledgerText) === "approved";
 }
 
 // scripts/lib/guard-rules.mjs
 var SHIP_MARKER_TTL_S = 2 * 60 * 60;
 var ALLOW_TTL_S = 4 * 60 * 60;
-var EDIT_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit", "edit", "write", "patch", "multiedit", "replace_file_content", "multi_replace_file_content", "write_to_file"];
-var WRITE_VERB_RE = /\bsed\s+(?:-\w*i|--in-place)|\bperl\s+-\w*i|\btee\b|\bcp\b|\bmv\b|\brm\b|\bchmod\b|\bchflags\b|\btruncate\b/;
+var EDIT_TOOLS = ["Edit", "Write", "MultiEdit", "NotebookEdit", "edit", "write", "patch", "apply_patch", "edit_file", "write_file", "multiedit", "replace_file_content", "multi_replace_file_content", "write_to_file"];
 var WRAPPER_RE = /\b(?:ba|z)?sh\s+-\w*c\b|\beval\b|\$\(|`|\bxargs\b/;
-var FF_EXEMPT_RE = /(?:^|[\s/])ff\s+(?:relock|lock-tests)\b/;
 var FF_ASK_RE = /(?:^|[\s/])ff\s+(?:ship-approve|relock)\b/;
-var INTERP_RE = /(?:^|[\s/])(?:python3?|node|perl|ruby|deno|bun)(?=\s|$)/;
+var INTERPRETERS = /* @__PURE__ */ new Set(["python", "python3", "node", "perl", "ruby", "deno", "bun", "bash", "sh", "zsh", "eval", "source", "."]);
 var SUBST_RE = /\$\(|`|<\(/;
-var REDIRECT_TARGET_RE = /(?<![\d&=-])>>?\s*(['"]?)([^\s'"]+)\1/g;
-var PATHLIKE_RE = /[\w.~/-]+\.(?:md|json)\b/g;
 var COPY_LIKE = /* @__PURE__ */ new Set(["cp", "mv", "install", "rsync", "ln"]);
 var EDIT_LIKE = /* @__PURE__ */ new Set(["tee", "truncate", "rm", "chmod", "chflags", "touch"]);
 var INPLACE = /* @__PURE__ */ new Set(["sed", "perl"]);
+var normalizedTokens = (seg, onDirectory) => {
+  const tokens = headTokens(seg, onDirectory);
+  if (tokens.length) tokens[0] = path5.basename(tokens[0]);
+  return tokens;
+};
 var isFfCall = (seg) => {
   const head = headTokens(seg)[0] ?? "";
   return (head === "ff" || head.endsWith("/ff")) && !SUBST_RE.test(seg);
 };
-function writeTargets(seg, tokens) {
-  const out = [...seg.matchAll(REDIRECT_TARGET_RE)].map((m) => m[2]);
-  const [head, ...rest] = tokens;
+function writeTargets(seg, tokens, inferOpaque = true) {
+  const redirects = redirections(seg);
+  const out = redirects.filter((r) => r.write).map((r) => ({ target: r.target, shell: true }));
+  let command = seg;
+  for (const r of [...redirects].reverse()) command = command.slice(0, r.start) + command.slice(r.end);
+  const [head, ...rest] = normalizedTokens(command);
   const args2 = rest.filter((t) => !t.startsWith("-"));
-  if (COPY_LIKE.has(head) && args2.length) out.push(args2[args2.length - 1]);
+  if (COPY_LIKE.has(head) && args2.length) {
+    const targetFlag = rest.findIndex((t) => t === "-t" || t === "--target-directory");
+    out.push(targetFlag >= 0 ? rest[targetFlag + 1] : rest.find((t) => t.startsWith("--target-directory="))?.split("=").slice(1).join("=") ?? args2[args2.length - 1]);
+    if (head === "mv") out.push(...args2);
+  }
   if (EDIT_LIKE.has(head)) out.push(...args2);
-  if (INPLACE.has(head) && rest.some((t) => /^-\w*i/.test(t) || t === "--in-place")) out.push(...args2);
-  if (INTERP_RE.test(seg)) out.push(...seg.match(PATHLIKE_RE) ?? []);
-  return out;
+  if (INPLACE.has(head) && rest.some((t) => /^-\w*i/.test(t) || t.startsWith("--in-place"))) out.push(...args2);
+  if (inferOpaque && INTERPRETERS.has(tokens[0])) {
+    out.push(...args2, ...[...seg.matchAll(/(['"])([^'"\n]+)\1/g)].map((m) => m[2]));
+  }
+  return out.filter(Boolean).map((target) => typeof target === "string" ? { target, shell: false } : target);
 }
 var under = (p, dir) => (p + path5.sep).startsWith(dir + path5.sep);
 var expandHome = (p) => p === "~" || p.startsWith("~/") ? path5.join(os.homedir(), p.slice(1)) : p;
@@ -15076,8 +15278,8 @@ function makeGuard(rootIn, config) {
   const root2 = realish(rootIn);
   const g = config.guard;
   const relWt = config.workspace.worktrees_dir;
-  const worktrees = path5.resolve(root2, relWt);
-  const repoRoots = [...config.repos.map((r) => r.path), ...g.protected_paths ?? []].map((p) => path5.resolve(root2, p));
+  const worktrees = realish(path5.resolve(root2, relWt));
+  const repoRoots = [...config.repos.map((r) => r.path), ...g.protected_paths ?? []].map((p) => realish(path5.resolve(root2, p)));
   const str = (v) => typeof v === "string" && v ? v : null;
   const e2eDir = str(config.e2e?.dir) ? path5.resolve(root2, config.e2e.dir) : null;
   const e2eTests = str(config.e2e?.tests_dir) ? path5.resolve(root2, config.e2e.tests_dir) : null;
@@ -15105,15 +15307,22 @@ function makeGuard(rootIn, config) {
     }
     return null;
   };
-  const idOf = (slug) => slug ? slug.split("-")[0] : "<id>";
   const isEdit = (tool2) => !tool2 || EDIT_TOOLS.includes(tool2);
-  const lockedOf = (slug) => {
+  const lockEntriesOf = (slug) => {
+    let manifests = [];
     try {
-      return fs4.readFileSync(path5.join(worktrees, slug, ".ff-test-lock"), "utf8").split("\n").map((l) => l.match(/^[0-9a-f]{64}\s{2}(.+)$/)).filter(Boolean).map((m) => path5.join(root2, m[1]));
+      manifests = fs4.readdirSync(path5.join(worktrees, slug)).filter((name) => /^\.ff-test-lock(?:\.rev-\d+)?$/.test(name));
     } catch {
-      return [];
     }
+    return manifests.flatMap((name) => {
+      try {
+        return fs4.readFileSync(path5.join(worktrees, slug, name), "utf8").split("\n").map((l) => l.match(/^[0-9a-f]{64}\s{2}(.+)$/)).filter(Boolean).map((m) => ({ file: realish(path5.join(root2, m[1])), revision: name.match(/\.(rev-\d+)$/)?.[1] ?? "" }));
+      } catch {
+        return [];
+      }
+    });
   };
+  const lockedOf = (slug) => lockEntriesOf(slug).map((entry) => entry.file);
   const allLocked = () => {
     let slugs = [];
     try {
@@ -15122,29 +15331,58 @@ function makeGuard(rootIn, config) {
     }
     return slugs.flatMap(lockedOf);
   };
-  const lockMsg = (slug) => `file test \u0111\xE3 kh\xF3a; \u0111\u1ED5i qua: ff relock ${idOf(slug)} --reason "\u2026" (c\u1EA7n user cho ph\xE9p)`;
-  const cardsDir = path5.resolve(root2, config.workspace.cards_dir);
-  const ffDirAbs = path5.join(root2, ".ff");
+  const lockMsg = (slug, abs) => {
+    const revision = slug ? lockEntriesOf(slug).find((entry) => entry.file === abs)?.revision : "";
+    return `file test \u0111\xE3 kh\xF3a; \u0111\u1ED5i qua: ff relock ${slug ?? "<slug>"}${revision ? ` --revision ${revision}` : ""} --reason "\u2026" (c\u1EA7n user cho ph\xE9p)`;
+  };
+  const cardsDir = realish(path5.resolve(root2, config.workspace.cards_dir));
+  const ffDirAbs = realish(path5.join(root2, ".ff"));
   const secretFiles = [config.secrets.env_file, config.db?.env_file, config.e2e?.auth?.jwt?.secret?.file, config.e2e?.auth_storage, ".ff/worker.json"].filter(Boolean);
-  const secretAbs = new Set(secretFiles.map((f) => path5.resolve(root2, f)));
+  const secretAbs = new Set(secretFiles.map((f) => realish(path5.resolve(root2, f))));
   const secretRes = secretFiles.map((f) => new RegExp(`(^|[\\s<>='"/])${escapeRe(path5.basename(f))}(?![\\w.-])`));
   const secretMsg = `Kh\xF4ng \u0111\u1ECDc, s\u1EEDa hay ch\xE9p file secret (${secretFiles.join(", ")}). C\u1EA7n bi\u1EBFt key c\xF3 hay ch\u01B0a \u2192 \`ff doctor\`.`;
-  function checkBashNew(cmd2, cwd2) {
+  const metadataMessage = "`.ff/` v\xE0 metadata `.ff-*` do hook v\xE0 l\u1EC7nh `ff` ghi; agent kh\xF4ng s\u1EEDa tr\u1EF1c ti\u1EBFp.";
+  const protectedMetadata = (abs) => under(abs, ffDirAbs) || inWorktree(abs) && path5.basename(abs).startsWith(".ff-");
+  function permittedConfigured(seg, dir) {
+    if (config.repos.some((repo) => {
+      const slug = slugOf(dir);
+      const target = slug ? realish(path5.join(worktrees, slug, path5.basename(repo.path))) : null;
+      return target === dir && ["build", "test", "lint", "typecheck"].some((key) => repo.commands?.[key]?.trim() === seg.trim());
+    })) return true;
+    return dir === e2eDir && config.e2e?.test_cmd?.trim() === seg.trim();
+  }
+  function checkBashNew(cmd2, cwd2, mode) {
+    const locked = allLocked();
+    const configuredCommand = permittedConfigured(cmd2, cwd2);
     let dir = cwd2;
     for (const seg of segments(cmd2)) {
-      const tokens = headTokens(seg);
-      if (tokens[0] === "cd") {
-        dir = resolveDir(dir, tokens[1] ?? os.homedir());
-        continue;
-      }
-      if (secretRes.some((re) => re.test(seg)) && !isFfCall(seg)) return secretMsg;
-      if (isFfCall(seg)) continue;
-      for (const t of writeTargets(seg, tokens)) {
-        const abs = realish(path5.resolve(dir, expandHome(t)));
-        if (abs === ffDirAbs || under(abs, ffDirAbs)) return "`.ff/` do hook v\xE0 l\u1EC7nh `ff` ghi; agent kh\xF4ng s\u1EEDa th\u01B0 m\u1EE5c n\xE0y.";
+      let execDir = dir;
+      const tokens = normalizedTokens(seg, (p) => {
+        execDir = resolveDir(execDir, p);
+      });
+      const ff = isFfCall(seg);
+      const configured = configuredCommand || permittedConfigured(seg, execDir);
+      if (!ff && (secretRes.some((re) => re.test(seg)) || tokens.slice(1).some((t) => secretAbs.has(resolveDir(execDir, t))) || redirections(seg).some((r) => secretAbs.has(resolveDir(dir, r.target))))) return secretMsg;
+      for (const t of writeTargets(seg, tokens, !configured)) {
+        const abs = resolveDir(t.shell ? dir : execDir, t.target);
+        if (secretAbs.has(abs)) return secretMsg;
+        if (protectedMetadata(abs)) return metadataMessage;
+        const hit = locked.find((l) => under(l, abs));
+        if (hit) return lockMsg(slugOf(hit), hit);
+        const allowReason = checkAllowlist("Write", abs);
+        if (allowReason) return allowReason;
         if (under(abs, cardsDir) && ARTIFACT_GATE[path5.basename(abs)])
           return "S\u1EEDa brief.md / 03-design.md / 05-verify-report.md trong th\u01B0 m\u1EE5c th\u1EBB b\u1EB1ng Edit/Write (\u0111\u1EC3 hook ki\u1EC3m Gate), kh\xF4ng ghi b\u1EB1ng Bash.";
+        if (mode === "feature-flow" && !INTERPRETERS.has(tokens[0])) {
+          const mirrorReason = checkMirrorFile("Write", abs);
+          if (mirrorReason) return mirrorReason;
+        }
       }
+      const opaque = INTERPRETERS.has(tokens[0]) || SUBST_RE.test(seg) || tokens[0] === "xargs";
+      const versionOnly = INTERPRETERS.has(tokens[0]) && tokens.length === 2 && ["-v", "-V", "--version"].includes(tokens[1]);
+      if (!ff && opaque && !versionOnly && !configured && (locked.length || activeAllowlist(execDir)))
+        return "L\u1EC7nh th\xF4ng d\u1ECBch/b\u1ECDc kh\xF4ng x\xE1c \u0111\u1ECBnh \u0111\u01B0\u1EE3c file ghi khi test \u0111\xE3 kh\xF3a ho\u1EB7c allowlist c\xF2n hi\u1EC7u l\u1EF1c; d\xF9ng Edit/Write, l\u1EC7nh build/test \u0111\xE3 c\u1EA5u h\xECnh, ho\u1EB7c `ff`.";
+      if (tokens[0] === "cd") dir = resolveDir(execDir, tokens[1] ?? os.homedir());
     }
     return null;
   }
@@ -15154,10 +15392,11 @@ function makeGuard(rootIn, config) {
       old = fs4.readFileSync(abs, "utf8");
     } catch {
     }
-    if (["Write", "write", "write_to_file"].includes(tool2)) return { old, next: String(input.content ?? input.CodeContent ?? "") };
+    if (["Write", "write", "write_file", "write_to_file"].includes(tool2)) return { old, next: String(input.content ?? input.CodeContent ?? "") };
     if (tool2 === "NotebookEdit") return { old, next: String(input.new_source ?? "") + "\n" + old };
     let next = old;
-    for (const e of Array.isArray(input.edits) ? input.edits : [input]) {
+    const edits = input.edits ?? input.ReplacementChunks;
+    for (const e of Array.isArray(edits) ? edits : [input]) {
       const o = String(e?.old_string ?? e?.oldString ?? e?.TargetContent ?? "");
       const n = String(e?.new_string ?? e?.newString ?? e?.ReplacementContent ?? "");
       if (!o) next = n + next;
@@ -15168,30 +15407,35 @@ function makeGuard(rootIn, config) {
   function checkFileNew(tool2, input, abs) {
     if (secretAbs.has(abs)) return secretMsg;
     if (!isEdit(tool2)) return null;
-    if (under(abs, ffDirAbs)) return "`.ff/` do hook v\xE0 l\u1EC7nh `ff` ghi; agent kh\xF4ng s\u1EEDa th\u01B0 m\u1EE5c n\xE0y.";
+    if (protectedMetadata(abs)) return metadataMessage;
     if (!under(abs, cardsDir)) return null;
     const gate = ARTIFACT_GATE[path5.basename(abs)];
     if (!gate) return null;
+    const rel = path5.relative(cardsDir, abs).split(path5.sep);
+    if (path5.basename(abs) === "delta.md" && !/^rev-\d+$/.test(rel[1] ?? "")) return null;
+    if (["patch", "apply_patch"].includes(tool2))
+      return "S\u1EEDa artifact Gate b\u1EB1ng Edit/Write \u0111\u1EC3 hook ki\u1EC3m n\u1ED9i dung marker v\xE0 bi\xEAn nh\u1EADn duy\u1EC7t.";
     const { next } = resultingContent(tool2, input, abs);
     if (!hasMarker(next)) return null;
-    const rel = path5.relative(cardsDir, abs).split(path5.sep);
     const cardId = rel[0].split("-")[0];
+    const scope = rel.slice(1, -1).join("/");
     let ledger = null;
     try {
-      ledger = fs4.readFileSync(path5.join(cardsDir, rel[0], "01b-ledger.md"), "utf8");
+      ledger = ledgerFor(path5.join(cardsDir, rel[0]), scope);
     } catch {
     }
     if (isApproved(root2, cardId, gate, rel.slice(1).join("/"), next, ledger)) return null;
-    return `Ch\u01B0a c\xF3 c\xE2u tr\u1EA3 l\u1EDDi "Duy\u1EC7t" cho ${gate} c\u1EE7a th\u1EBB #${cardId} kh\u1EDBp n\u1ED9i dung hi\u1EC7n t\u1EA1i. Tr\xECnh Gate b\u1EB1ng AskUserQuestion (header ${gate}, c\xE2u h\u1ECFi b\u1EAFt \u0111\u1EA7u "[#${cardId}]", l\u1EF1a ch\u1ECDn "Duy\u1EC7t"/"C\u1EA7n s\u1EEDa") r\u1ED3i m\u1EDBi ghi marker \u0110\xC3 DUY\u1EC6T; s\u1EEDa n\u1ED9i dung sau khi duy\u1EC7t th\xEC ph\u1EA3i b\u1ECF marker v\xE0 tr\xECnh l\u1EA1i.`;
+    const scopeTags = scope ? " " + scope.split("/").map((part) => `[${part}]`).join(" ") : "";
+    return `Ch\u01B0a c\xF3 c\xE2u tr\u1EA3 l\u1EDDi "Duy\u1EC7t" cho ${gate} c\u1EE7a th\u1EBB #${cardId} kh\u1EDBp n\u1ED9i dung hi\u1EC7n t\u1EA1i. Tr\xECnh Gate b\u1EB1ng AskUserQuestion (header ${gate}, c\xE2u h\u1ECFi b\u1EAFt \u0111\u1EA7u "[#${cardId}]${scopeTags}", l\u1EF1a ch\u1ECDn "Duy\u1EC7t"/"C\u1EA7n s\u1EEDa") r\u1ED3i m\u1EDBi ghi marker \u0110\xC3 DUY\u1EC6T; s\u1EEDa n\u1ED9i dung sau khi duy\u1EC7t th\xEC ph\u1EA3i b\u1ECF marker v\xE0 tr\xECnh l\u1EA1i.`;
   }
   function checkLockedFile(tool2, abs) {
     if (!isEdit(tool2)) return null;
     const slug = slugOf(abs);
     if (!slug) return null;
-    return lockedOf(slug).includes(abs) ? lockMsg(slug) : null;
+    return lockedOf(slug).includes(abs) ? lockMsg(slug, abs) : null;
   }
-  function checkAllowlist(tool2, abs) {
-    if (!isEdit(tool2) || !inWorktree(abs)) return null;
+  function activeAllowlist(abs) {
+    if (!inWorktree(abs)) return null;
     const slug = slugOf(abs);
     if (!slug) return null;
     let lines2;
@@ -15202,34 +15446,41 @@ function makeGuard(rootIn, config) {
     }
     const ts = Number((lines2[0] ?? "").match(/^ts=(\d+)$/)?.[1]);
     if (!Number.isFinite(ts) || Date.now() / 1e3 - ts > ALLOW_TTL_S) return null;
-    const rel = path5.relative(path5.join(worktrees, slug), abs).split(path5.sep).join("/");
-    if (lines2.slice(1).map((l) => l.trim()).filter(Boolean).includes(rel)) return null;
-    return `file ngo\xE0i allowlist c\u1EE7a \u0111\u1EE3t; th\xEAm qua: ff allow ${idOf(slug)} <file>`;
+    return { slug, files: lines2.slice(1).map((l) => l.trim()).filter(Boolean) };
   }
-  function checkLockedBash(cmd2, cwd2) {
-    const locked = allLocked();
-    if (!locked.length) return null;
-    for (const seg of segments(cmd2)) {
-      if (FF_EXEMPT_RE.test(seg)) continue;
-      const hits = locked.filter((l) => seg.includes(l) || seg.includes(path5.relative(root2, l)) || seg.includes(path5.basename(l)));
-      if (!hits.length) continue;
-      const redirects = [...seg.matchAll(/(?<![\d&=-])>>?\s*(\S+)/g)].map((m) => m[1].replace(/^['"]|['"]$/g, ""));
-      const redirHit = redirects.some((t) => hits.some((l) => realish(path5.resolve(cwd2, t)) === l || path5.basename(t) === path5.basename(l)));
-      if (redirHit || WRITE_VERB_RE.test(seg)) return lockMsg(slugOf(hits[0]));
-    }
-    return null;
+  function checkAllowlist(tool2, abs) {
+    if (!isEdit(tool2)) return null;
+    const allow = activeAllowlist(abs);
+    if (!allow) return null;
+    const { slug, files: files2 } = allow;
+    const rel = path5.relative(path5.join(worktrees, slug), abs).split(path5.sep).join("/");
+    if (files2.includes(rel)) return null;
+    return `file ngo\xE0i allowlist c\u1EE7a \u0111\u1EE3t; th\xEAm qua: ff allow ${slug} <file>`;
   }
   function parseGit(tokens, dir) {
     let gitDir = dir;
     let i = 1;
     while (i < tokens.length && tokens[i].startsWith("-")) {
-      if (tokens[i] === "-C") gitDir = resolveDir(gitDir, tokens[++i] ?? ".");
-      else if (tokens[i] === "-c") i++;
+      const flag = tokens[i];
+      if (flag === "-C") gitDir = resolveDir(gitDir, tokens[++i] ?? ".");
+      else if (flag.startsWith("-C") && flag.length > 2) gitDir = resolveDir(gitDir, flag.slice(2));
+      else if (flag === "--work-tree" || flag.startsWith("--work-tree="))
+        gitDir = resolveDir(dir, flag === "--work-tree" ? tokens[++i] ?? "." : flag.slice("--work-tree=".length));
+      else if (flag === "--git-dir" || flag.startsWith("--git-dir=")) {
+        const gitPath = resolveDir(dir, flag === "--git-dir" ? tokens[++i] ?? "." : flag.slice("--git-dir=".length));
+        gitDir = path5.basename(gitPath) === ".git" ? path5.dirname(gitPath) : gitPath;
+      } else if (flag === "-c" || flag === "--namespace") i++;
       i++;
     }
     return { sub: tokens[i], args: tokens.slice(i + 1), gitDir };
   }
+  function localOnly(dir) {
+    const localOnly2 = spawnSync("git", ["-C", dir, "config", "--local", "--bool", "--get", "ff.localOnly"], { encoding: "utf8", timeout: 2e3 });
+    return localOnly2.status === 0 && localOnly2.stdout.trim() === "true";
+  }
   function shipApproved(dir) {
+    if (localOnly(dir))
+      return { ok: false, why: "b\u1EA3n copy quan s\xE1t local-only (ff.localOnly=true)" };
     const slug = slugOf(dir);
     if (!slug || !inWorktree(dir)) return { ok: false, why: `l\u1EC7nh kh\xF4ng ch\u1EA1y trong ${relWt}/<id>-<slug>/` };
     const marker = path5.join(worktrees, slug, ".ff-ship-approved");
@@ -15239,27 +15490,54 @@ function makeGuard(rootIn, config) {
     if (!Number.isFinite(age) || age > SHIP_MARKER_TTL_S) return { ok: false, why: "marker ship \u0111\xE3 qu\xE1 2 gi\u1EDD", slug };
     return { ok: true };
   }
-  function checkWrapped(cmd2) {
+  function checkWrapped(cmd2, cwd2, mode, depth) {
     const body = stripHeredocs(cmd2);
+    let dir = cwd2;
+    for (const seg of segments(body)) {
+      let execDir = dir;
+      const tokens = normalizedTokens(seg, (p) => {
+        execDir = resolveDir(execDir, p);
+      });
+      if (tokens[0] === "cd") {
+        dir = resolveDir(execDir, tokens[1] ?? os.homedir());
+        continue;
+      }
+      const commandFlag = ["bash", "sh", "zsh"].includes(tokens[0]) ? tokens.findIndex((t, i) => i > 0 && /^-[A-Za-z]*c[A-Za-z]*$/.test(t)) : -1;
+      const inner = commandFlag >= 0 ? tokens[commandFlag + 1] : tokens[0] === "eval" ? tokens.slice(1).join(" ") : null;
+      if (inner) {
+        if (depth >= 16) return "L\u1EC7nh b\u1ECDc qu\xE1 s\xE2u; ch\u1EA1y l\u1EC7nh tr\u1EF1c ti\u1EBFp.";
+        const reason2 = checkBashNew(inner, execDir, mode) ?? checkBash(inner, execDir, mode, depth + 1);
+        if (reason2) return reason2;
+      }
+    }
     if (!WRAPPER_RE.test(body)) return null;
     if (!forbiddenRes.some((re) => re.test(body))) return null;
     return "ch\u1EA1y l\u1EC7nh tr\u1EF1c ti\u1EBFp, kh\xF4ng b\u1ECDc trong bash -c/eval/$(\u2026)";
   }
-  function checkBash(cmd2, cwd2, mode) {
-    const wrapped = checkWrapped(cmd2);
+  function checkBash(cmd2, cwd2, mode, depth = 0) {
+    const wrapped = checkWrapped(cmd2, cwd2, mode, depth);
     if (wrapped) return wrapped;
     let dir = cwd2;
     for (const seg of segments(cmd2)) {
-      const tokens = headTokens(seg);
+      let execDir = dir;
+      const tokens = normalizedTokens(seg, (p) => {
+        execDir = resolveDir(execDir, p);
+      });
       if (!tokens.length) continue;
       const [head] = tokens;
       if (head === "cd") {
-        dir = resolveDir(dir, tokens[1] ?? os.homedir());
+        dir = resolveDir(execDir, tokens[1] ?? os.homedir());
         continue;
       }
-      if (allowedBash.some((re) => re.test(seg))) continue;
-      if (mode === "base") {
-        const killAt = tokens.findIndex((t, i) => ["kill", "pkill", "killall"].includes(t) && (i === 0 || tokens[0] === "xargs"));
+      if (allowedBash.some((re) => re.test(seg))) {
+        if (head === "git") {
+          const { sub: sub2, gitDir: gitDir2 } = parseGit(tokens, execDir);
+          if (sub2 === "push" && localOnly(gitDir2)) return "C\u1EA5m git push t\u1EEB b\u1EA3n copy quan s\xE1t local-only (ff.localOnly=true).";
+        }
+        continue;
+      }
+      {
+        const killAt = tokens.findIndex((t, i) => ["kill", "pkill", "killall"].includes(path5.basename(t)) && (i === 0 || tokens[0] === "xargs"));
         if (killAt >= 0 && !(tokens[killAt] === "kill" && tokens[killAt + 1] === "-0"))
           return "Kh\xF4ng kill/pkill tr\u1EF1c ti\u1EBFp. T\u1EAFt service b\u1EB1ng `ff verify-down <id>`; ti\u1EBFn tr\xECnh c\u1EE7a repo g\u1ED1c/task kh\xE1c \u2192 b\xE1o user.";
         const runsScript = ["yarn", "npm", "npx", "pnpm", "typeorm", "ts-node"].includes(head);
@@ -15267,13 +15545,13 @@ function makeGuard(rootIn, config) {
         if (migTok) {
           if (prodRe.test(migTok)) return `C\u1EA5m ch\u1EA1y ${migTok} t\u1EEB agent.`;
           const cwdFlag = tokens.indexOf("--cwd");
-          const target = cwdFlag >= 0 ? resolveDir(dir, tokens[cwdFlag + 1] ?? ".") : dir;
+          const target = cwdFlag >= 0 ? resolveDir(execDir, tokens[cwdFlag + 1] ?? ".") : execDir;
           if (!inWorktree(target))
             return `${migTok} ch\u1EC9 \u0111\u01B0\u1EE3c ch\u1EA1y trong ${relWt}/<id>-<slug>/<repo> (DB d\xF9ng chung). D\xF9ng \`ff verify-up <id> <app>\`.`;
         }
         if (e2eDir && testsRel) {
           const pwAt = tokens.findIndex((t, i) => /(^|\/)playwright$/.test(t) && tokens[i + 1] === "test");
-          const bareTest = dir === e2eDir && ["yarn", "npm", "pnpm"].includes(head) && (tokens[1] === "test" || tokens[1] === "run" && tokens[2] === "test");
+          const bareTest = execDir === e2eDir && ["yarn", "npm", "pnpm"].includes(head) && (tokens[1] === "test" || tokens[1] === "run" && tokens[2] === "test");
           if (pwAt >= 0 || bareTest) {
             const rest = pwAt >= 0 ? tokens.slice(pwAt + 2) : tokens.slice(2);
             const pathRe = new RegExp(`(^|/)${escapeRe(testsRel)}/[^/\\s]+`);
@@ -15283,12 +15561,12 @@ function makeGuard(rootIn, config) {
         }
       }
       if (head !== "git") continue;
-      const { sub, args: args2, gitDir } = parseGit(tokens, dir);
-      if (mode === "base") {
+      const { sub, args: args2, gitDir } = parseGit(tokens, execDir);
+      {
         if (sub === "push") {
           const s = shipApproved(gitDir);
           if (!s.ok)
-            return `C\u1EA5m git push (${s.why}). Ch\u1EC9 push qua /ship-to-dev SAU KHI user x\xE1c nh\u1EADn, r\u1ED3i ch\u1EA1y \`ff ship-approve ${s.slug ? idOf(s.slug) : "<id>"}\` (user s\u1EBD \u0111\u01B0\u1EE3c h\u1ECFi). "Ch\u1EA1y/ok/verify PASS" kh\xF4ng ph\u1EA3i l\u1EC7nh push.`;
+            return `C\u1EA5m git push (${s.why}). Ch\u1EC9 push qua /ship-to-dev SAU KHI user x\xE1c nh\u1EADn, r\u1ED3i ch\u1EA1y \`ff ship-approve ${s.slug ?? "<slug>"}\` (user s\u1EBD \u0111\u01B0\u1EE3c h\u1ECFi). "Ch\u1EA1y/ok/verify PASS" kh\xF4ng ph\u1EA3i l\u1EC7nh push.`;
         }
         if (sub === "add" && args2.some((t) => ["-A", "--all", ".", ":/", "-u", "--update"].includes(t)))
           return "C\u1EA5m `git add -A/./-u` \u2014 ch\u1EC9 add \u0111\xFAng t\u1EEBng file c\u1EE7a task (tr\xE1nh cu\u1ED1n .env, file build, file task kh\xE1c).";
@@ -15316,7 +15594,7 @@ function makeGuard(rootIn, config) {
     const c = realish(cwd2);
     const abs = file2 ? realish(path5.resolve(c, expandHome(file2))) : null;
     let reason2 = null;
-    if (cmd2) reason2 = checkBashNew(cmd2, c) ?? checkLockedBash(cmd2, c) ?? checkBash(cmd2, c, mode);
+    if (cmd2) reason2 = checkBashNew(cmd2, c, mode) ?? checkBash(cmd2, c, mode);
     if (!reason2 && abs) reason2 = checkFileNew(tool2, input ?? {}, abs) ?? checkLockedFile(tool2, abs) ?? checkAllowlist(tool2, abs);
     if (!reason2 && mode === "feature-flow" && abs) reason2 = checkMirrorFile(tool2, abs);
     return reason2;
@@ -15353,24 +15631,32 @@ function fromHookJson(j) {
   if (!j) return {};
   const tc = j.toolCall ?? {};
   const ti = j.tool_input ?? j.toolInput ?? tc.args ?? j.args ?? j.input ?? j.parameters ?? {};
+  const patch = typeof ti === "string" ? ti : pick(ti.patch, ti.patchText, ti.input);
+  const files2 = typeof patch === "string" ? [...patch.matchAll(/^\*\*\* (?:Update File|Add File|Delete File|Move to):\s*(.+)$/gm)].map((m) => m[1].trim()) : [];
   return {
     tool: pick(j.tool_name, j.toolName, tc.name, j.tool, j.name),
     cmd: pick(ti.command, ti.cmd, ti.CommandLine, j.command),
     file: pick(ti.file_path, ti.filePath, ti.notebook_path, ti.path, ti.target_file, ti.TargetFile, ti.AbsolutePath),
     cwd: pick(j.cwd, ti.cwd, ti.workdir, ti.Cwd),
-    input: ti
+    input: ti,
+    files: files2
   };
 }
 var args = parseArgs(process.argv.slice(2));
 var hook = fromHookJson(readStdinJson());
 var cmd = args.cmd ?? hook.cmd;
 var file = args.file ?? hook.file;
+var files = args.file ? [args.file] : [...new Set([file, ...hook.files ?? []].filter(Boolean))];
 var tool = args.tool ?? hook.tool;
 var cwd = path6.resolve(args.cwd ?? hook.cwd ?? process.cwd());
-var root = findRoot(cwd) ?? (file ? findRoot(path6.dirname(path6.resolve(cwd, file))) : null);
+var root = findRoot(cwd) ?? (files[0] ? findRoot(path6.dirname(path6.resolve(cwd, files[0]))) : null);
 if (!root) process.exit(0);
 var G = makeGuard(root, loadConfigOrDefaults(root).config);
-var reason = G.evaluate({ cmd, file, tool, cwd, mode: args.mode, input: hook.input ?? {} });
+var reason = G.evaluate({ cmd, file: files[0], tool, cwd, mode: args.mode, input: hook.input ?? {} });
+for (const target of files.slice(1)) {
+  if (reason) break;
+  reason = G.evaluate({ file: target, tool, cwd, mode: args.mode, input: hook.input ?? {} });
+}
 if (reason) {
   const msg = `[ff-guard] ${reason}`;
   if (args.format === "agy") {

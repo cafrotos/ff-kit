@@ -13,7 +13,9 @@ Brief và design đã duyệt → test hành vi khóa → plan → implement the
 
 ## P0 — Trạng thái và điều kiện vào
 
-Chạy `ff state <id>` và đọc dossier, Brief, design. Gate A và Gate B phải hợp lệ theo bản ghi/hash. Nếu chưa, chuyển `/ff-understand`. Nếu đã squash, chuyển `/ff-verify`.
+Chạy `ff state <id> --json`: lấy `activeDir`, `activeRevision` và full `<slug>` của thư mục thẻ/bản copy. Đọc dossier/ledger cấp thẻ, Brief gốc hoặc delta revision và spec/design trong `activeDir`. Gate A cần `approved`, Gate B cần `approved` hoặc `auto_passed` theo bản ghi/hash; `pending`/`stale` thì chưa hợp lệ. Nếu chưa, chuyển `/ff-understand`. Nếu đã squash, chuyển `/ff-verify`.
+
+Các gate-tools `allow`, `relock`, `lock-tests`, `probe-slice`, `ship-approve` nhận full `<slug>` như `123-ten-the`, không nhận riêng số id. Lấy slug từ state hoặc tên thư mục đã xác minh; đường dẫn file theo config.
 
 Đọc `workspace.worktrees_dir`, `workspace.cards_dir` và repo/command từ `ff.config.yaml`. Tạo bản copy bằng `ff copy <id>`; mọi sửa code chỉ nằm trong worktree của task.
 
@@ -23,19 +25,19 @@ Với lint, type-check, build và test, chỉ chạy đúng command lấy từ `
 
 Giao `ff-test-writer` theo `briefs/test-writer.md`; chỉ đưa tài liệu yêu cầu và hợp đồng, không đưa code implementation. Test phải liên kết AC và dùng dữ liệu test duy nhất.
 
-Chạy `ff e2e-lint <e2e.tests_dir>/<slug>`, sửa dấu hiệu yếu, rồi khóa đúng test hành vi bằng `ff lock-tests <id> <files...>`. Ghi hash manifest để đối chiếu khi bàn giao. Không sửa test đã khóa; nếu cần thay đổi, dừng và xin quyết định user.
+Chạy `ff e2e-lint <e2e.tests_dir>/<slug>`, sửa dấu hiệu yếu, rồi khóa đúng test hành vi bằng `ff lock-tests <slug> <files...>`. Nếu `activeRevision` là `rev-N`, dùng `ff lock-tests <slug> --revision rev-N <files...>` cho test revision mới; manifest riêng giữ test cũ đã khóa để hồi quy. Đọc `testLock` từ state để biết manifest hiện tại và ghi hash bàn giao. Relock revision cần user và `ff relock <slug> --revision rev-N --reason "<lý do>"`, không đổi manifest gốc. Không sửa test đã khóa; nếu cần thay đổi, dừng và xin quyết định user.
 
 ## P2 — Plan và implement theo slice
 
-Giao `ff-planner` theo `briefs/planner.md`, lưu plan trong thư mục task. Dùng `references/plan-slice.md` để xác định dependency, file được sửa và lệnh kiểm theo `repos[].commands`.
+Giao `ff-planner` theo `briefs/planner.md`, lưu `<activeDir>/04-plan.md` (cụm: `task-N/04-plan.md`). Truyền `activeDir`/`activeRevision` cho mọi agent; không dùng design/plan cũ khi reopen. Dùng `references/plan-slice.md` để xác định dependency, file được sửa và lệnh kiểm theo `repos[].commands`.
 
 Mỗi đợt:
 
-1. Mở allowlist bằng `ff allow <id> <files...>`.
+1. Mở allowlist bằng `ff allow <slug> <files...>`.
 2. Giao từng micro-task cho `ff-implementer` hoặc `ff-implementer-haiku` theo plan.
 3. Đọc lại diff và chạy lệnh kiểm thật trong worktree.
-4. Chạy `ff probe-slice <id> [task-N]`; sửa drift trước khi tiếp tục.
-5. Giao `ff-diff-reviewer` review độc lập. Xử lý phát hiện rồi xóa allowlist bằng `ff allow <id> --clear`.
+4. Chạy `ff probe-slice <slug> [task-N]`; sửa drift trước khi tiếp tục.
+5. Giao `ff-diff-reviewer` review độc lập. Xử lý phát hiện rồi xóa allowlist bằng `ff allow <slug> --clear`.
 
 Nếu interface đổi, cập nhật đúng task plan bị ảnh hưởng trước khi giao tiếp.
 

@@ -39,7 +39,7 @@ Do đó, **mọi khẳng định về tính đúng đắn của tính năng cầ
 - Xác thực URL route và tiêu đề trang sau mỗi thao tác.
 
 ### Tín hiệu 2: DB State (PostgreSQL query qua `ff db-query "<sql>"`)
-- Xác thực sự thật lưu trữ vĩnh viễn trên cơ sở dữ liệu PostgreSQL (`auth_db`).
+- Xác thực sự thật lưu trữ vĩnh viễn trên DB đã cấu hình qua `ff db-query`.
 - Chạy truy vấn an toàn (chỉ đọc):
   ```bash
   ff db-query "SELECT id, status, updated_at FROM candidate WHERE email = 'test@local' LIMIT 1"
@@ -54,8 +54,8 @@ Do đó, **mọi khẳng định về tính đúng đắn của tính năng cầ
 - Đo số lượng request theo kịch bản so với trần ngân sách quy định trong `brief.md` (theo `references/measure.md`).
 
 ### Tín hiệu 4: Console Log & Error Monitoring
-- **Browser Console**: Không có Uncaught TypeError, React hydration/render error, 404 tài nguyên tĩnh, MobX state invariant warning.
-- **Backend Log** (`worktrees/<slug>/.dev-logs/backend.log`): Không có lỗi unhandled rejection, TypeORM query syntax error, NestJS HTTP 500 stack trace.
+- **Browser Console**: Không có Uncaught TypeError, React hydration/render error, 404 tài nguyên tĩnh, state invariant warning.
+- **Backend Log** (đường dẫn log theo cấu hình/môi trường đang chạy): Không có lỗi unhandled rejection, ORM query syntax error, HTTP 500 stack trace.
 
 ---
 
@@ -78,7 +78,7 @@ Mọi AC trong ma trận nghiệm thu cần phải được gán đúng 1 trong 
 Trước khi kết luận một AC là **`FAIL`** (lỗi implement của lập trình viên), agent cần phải tự rà soát và trả lời đủ 5 câu hỏi sau:
 
 1. **Am I logged in as expected role?**
-   - Tôi có đang thực thi dưới đúng role yêu cầu trong kịch bản AC không? (Kiểm tra email JWT ký qua `ff mcp-auth <email>`, đối chiếu bảng role trong `_project/environment.toml`).
+   - Tôi có đang thực thi dưới đúng role yêu cầu trong kịch bản AC không? (Kiểm tra email JWT ký qua `ff mcp-auth --email <email>`, đối chiếu bảng role trong `project_docs.roles_file`).
 2. **Right route / element?**
    - Tôi có đang ở đúng đường dẫn URL và chọn đúng vùng selector (region/dialog) không? Có phần tử con nào che khuất hoặc popup chưa đóng không?
 3. **Page finished loading?**

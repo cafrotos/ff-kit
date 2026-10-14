@@ -15036,6 +15036,11 @@ function tokenize(seg) {
       has = true;
       continue;
     }
+    if (c === "\\" && i + 1 < seg.length) {
+      cur += seg[++i];
+      has = true;
+      continue;
+    }
     if (/\s/.test(c)) {
       if (has) out.push(cur);
       cur = "";
@@ -15093,12 +15098,45 @@ function segments(cmd) {
   if (cur.trim()) segs.push(cur.trim());
   return segs;
 }
-function stripPrefix(tokens) {
+function stripPrefix(tokens, onDirectory = () => {
+}) {
+  tokens = [...tokens];
   let i = 0;
-  while (i < tokens.length && (["sudo", "command", "exec", "time", "nohup", "env"].includes(tokens[i]) || /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i]))) i++;
+  const operands = {
+    sudo: /* @__PURE__ */ new Set(["-u", "--user", "-g", "--group", "-h", "--host", "-p", "--prompt", "-C", "--close-from", "-T", "--command-timeout", "-R", "--chroot", "-D", "--chdir"]),
+    env: /* @__PURE__ */ new Set(["-u", "--unset", "-C", "--chdir", "-S", "--split-string"]),
+    time: /* @__PURE__ */ new Set(["-f", "--format", "-o", "--output"]),
+    timeout: /* @__PURE__ */ new Set(["-s", "--signal", "-k", "--kill-after"])
+  };
+  while (i < tokens.length) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) {
+      i++;
+      continue;
+    }
+    const wrapper = tokens[i].split("/").at(-1);
+    if (!["sudo", "command", "exec", "time", "nohup", "env", "timeout"].includes(wrapper)) break;
+    i++;
+    while (i < tokens.length && tokens[i].startsWith("-")) {
+      const flag = tokens[i++];
+      if (flag === "--") break;
+      if (wrapper === "env" && ["-S", "--split-string"].includes(flag)) {
+        tokens.splice(i, 1, ...tokenize(tokens[i] ?? ""));
+        break;
+      }
+      if (wrapper === "env" && flag.startsWith("--split-string=")) {
+        tokens.splice(i, 0, ...tokenize(flag.slice("--split-string=".length)));
+        break;
+      }
+      if (wrapper === "env" && ["-C", "--chdir"].includes(flag) || wrapper === "sudo" && ["-D", "--chdir"].includes(flag))
+        onDirectory(tokens[i] ?? ".");
+      if (["env", "sudo"].includes(wrapper) && flag.startsWith("--chdir=")) onDirectory(flag.slice("--chdir=".length));
+      if (operands[wrapper]?.has(flag)) i++;
+    }
+    if (wrapper === "timeout") i++;
+  }
   return tokens.slice(i);
 }
-var headTokens = (seg) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, "").replace(/\s*[)}]+\s*$/, "")));
+var headTokens = (seg, onDirectory) => stripPrefix(tokenize(seg.replace(/^[({]\s*/, "").replace(/\s*[)}]+\s*$/, "")), onDirectory);
 var BUILTINS = /* @__PURE__ */ new Set(["cd", "export", "set", "unset", "source", ".", "pushd", "popd", "true", "false", ":", "exit", "trap", "test", "[", "[[", "!", "if", "then", "else", "elif", "fi", "for", "while", "until", "do", "done", "case", "esac", "in"]);
 function commandBinaries(cmd) {
   const bins = [];

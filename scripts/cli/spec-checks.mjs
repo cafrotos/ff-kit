@@ -3,6 +3,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { findRoot, loadConfig } from '../lib/config.mjs'
 import { findCardDir } from '../lib/cards.mjs'
+import { activeRevision } from '../lib/gates.mjs'
 
 const hash = (v) => crypto.createHash('sha256').update(v).digest('hex')
 const inside = (base, target) => { const rel = path.relative(base, target); return Boolean(rel && rel !== '..' && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)) }
@@ -20,28 +21,29 @@ function getContext(ctx, id, task, fileName) {
   const config = loadConfig(root).config
   const card = findCardDir(root, config, id)
   if (card.error) throw new Error(card.error)
-  const dirs = fs.readdirSync(card.dir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && /^(?:task-\d+|rev-\d+)/.test(entry.name))
-    .map((entry) => entry.name)
-    .sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]))
+  const revision = activeRevision(card.dir)
+  const current = revision ?? ''
+  const clusters = (base) => fs.readdirSync(path.join(card.dir, base), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^task-\d+(?:-[A-Za-z0-9-]+)?$/.test(entry.name))
+    .map((entry) => [base, entry.name].filter(Boolean).join('/'))
+    .filter((name) => fs.existsSync(path.join(card.dir, name, fileName))).sort()
   let selected
   if (task) {
-    if (/^rev-\d+/.test(task)) selected = dirs.filter((name) => name === task)
-    else {
-      const key = task.match(/^task-\d+/)?.[0]
-      if (!key) throw new Error(`task phải dạng task-N hoặc rev-N, nhận '${task}'`)
-      selected = dirs.filter((name) => name === key || name.startsWith(`${key}-`))
+    if (/^rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?$/.test(task)) {
+      selected = task.includes('/') ? [task] : clusters(task)
+      if (!selected.length) selected = [task]
+    } else {
+      const key = task.match(/^task-\d+(?:-[A-Za-z0-9-]+)?$/)?.[0]
+      if (!key) throw new Error(`task phải dạng task-N, rev-N hoặc rev-N/task-N, nhận '${task}'`)
+      selected = clusters(current).filter((name) => path.basename(name) === key || path.basename(name).startsWith(key + '-'))
     }
-    if (!selected.length) throw new Error(`không thấy thư mục ${task}`)
+    if (!selected.length || selected.some((name) => !fs.existsSync(path.join(card.dir, name, fileName)))) throw new Error(`không thấy thư mục ${task}`)
   } else {
-    const revs = dirs.filter((name) => /^rev-\d+/.test(name)).sort((a, b) => Number(b.match(/\d+/)?.[0]) - Number(a.match(/\d+/)?.[0]))
-    selected = revs.length && fs.existsSync(path.join(card.dir, revs[0], fileName))
-      ? [revs[0]]
-      : dirs.filter((name) => fs.existsSync(path.join(card.dir, name, fileName)))
-    if (!selected.length) selected = ['']
+    selected = clusters(current)
+    if (!selected.length) selected = [current]
   }
   return {
-    root, config, card: card.dir,
+    root, config, card: card.dir, activeRevision: revision,
     docs: selected.map((name) => ({ task: name || null, file: path.join(card.dir, name, fileName) })),
   }
 }
@@ -90,7 +92,7 @@ function scanTests(file) {
 }
 
 function readLock(root, config, cardSlug, task) {
-  const file = path.join(root, config.workspace.worktrees_dir, cardSlug, '.ff-test-lock')
+  const file = path.join(root, config.workspace.worktrees_dir, cardSlug, '.ff-test-lock' + (task?.startsWith('rev-') ? `.${task}` : ''))
   if (!fs.existsSync(file)) return { found: false, bad: [] }
   const raw = fs.readFileSync(file)
   const bad = []
@@ -98,7 +100,7 @@ function readLock(root, config, cardSlug, task) {
     const m = line.match(/^([a-f0-9]{64})\s{2}(.+)$/)
     if (!line.trim()) continue
     if (!m) { bad.push('.ff-test-lock (manifest không hợp lệ)'); continue }
-    if (task && !path.basename(m[2]).startsWith(`${task}-`)) continue
+    if (task?.startsWith('task-') && !path.basename(m[2]).startsWith(`${task}-`)) continue
     const target = path.resolve(root, m[2])
     if (!inside(root, target)) { bad.push(m[2]); continue }
     const actual = fs.existsSync(target) ? hash(fs.readFileSync(target)) : null
@@ -125,7 +127,11 @@ export const acMatrix = {
       for (const doc of c.docs) {
         if (!fs.existsSync(doc.file)) throw new Error(`không thấy ${path.relative(c.root, doc.file)}`)
         const acs = parseSpecAcs(fs.readFileSync(doc.file, 'utf8'))
-        const names = testFiles.filter((name) => !doc.task || doc.task.startsWith('rev-') || name.startsWith(`${doc.task}-`) || name.startsWith(`${doc.task}.`))
+        if (!acs.length) throw new Error(`spec không có AC: ${path.relative(c.root, doc.file)}`)
+        const revisionName = doc.task?.match(/^rev-[1-9]\d*/)?.[0]
+        const clusterName = doc.task ? path.basename(doc.task) : null
+        const prefix = revisionName && clusterName !== revisionName ? `${revisionName}-${clusterName}` : clusterName
+        const names = testFiles.filter((name) => !prefix || name.startsWith(`${prefix}-`) || name.startsWith(`${prefix}.`))
         const tests = names.flatMap((name) => scanTests(path.join(testRoot, name)))
         const local = { COVERED: 0, SKIP: 0, MISSING: 0, ORPHAN: 0, DROPPED: 0 }
         ctx.stdout.write(`\n== ${path.relative(c.root, doc.file)} — ${acs.length} AC, ${names.length} file test\n`)
@@ -145,13 +151,14 @@ export const acMatrix = {
         if (local.SKIP || local.MISSING) failed = true
         ctx.stdout.write(`Tổng: COVERED ${local.COVERED}, SKIP ${local.SKIP}, MISSING ${local.MISSING}, ORPHAN ${local.ORPHAN}, DROPPED ${local.DROPPED}\n`)
       }
-      const lock = readLock(c.root, c.config, path.basename(c.card), args[1]?.startsWith('task-') ? args[1].match(/^task-\d+/)?.[0] : null)
+      const selectedLock = args[1]?.startsWith('rev-') ? args[1].split('/')[0] : c.activeRevision ?? (args[1]?.startsWith('task-') ? args[1].match(/^task-\d+/)?.[0] : null)
+      const lock = readLock(c.root, c.config, path.basename(c.card), selectedLock)
       if (lock.found) {
         ctx.stdout.write(`\nTest lock: manifest ${lock.digest}\n`)
         for (const item of lock.bad) ctx.stdout.write(`❌ HASH ĐỔI ${item}\n`)
         if (!lock.bad.length) ctx.stdout.write('hash khớp\n')
         if (lock.bad.length) failed = true
-      } else ctx.stdout.write('\nChưa khóa test (.ff-test-lock không có)\n')
+      } else { ctx.stdout.write('\nChưa khóa test (.ff-test-lock không có)\n'); if (selectedLock?.startsWith('rev-')) failed = true }
       ctx.stdout.write(`\n${failed ? '→ KHÔNG SẠCH' : '→ SẠCH'}\n`)
       return failed ? 1 : 0
     } catch (error) { ctx.stderr.write(`ff ac-matrix: ${error.message}\n`); return 1 }

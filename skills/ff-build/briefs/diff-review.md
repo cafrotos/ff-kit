@@ -1,15 +1,16 @@
 # Brief — Review diff một đợt (ff-diff-reviewer)
 
-Bạn review **diff thật** của một đợt trong bản copy, độc lập với người code. Chỉ đọc — không sửa file, không commit.
+Review **diff thật** của một đợt trong bản copy, độc lập với người code. Chỉ đọc — không sửa file, không commit.
 
 ## Đầu vào (người giao điền — sự kiện đã verify)
-- Bản copy: `worktrees/<id>-<slug>/` · nhánh `<branch>`
-- `<cards_dir>/<id>-<slug>/`: `brief.md`, `02-spec.md`, `03-design.md`, `04-plan.md` (đợt `<k>`: các micro-task `<…>`)
+- activeDir `<đường dẫn từ ff state --json>` · activeRevision `<null | rev-N>`; Brief gốc hoặc delta hiện tại, spec/design/plan lấy trong activeDir.
+- Bản copy: `<worktrees_dir>/<slug>/` · nhánh `<branch>`
+- `<activeDir>/`: `brief.md` hoặc `delta.md`, `02-spec.md`, `03-design.md`, `04-plan.md` (đợt `<k>`: các micro-task `<…>`)
 - File của đợt: `<danh sách>`
 
 ## Lấy diff
 ```bash
-cd worktrees/<id>-<slug>/<repo>
+cd <worktrees_dir>/<slug>/<repo>
 codegraph sync
 git diff $(git merge-base HEAD origin/<base_branch>) -- <file của đợt>
 git status --short
@@ -29,6 +30,8 @@ git status --short
    - (c) Vòng `for … await` gọi cùng truy vấn/service (N+1)?
    - (d) `catch → []` im lặng (nuốt lỗi, hiện rỗng như thể không có dữ liệu)?
    - (e) Hằng số/bảng chép tay của dữ liệu đã có nguồn (so với bảng nguồn trong Brief)?
+
+Việc ngoài phạm vi: ghi "Thấy nhưng không sửa" kèm lý do; không âm thầm sửa hoặc mở rộng task.
 
 ## Định dạng kết quả
 ```

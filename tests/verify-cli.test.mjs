@@ -30,7 +30,9 @@ async function readyWorkspace(t) {
   fs.rmSync(path.join(ws.root, 'worktrees/123-sample'), { recursive: true, force: true })
   const { ctx } = capture(ws.root)
   ctx.runCommand = () => ({ status: 0, stdout: '', stderr: '' })
-  ctx.fetch = async () => ({ status: 404 })
+  ctx.fetch = async () => ({ status: 200, ok: true })
+  ctx.sleep = async () => {}
+  ctx.healthAttempts = 3
   t.after(ws.cleanup)
   return { ...ws, ctx }
 }
@@ -63,4 +65,66 @@ test('verify-up rejects a competing card lock and verify-down preserves it', asy
   assert.match(buf.err, /đang verify/)
   assert.equal(await main(['verify-down', '123'], ws.ctx), 1)
   assert.equal(JSON.parse(fs.readFileSync(path.join(ws.root, 'worktrees/.verify.lock'), 'utf8')).slug, '999-other')
+})
+
+
+test('verify-up rejects unhealthy HTTP responses and retains lock until cleanup', async (t) => {
+  const ws = await readyWorkspace(t)
+  assert.equal(await main(['copy', '123'], ws.ctx), 0)
+  let attempts = 0
+  ws.ctx.fetch = async () => { attempts++; return { status: 503, ok: false } }
+  assert.equal(await main(['verify-up', '123', 'web'], ws.ctx), 1)
+  assert.equal(attempts, 3)
+  const lock = path.join(ws.root, 'worktrees/.verify.lock')
+  assert.equal(fs.existsSync(lock), true)
+  assert.equal(await main(['verify-down', '123'], ws.ctx), 0)
+  assert.equal(fs.existsSync(lock), false)
+})
+
+test('verify-up waits for readiness and accepts only successful responses', async (t) => {
+  const ws = await readyWorkspace(t)
+  assert.equal(await main(['copy', '123'], ws.ctx), 0)
+  let attempts = 0
+  ws.ctx.fetch = async () => { attempts++; if (attempts === 1) throw new Error('starting'); return { status: attempts === 2 ? 404 : 200 } }
+  assert.equal(await main(['verify-up', '123', 'web'], ws.ctx), 0)
+  assert.equal(attempts, 4)
+})
+
+test('verify-up preserves an existing same-card lock when migration fails', async (t) => {
+  const ws = await readyWorkspace(t)
+  assert.equal(await main(['copy', '123'], ws.ctx), 0)
+  const lock = path.join(ws.root, 'worktrees/.verify.lock')
+  fs.writeFileSync(lock, JSON.stringify({ slug: '123-sample' }))
+  ws.ctx.runCommand = () => ({ status: 1 })
+  assert.equal(await main(['verify-up', '123', 'web'], ws.ctx), 1)
+  assert.equal(fs.existsSync(lock), true)
+})
+
+test('verify-down preserves lock when cleanup is not configured', async (t) => {
+  const ws = await readyWorkspace(t)
+  assert.equal(await main(['copy', '123'], ws.ctx), 0)
+  const configFile = path.join(ws.root, 'ff.config.yaml')
+  const config = YAML.parse(fs.readFileSync(configFile, 'utf8'))
+  delete config.e2e.down_cmd
+  fs.writeFileSync(configFile, YAML.stringify(config))
+  const lock = path.join(ws.root, 'worktrees/.verify.lock')
+  fs.writeFileSync(lock, JSON.stringify({ slug: '123-sample' }))
+  assert.equal(await main(['verify-down', '123'], ws.ctx), 1)
+  assert.equal(fs.existsSync(lock), true)
+})
+
+test('verify-up releases newly acquired lock after migration failure before startup', async (t) => {
+  const ws = await readyWorkspace(t)
+  assert.equal(await main(['copy', '123'], ws.ctx), 0)
+  ws.ctx.runCommand = () => ({ status: 1 })
+  assert.equal(await main(['verify-up', '123', 'web'], ws.ctx), 1)
+  assert.equal(fs.existsSync(path.join(ws.root, 'worktrees/.verify.lock')), false)
+})
+
+test('verify-up retains lock when startup may have failed after partially starting', async (t) => {
+  const ws = await readyWorkspace(t)
+  assert.equal(await main(['copy', '123'], ws.ctx), 0)
+  ws.ctx.runCommand = (command) => ({ status: command === 'node up.js' ? 1 : 0 })
+  assert.equal(await main(['verify-up', '123', 'web'], ws.ctx), 1)
+  assert.equal(fs.existsSync(path.join(ws.root, 'worktrees/.verify.lock')), true)
 })

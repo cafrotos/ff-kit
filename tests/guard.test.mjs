@@ -127,7 +127,7 @@ test('feature-flow: repo gốc là bản gương', (t) => {
   check(2, 'feature-flow', '.', 'git -C web checkout -b feature/x')
   check(0, 'feature-flow', 'api', 'git checkout dev && git pull')
   check(0, 'feature-flow', `${WT}/api`, 'git commit -m x')
-  check(0, 'feature-flow', 'api', 'git push origin x')
+  check(2, 'feature-flow', 'api', 'git push origin x')
   checkFile(2, 'feature-flow', 'Edit', '.', 'web/apps/recruit/src/a.tsx')
   checkFile(2, 'feature-flow', 'Write', 'api', 'src/x.ts')
   checkFile(0, 'feature-flow', 'Edit', '.', `${WT}/api/src/x.ts`)

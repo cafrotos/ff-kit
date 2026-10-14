@@ -12,100 +12,77 @@ const mdFiles = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: t
 })
 const RUNTIME = ['skills', 'agents', 'commands', 'references'].flatMap(mdFiles)
 
-const ANCHORS = {
-  'skills/ff-understand/rules.md': [
-    /Ba điều cấm/, /git push/, /git add -A/, /git stash/, /\[ff-guard\]/, /Codegraph trước, grep sau/, /Tam giác đạc/,
-    /Kỷ luật bằng chứng/, /Precedent/, /Deviation/i, /Cỡ task/, /\| Nhỏ \|/, /\| Vừa \|/, /\| Lớn \|/,
-    /Hardcode → cấu hình/, /Opus 5\.x/, /Trạng thái file → skill kế tiếp/, /Trello: #/,
-    /Làm tự do/, /Cẩn thận/, /Phải hỏi/, /<dossier>/, /ủy quyền/,
-  ],
-  'skills/ff-understand/references/resume.md': [/dossier/, /01b-ledger\.md/, /ff state/, /git status/, /2–3 dòng/, /bản ghi Gate/, /không suy ra/i],
-  'skills/ff-understand/SKILL.md': [
-    /\bWrite\b/, /\bEdit\b/, /\bAgent\b/, /Bash\(ff trace-check \*\)/, /01b-ledger\.md/, /Cỡ task/, /ff-brief-adversary/, /ff-design-reviewer/,
-    /ff-gate-reader/, /2 vòng/, /Ranh giới dừng hỏi/, /GATE B TỰ QUA/, /Bàn giao: gọi/, /\$\{CLAUDE_PLUGIN_ROOT\}\/templates\/dossier\.md/,
-    /resume\.md/, /doubt\.md/,
-  ],
-  'skills/ff-understand/references/brief.md': [
-    /Bảy câu hỏi/, /Symptom/, /Hypothesis Tree/, /Falsification/, /Is\/Is-Not|Là \/ Không là/, /Nếu đúng thì sẽ thấy/, /Cách kiểm rẻ nhất/,
-    /\| Mã \| Trích nguyên văn \| Vị trí \| Ghi chú \|/, /\| Mã \| Câu hỏi \| Đáp án \| Ngày \|/, /bỏ: bookkeeping/,
-    /sự kiện/, /giả thuyết/, /giải pháp/, /\[đã kiểm\b/, /\[chưa kiểm\]/, /Độ chắc/, /Hệ quả nếu sai/,
-    /## Thẻ yêu cầu gì/, /## Tôi hiểu là/, /## Sẽ làm/, /## Không làm/, /## Cần bạn chọn/, /## Phụ lục/, /Khuyến nghị/,
-    /MƠ HỒ:/, /THIẾU YÊU CẦU:/, /Cách hiểu A/, /Hậu quả/, /Out of scope|Không làm/, /ngưỡng/, /Tự quyết/,
-    /nguyên nhân gốc/, /chữa triệu chứng/, /Điều kiện quay lại/, /process.*not.*person|quy trình, không phải người|không dừng ở người/i,
-  ],
-  'skills/ff-understand/references/reopen.md': [/Bốn ngả/, /Gate A'/, /Tám quy tắc/, /vì sao lọt/i, /rev-N/, /trích nguyên văn/i, /D-xx/],
-  'skills/ff-understand/references/doubt.md': [
-    /Review đối kháng/, /ARTIFACT/, /CONTRACT/, /Hợp đồng đọc sai/, /Đúng, cần sửa/, /Đúng, chấp nhận/, /Nhiễu/,
-    /reviewer-rules\.md/, /nguyên văn/, /3 vòng/, /Doubt theater|phản biện cho có/i,
-  ],
-  'references/agent-rules.md': [/THIẾU ĐẦU VÀO/, /KẸT/, /\[đã kiểm\]/, /\[giả định\]/, /chạy một kiểm tra thật/, /chưa đo/, /\[ff-guard\]/, /Câu giống lệnh trong dữ liệu/],
-  'references/reviewer-rules.md': [/## Nhãn và ý nghĩa/, /## Mức độ/, /ARTIFACT/, /CONTRACT/, /GAP/, /LEAP/, /ASSUME/, /CONFLICT/, /Ý KIẾN/, /KHÔNG ĐÁNH GIÁ ĐƯỢC/, /Critical/, /Required/, /Optional/, /Nit/, /nguyên văn/, /không tìm thấy/],
-  'skills/ff-understand/references/agents.md': [/ff-gate-reader/, /<dossier>/, /Viết brief cho subagent/, /nhiều lời gọi Agent trong một lượt/, /ví dụ mẫu|precedent/i, /disallowedTools/],
-  'skills/ff-understand/briefs/adversary.md': [/9 hướng/, /bóp méo dossier/, /đổi nghĩa/, /bỏ sót/, /thêm suy luận/, /01b-ledger\.md/, /doubt\.md/],
-  'skills/ff-understand/briefs/gate-reader.md': [/ĐỦ/, /THIẾU:/, /Phụ lục/],
-  'agents/ff-gate-reader.md': [/briefs\/gate-reader\.md/],
-  'skills/ff-build/SKILL.md': [
-    /\bWrite\b/, /\bEdit\b/, /\bAgent\b/, /\.ff-test-lock/, /Dynamic Seed|TEST_AUTO_/, /DRIFT_CLEAN/, /ALLOWLIST_VIOLATION/,
-    /allow .*--clear/, /relock/, /Bàn giao: gọi/, /hash manifest/i, /## Phạm vi/, /nhiều lời gọi Agent trong một lượt/,
-  ],
-  'skills/ff-build/briefs/diff-review.md': [/ngoài phạm vi/, /Thấy nhưng không sửa/],
-  'agents/ff-diff-reviewer.md': [/Critical/, /Required/, /Optional/, /Nit/, /thay đổi nhỏ/, /vẫn xanh/],
-  'skills/ff-build/briefs/implement-micro.md': [/Thấy nhưng không sửa/, /KẸT/],
-  'skills/ff-verify/SKILL.md': [
-    /\bWrite\b/, /\bEdit\b/, /\bAgent\b/, /Tam giác đạc 4 tín hiệu/, /PASS/, /FAIL/, /PARTIAL/, /UNVERIFIED/, /OBSERVATION/,
-    /Could not test it != it is broken/, /Neighborhood Sweep/, /i18n/, /nền/, /ff verify-down/, /relock/, /GATE_C/,
-    /Bash\(ff e2e-lint \*\)/, /Bash\(npx playwright test \*\)/, /Chế độ xác minh/, /quay lại.*giả thuyết/i,
-  ],
-  'skills/ff-verify/references/proof-discipline.md': [
-    /## Chế độ xác minh/, /## Đừng kết luận X/, /## Bản đồ phủ/, /## Mức nghiêm trọng/, /25%/, /nuốt/, /Đã đi/, /Thấy nhưng chưa thử/, /Chưa tới/,
-    /Critical/, /High/, /Medium/, /Low/, /bản tóm tắt/, /Không thấy lỗi.*không phải PASS|không phải PASS/,
-  ],
-  'skills/ff-verify/references/measure.md': [/Ngân sách request/, /browser_network_requests/, /:id/, /EXPLAIN/, /ff db-query/],
-  'skills/ff-verify/references/ship.md': [/ff verify-down/, /ff ship-request/, /ship-approve/, /Sau triển khai/, /<e2e\.done_tests_dir>/],
-  'commands/ship-to-dev.md': [
-    /--force-with-lease/, /merge-base --is-ancestor/, /rev-list --merges/, /git reset -q/, /git clean -fd/,
-    /git ls-remote --exit-code --heads origin/, /Trello: #/, /Rev: /, /cherry-pick -x/, /không bao giờ force/i,
-    /AskUserQuestion/, /ff ship-request/, /ff ship-approve/, /base_branch/, /ship_branch/, /tuần tự/,
-  ],
-  'references/writing.md': [
-    /Reader-First/, /8–20/, /25 từ|25 token/, /cụm danh từ/i, /Giữ nguyên mức chắc chắn/, /Việc người đọc cần làm/, /Giải thích/, /Hướng dẫn thực hiện/, /Tra cứu/,
-    /Phương án \| Điểm mạnh \| Chi phí/, /Dấu hiệu văn AI/, /Ví dụ Gate tốt/, /## Thẻ yêu cầu gì/, /Danh sách kiểm/, /Không gắn cờ/,
-  ],
-  'docs/skill-authoring.md': [/Nhiệm vụ đặt cuối/, /lý do/, /Làm tự do/, /disallowedTools/, /Prompt kiểm thử/, /nhiều lời gọi Agent/, /mâu thuẫn/, /Sứ mệnh.*Vị trí.*Cách nghĩ/s, /đúng độ cao/i, /Haiku/],
-  'skills/ff-init/references/detect.md': [/TODO\(confirm/, /README/, /CI/, /file:line/, /nghiên cứu.*nháp.*xác nhận.*kiểm|nghiên cứu → nháp → xác nhận → kiểm/i],
-}
+// Assert shared contracts at their owner, rather than requiring every consumer to
+// repeat exact wording. Templates are checked separately against CLI parsers.
+test('review classification has one owner and consumers link to it', () => {
+  const owner = 'references/reviewer-rules.md'
+  for (const heading of ['## Nhãn và ý nghĩa', '## Mức độ']) {
+    assert.deepEqual(RUNTIME.filter((f) => read(f).split('\n').includes(heading)), [owner])
+  }
+  assert.doesNotMatch(read('skills/ff-understand/references/doubt.md'), /\| `(?:GAP|LEAP|OPINION)` \|/)
+  assert.match(read('skills/ff-understand/references/doubt.md'), /references\/reviewer-rules\.md/)
+  assert.doesNotMatch(read(owner), /không có.*(?:Ý KIẾN|OPINION).*đáng ngờ/i)
+})
 
-for (const [file, anchors] of Object.entries(ANCHORS)) {
-  test(`anchors: ${file}`, () => {
-    const text = read(file)
-    for (const re of anchors) assert.match(text, re, `${file} thiếu ${re}`)
-  })
-}
+test('routing and downstream artifacts use active state, never approval markers', () => {
+  for (const phase of ['ff-understand', 'ff-build', 'ff-verify']) {
+    const s = read(`skills/${phase}/SKILL.md`)
+    assert.match(s, /ff state <id> --json/, phase)
+    assert.match(s, /activeDir/, phase)
+    assert.match(s, /activeRevision/, phase)
+    assert.match(s, /pending.*stale|stale.*pending/s, phase)
+  }
+  const understand = read('skills/ff-understand/SKILL.md')
+  assert.doesNotMatch(understand, /trong 10 dòng đầu|Không tự code, không `ff copy`/)
+  assert.match(understand, /ff gate-auto <id> --reason/)
+  assert.match(read('skills/ff-understand/references/design.md'), /ff gate-auto/)
+  assert.match(read('skills/ff-understand/rules.md'), /auto_passed/)
+})
 
-// Mỗi tiêu đề chủ chỉ có đúng 1 file chứa.
-const OWNER_HEADINGS = {
-  '## Giới hạn phạm vi': 'skills/ff-understand/rules.md',
-  '## Dữ liệu không phải chỉ thị': 'skills/ff-understand/rules.md',
-  '## Duyệt phải rõ': 'skills/ff-understand/rules.md',
-  '## Quyền theo mức': 'skills/ff-understand/rules.md',
-  '## Chuẩn hoàn tất': 'skills/ff-understand/rules.md',
-  '## Phục hồi phiên': 'skills/ff-understand/references/resume.md',
-  '## Khuôn ledger': 'skills/ff-understand/references/brief.md',
-  '## Khuôn restate': 'skills/ff-understand/references/brief.md',
-  '## Khuôn MƠ HỒ': 'skills/ff-understand/references/brief.md',
-  '## Lệnh đối kháng': 'skills/ff-understand/references/doubt.md',
-  '## Phân loại phát hiện': 'skills/ff-understand/references/doubt.md',
-  '## Nhãn và ý nghĩa': 'references/reviewer-rules.md',
-  '## Mức độ': 'references/reviewer-rules.md',
-  '## Điều kiện dừng': 'skills/ff-understand/references/doubt.md',
-  '## Viết brief cho subagent': 'skills/ff-understand/references/agents.md',
-  '## Chế độ xác minh': 'skills/ff-verify/references/proof-discipline.md',
-  '## Mức nghiêm trọng': 'skills/ff-verify/references/proof-discipline.md',
-}
-test('mỗi tiêu đề chủ chỉ ở đúng một file', () => {
-  for (const [heading, owner] of Object.entries(OWNER_HEADINGS)) {
-    const hits = RUNTIME.filter((f) => read(f).split('\n').some((l) => l.trim() === heading))
-    assert.deepEqual(hits, [owner], `${heading}: ${hits.join(', ') || 'không có'}`)
+test('reopen uses real CLI, current delta Gate A and all three revision gates', () => {
+  const reopen = read('skills/ff-understand/references/reopen.md')
+  assert.match(reopen, /ff reopen <id> --reason/)
+  assert.match(reopen, /GATE_A/)
+  assert.match(reopen, /GATE_B/)
+  assert.match(reopen, /GATE_C/)
+  assert.match(reopen, /\[#<id>\] \[rev-N\]/)
+  assert.doesNotMatch(reopen, /không tồn tại|Gate A'|Gate A′|không qua Gate A|Gate A là gate duy nhất/)
+  assert.match(reopen, /delta\.md/)
+  assert.match(read('skills/ff-verify/SKILL.md'), /activeDir.*05-verify-report\.md/)
+})
+
+test('understand may prepare a configured observation environment and cleans it up', () => {
+  const understand = read('skills/ff-understand/SKILL.md')
+  for (const command of ['copy', 'verify-up', 'verify-down', 'db-query']) {
+    assert.ok(understand.split('---')[1].includes(`Bash(ff ${command} *)`))
+    assert.match(understand, new RegExp(`ff ${command}`))
+  }
+  assert.match(understand, /không sửa code sản phẩm/i)
+  assert.match(understand, /health.*lock|lock.*health/s)
+})
+
+test('gate-tools use full slug rather than IDs', () => {
+  const docs = [...mdFiles('skills'), ...mdFiles('agents'), ...mdFiles('references')]
+  for (const file of docs) {
+    assert.doesNotMatch(read(file), /ff (?:allow|relock|lock-tests|probe-slice|ship-approve) <id>/, file)
+  }
+  assert.match(read('skills/ff-build/SKILL.md'), /ff allow <slug>/)
+  assert.match(read('skills/ff-build/SKILL.md'), /ff lock-tests <slug>/)
+})
+
+test('small tasks scale diagnosis but keep verification Gate C', () => {
+  assert.match(read('skills/ff-understand/rules.md'), /Nhỏ.*Gate C/)
+  assert.match(read('skills/ff-understand/SKILL.md'), /chưa rõ.*giả thuyết|giả thuyết.*chưa rõ/s)
+  assert.doesNotMatch(read('skills/ff-understand/SKILL.md'), /Hypothesis Tree ≥2/)
+})
+
+test('test writer has explicit secret boundaries and honest static checks', () => {
+  const brief = read('skills/ff-build/briefs/test-writer.md')
+  assert.match(brief, /Không đọc.*\.auth.*token/)
+  assert.doesNotMatch(brief, /Chỉ đọc:.*\.auth/)
+  for (const f of ['agents/ff-test-writer.md', 'skills/ff-build/briefs/test-writer.md']) {
+    assert.match(read(f), /type-check/)
+    assert.match(read(f), /không.*PASS.*hành vi|không.*hành vi.*PASS/i)
   }
 })
 
@@ -231,4 +208,16 @@ test('briefs do not repeat agent persona openings', () => {
     const preamble = read(f).split(/^## /m, 1)[0].split('\n').slice(1).join('\n')
     assert.doesNotMatch(preamble, personaOpening, f)
   }
+})
+
+test('ship instructions keep separate permission and avoid destructive legacy snippets', () => {
+  const command = read('commands/ship-to-dev.md')
+  const reference = read('skills/ff-verify/references/ship.md')
+  assert.match(command, /ff ship-request/)
+  assert.match(command, /AskUserQuestion/)
+  assert.match(command, /ff ship-approve <slug>/)
+  assert.doesNotMatch(command, /--force-with-lease|git reset -q|git clean -fd/)
+  assert.match(reference, /user yêu cầu ship/)
+  assert.match(reference, /activeRevision/)
+  assert.match(reference, /activeDir/)
 })

@@ -33,34 +33,47 @@ export async function run(args, ctx) {
     ctx.stderr.write(`ff verify-up: thẻ khác đang verify (${acquired.current?.slug ?? 'không rõ'})\n`)
     return 1
   }
+  const releaseBeforeStart = () => {
+    if (!acquired.current) releaseVerifyLock(lock, slug)
+    return acquired.current ? 'giữ lock đã có' : 'đã trả lock'
+  }
   for (const repo of config.repos) {
     const dir = repoDir(root, config.workspace.worktrees_dir, slug, repo)
     if (!fs.existsSync(dir)) {
-      releaseVerifyLock(lock, slug)
-      ctx.stderr.write(`ff verify-up: thiếu bản copy ${path.relative(root, dir)}; đã trả lock\n`)
+      ctx.stderr.write(`ff verify-up: thiếu bản copy ${path.relative(root, dir)}; ${releaseBeforeStart()}\n`)
       return 1
     }
     if (!repo.commands?.migrate) continue
     const result = runConfigured(repo.commands.migrate, dir, ctx)
     if (result.status !== 0) {
-      releaseVerifyLock(lock, slug)
-      ctx.stderr.write(`ff verify-up: migration lỗi trong ${repo.name}; dừng, không tự revert; đã trả lock\n`)
+      ctx.stderr.write(`ff verify-up: migration lỗi trong ${repo.name}; dừng, không tự revert; ${releaseBeforeStart()}\n`)
       return 1
     }
   }
   const e2eDir = path.resolve(root, config.e2e.dir)
   const started = runConfigured(config.e2e.up_cmd, e2eDir, ctx)
   if (started.status !== 0) {
-    releaseVerifyLock(lock, slug)
-    ctx.stderr.write('ff verify-up: e2e.up_cmd lỗi; đã trả lock\n')
+    ctx.stderr.write('ff verify-up: e2e.up_cmd lỗi; có thể đã khởi động một phần, giữ lock; chạy ff verify-down để dọn\n')
     return 1
   }
   const urls = [...new Set([...(config.e2e.health_urls ?? []), app.base_url])]
   const fetcher = ctx.fetch ?? globalThis.fetch
+  const sleep = ctx.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+  const attempts = Math.min(30, Math.max(1, Math.trunc(ctx.healthAttempts ?? 10)))
   for (const url of urls) {
-    try { await fetcher(url, { signal: AbortSignal.timeout(10000) }) } catch {
-      releaseVerifyLock(lock, slug)
-      ctx.stderr.write(`ff verify-up: không kết nối được ${url}; đã trả lock\n`)
+    let healthy = false
+    let failure = 'không kết nối được'
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      try {
+        const response = await fetcher(url, { signal: AbortSignal.timeout(3000) })
+        healthy = response?.ok !== false && Number(response?.status) >= 200 && Number(response?.status) < 300
+        failure = `HTTP ${response?.status ?? 'không rõ'}`
+        if (healthy) break
+      } catch (error) { failure = error.message }
+      if (attempt + 1 < attempts) await sleep(500)
+    }
+    if (!healthy) {
+      ctx.stderr.write(`ff verify-up: health lỗi ${url} (${failure}); giữ lock; chạy ff verify-down để dọn\n`)
       return 1
     }
   }

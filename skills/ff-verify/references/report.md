@@ -1,17 +1,18 @@
-# Khuôn báo cáo cuối — `<cards_dir>/<slug>/05-verify-report.md`
+# Khuôn báo cáo cuối — `<activeDir>/05-verify-report.md`
 
-Đây là gate nghiệm thu (spec §5.2). Báo cáo tuân thủ nghiêm ngặt **Kỷ luật Bằng chứng (Proof Discipline)** và **Tam giác đạc (Triangulation)** từ `references/proof-discipline.md`. Viết tiếng Việt, mỗi mục súc tích; mục không có nội dung ghi "không". Ảnh lưu trong `<cards_dir>/<slug>/verify/<role>/`, dẫn bằng đường dẫn tương đối.
+Đây là gate nghiệm thu (spec §5.2). Báo cáo tuân thủ nghiêm ngặt **Kỷ luật Bằng chứng (Proof Discipline)** và **Tam giác đạc (Triangulation)** từ `references/proof-discipline.md`. Viết tiếng Việt, mỗi mục súc tích; mục không có nội dung ghi "không". Ảnh lưu trong `<activeDir>/verify/<role>/`, dẫn bằng đường dẫn tương đối.
 
 ```markdown
 # Báo cáo verify — <id>-<slug> (<task-N nếu có>)
-> Ngày <…> · bản copy `worktrees/<slug>` · commit <hash ngắn mỗi repo> · app <app>
+> Revision: <activeRevision: null hoặc rev-N> · Ngày <…> · bản copy `<worktrees_dir>/<slug>` · commit <hash ngắn mỗi repo> · app <app>
 > Kết luận: ĐẠT | CHƯA ĐẠT (lý do 1 dòng)
 
 ## 1. Ma trận AC theo 4 tín hiệu (Triangulation Matrix)
 <dán output `ff ac-matrix <id> [task-N]`>
+- Manifest hiện tại: `<testLock từ state JSON>`; đối chiếu manifest gốc khi chạy hồi quy.
 - Hash manifest: `<8 ký tự đầu>` (so với số đã in lúc ff-build)
-- `.ff-test-lock.log`: <dán nguyên văn>. Có dòng không do user duyệt → **ĐỎ**.
-- Kết quả chạy Playwright: `npx playwright test tests/<slug>/` → <n> pass / <n> fail / <n> skip (skip = NOT RUN).
+- `<log tương ứng testLock hiện tại>`: <dán nguyên văn>. Có dòng không do user duyệt → **ĐỎ**.
+- Kết quả chạy Playwright: `<lệnh Playwright từ config với test path e2e.tests_dir/slug>` → <n> pass / <n> fail / <n> skip (skip = NOT RUN).
 
 | AC | UI State (Playwright) | DB Query Result (SQL) | Network Status (HTTP) | Console Log | Verdict |
 |---|---|---|---|---|---|
@@ -46,11 +47,11 @@
 | Thao tác | Câu truy vấn `db-query` | Trạng thái DB trước | Trạng thái DB sau | Kết quả đối soát |
 |---|---|---|---|---|
 
-### 5.3 Truy vấn DB TypeORM / Thời gian mỗi endpoint (nếu đo được theo `references/measure.md`)
+### 5.3 Truy vấn DB ORM / Thời gian mỗi endpoint (nếu đo được theo `references/measure.md`)
 <bảng: endpoint | số request | truy vấn/request (min–max) | ms (min–max)> hoặc "chưa đo số truy vấn DB (<lý do>)".
 
 ## 6. e2e-lint (`--strict`)
-<dán output `ff e2e-lint e2e/tests/<slug> --strict`; đếm force/dispatchEvent/skip/catch/waitForTimeout>
+<dán output `ff e2e-lint <e2e.tests_dir>/<slug> --strict`; đếm force/dispatchEvent/skip/catch/waitForTimeout>
 
 ## 7. Lỗi implement
 - <màn/AC> · hợp đồng nói (trích `03-design.md`) · thực tế (ảnh/log/DB) · slice/file nghi ngờ
@@ -69,7 +70,7 @@
 3. Không có test nào bị `skip` hoặc `NOT RUN`.
 4. `ff e2e-lint --strict` sạch sẽ hoàn toàn.
 5. Mọi kịch bản request $\le$ trần ngân sách quy định trong `brief.md`.
-6. Hash manifest test khớp chính xác, log `.ff-test-lock.log` không có can thiệp trái phép.
+6. Hash manifest test khớp chính xác, log `<log tương ứng testLock hiện tại>` không có can thiệp trái phép.
 7. Không có lỗi implement chưa giải quyết.
 8. Neighborhood Sweep xác nhận không gây hồi quy tính năng lân cận.
 
@@ -89,7 +90,7 @@ Thêm sau mục 1, trước mục 2:
 - Bộ hồi quy: các AC cũ liên quan — số pass/fail.
 - Mục 5 đo lại request cho các kịch bản của màn bị chạm, so trước/sau.
 
-### Phiếu ngả A (tự sửa, không qua Gate A')
+### Phiếu ngả A (phạm vi đã duyệt trong delta hiện tại)
 Liệt kê riêng để user quét nhanh:
 | # | Câu AC trích nguyên văn (`task-N/AC-xx`) | Kết quả sau sửa có đúng câu đó? |
 |---|---|---|

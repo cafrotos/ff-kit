@@ -9,6 +9,7 @@ const entryPoints = {
   'hooks/ask-pre': 'scripts/hooks/ask-pre.mjs',
   'hooks/ask-post': 'scripts/hooks/ask-post.mjs',
   'hooks/notification': 'scripts/hooks/notification.mjs',
+  'hooks/stop': 'scripts/hooks/stop.mjs',
   'worker-supervise': 'scripts/worker-supervise.mjs',
 }
 

@@ -22,7 +22,7 @@ Người dùng kết quả: phiên chính chia task cho `ff-implementer` hoặc 
 
 1. **Phụ thuộc trước.** Thứ tự theo đồ thị phụ thuộc; hợp đồng (phần 0) trước; mỗi file chỉ một chủ ghi trong một đợt, file nóng một task một đợt.
 2. **Neo vào code thật.** Mỗi task neo bằng symbol và một đoạn mã duy nhất chép từ code thật. Số dòng trôi đi nên không dùng làm neo. Verify identifier trước khi viết.
-3. **Tự đủ.** Mỗi micro-task đọc một mình đã làm được: file, hành vi và bảng input→output, `Consumes`/`Produces` chính xác, 2–3 precedent, skeleton cho phần khó, mục "KHÔNG làm".
+3. **Tự đủ.** Mỗi micro-task đọc một mình đã làm được: danh sách Files hữu hạn (thường 1–3 file liên quan; Haiku một file), hành vi và bảng input→output, `Consumes`/`Produces` chính xác, 2–3 precedent, skeleton cho phần khó, mục "KHÔNG làm".
 4. **Kiểm được bằng máy.** Mỗi task có lệnh kiểm cơ học chạy được. Task không có lệnh kiểm thì chỉ giao cho Sonnet.
 5. **Rẻ đúng chỗ.** Task rõ, cơ học giao Haiku; task cần phán đoán giao Sonnet, theo bảng chọn model trong tài liệu luật slice.
 6. **Nói thật chỗ chưa rõ.** Design mâu thuẫn với code thật thì ghi vào "Cần bạn quyết"; không tự đổi design.

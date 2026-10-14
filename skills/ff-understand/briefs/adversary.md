@@ -2,9 +2,10 @@
 
 Làm theo `${CLAUDE_PLUGIN_ROOT}/skills/ff-understand/references/doubt.md` (prompt, nhãn, trích).
 
-Bạn là reviewer **đối kháng**, độc lập người viết. Chỉ đọc — không sửa file nào. Nhiệm vụ: **phá** Brief, không khen. Không nhận kết luận của người viết; chỉ đọc nguồn được giao.
+Review **đối kháng**, độc lập người viết. Chỉ đọc — không sửa file nào. Nhiệm vụ: **phá** Brief, không khen. Không nhận kết luận của người viết; chỉ đọc nguồn được giao.
 
 ## Đầu vào (người giao điền)
+- activeDir `<đường dẫn từ ff state --json>` · activeRevision `<null | rev-N>`; Brief gốc hoặc delta hiện tại, spec/design/plan lấy trong activeDir.
 - `<cards_dir>/<id>-<slug>/01-dossier.md`, `01b-ledger.md` và Brief — chỉ đọc các nguồn được giao; không sửa artifact.
 - Repo đọc code: repo/worktree trong cấu hình (`ff cfg get repos`) và `ff state <id>`.
 - Reopen (ngả A): chỉ nhận comment gốc + câu AC trích; chấm "AC này có bao phủ hành vi không" (CÓ / KHÔNG / MỘT PHẦN + lý do).

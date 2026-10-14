@@ -22,6 +22,10 @@ export async function run(args, ctx) {
     ctx.stderr.write(`ff verify-down: verify lock thuộc ${current.slug}; không dừng server hoặc đổi lock\n`)
     return 1
   }
+  if (current && !config.e2e?.down_cmd && !force) {
+    ctx.stderr.write('ff verify-down: thiếu e2e.down_cmd; chưa xác nhận dọn server, giữ lock. Dọn thủ công rồi dùng --force-unlock.\n')
+    return 1
+  }
   if (config.e2e?.down_cmd) {
     const result = runConfigured(config.e2e.down_cmd, path.resolve(root, config.e2e.dir), ctx)
     if (result.status !== 0) { ctx.stderr.write('ff verify-down: e2e.down_cmd lỗi; giữ nguyên lock để điều tra\n'); return 1 }

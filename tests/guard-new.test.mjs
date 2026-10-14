@@ -112,10 +112,20 @@ test('marker không có ">", qua NotebookEdit, NFD đều bị nhận ra', (t) =
   assert.notEqual(ev({ file: `${CARD}/brief.md`, tool: 'NotebookEdit', input: { new_source: 'Trạng thái: ĐÃ DUYỆT' } }), null)
 })
 
-test('GATE B TỰ QUA và file ngoài cards_dir không bị chặn', (t) => {
+test('GATE B TỰ QUA chỉ là nhãn hiển thị, file ngoài cards_dir không bị chặn', (t) => {
   const { ev } = setup(t)
   assert.equal(ev({ file: `${CARD}/03-design.md`, tool: 'Write', input: { content: '> Trạng thái: GATE B TỰ QUA 2026-10-13\n' } }), null)
   assert.equal(ev({ file: 'docs/brief.md', tool: 'Write', input: { content: APPROVED } }), null)
+})
+
+test('multi_replace_file_content validates the actual ReplacementChunks marker change', (t) => {
+  const { ev, approve } = setup(t)
+  const edit = { file: `${CARD}/brief.md`, tool: 'multi_replace_file_content', input: {
+    ReplacementChunks: [{ TargetContent: 'CHỜ DUYỆT', ReplacementContent: 'ĐÃ DUYỆT 2026-10-13' }],
+  } }
+  assert.notEqual(ev(edit), null)
+  approve()
+  assert.equal(ev(edit), null)
 })
 
 test('Bash ghi artifact Gate hoặc marker bị chặn, đọc thì qua', (t) => {

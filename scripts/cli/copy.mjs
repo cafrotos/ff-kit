@@ -2,9 +2,32 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { findRoot, loadConfig } from '../lib/config.mjs'
 import { findCardDir } from '../lib/cards.mjs'
-import { cardBranch, git, repoDir, runConfigured } from './repo-common.mjs'
+import { activeRevision } from '../lib/gates.mjs'
+import { cardBranch, configureCopyOrigin, git, repoDir, runConfigured } from './repo-common.mjs'
 
 export const summary = 'copy <id> — tạo bản copy repo theo branch trong dossier'
+
+function registerRevisionBases(root, config, cardDir, slug) {
+  const revision = activeRevision(cardDir)
+  if (!revision) return
+  const file = path.join(cardDir, revision, 'revision.json')
+  const metadata = JSON.parse(fs.readFileSync(file, 'utf8'))
+  if (metadata.revision !== revision || (metadata.bases && (typeof metadata.bases !== 'object' || Array.isArray(metadata.bases)))) throw new Error(`metadata ${revision} không hợp lệ`)
+  const bases = { ...metadata.bases }
+  let changed = false
+  for (const repo of config.repos) {
+    if (Object.hasOwn(bases, repo.name)) continue
+    const dir = repoDir(root, config.workspace.worktrees_dir, slug, repo)
+    const head = git(dir, ['rev-parse', '--verify', 'HEAD'])
+    if (head.status !== 0) throw new Error(`không đọc được baseline ${revision}/${repo.name}`)
+    bases[repo.name] = head.stdout.trim()
+    changed = true
+  }
+  if (!changed) return
+  const temp = `${file}.${process.pid}.tmp`
+  fs.writeFileSync(temp, JSON.stringify({ ...metadata, bases }, null, 2) + '\n', { mode: 0o600 })
+  fs.renameSync(temp, file)
+}
 
 export async function run(args, ctx) {
   const id = args[0]
@@ -20,7 +43,27 @@ export async function run(args, ctx) {
   const worktree = path.resolve(root, config.workspace.worktrees_dir, slug)
   if (fs.existsSync(worktree)) {
     const complete = config.repos.every((repo) => fs.existsSync(path.join(worktree, path.basename(repo.path), '.git')))
-    if (complete) { ctx.stdout.write(`Bản copy đã có: ${path.relative(root, worktree)} — không tạo lại.\n`); return 0 }
+    if (complete) {
+      for (const repo of config.repos) {
+        const dir = repoDir(root, config.workspace.worktrees_dir, slug, repo)
+        if (git(dir, ['branch', '--show-current']).stdout.trim() !== branch) {
+          ctx.stderr.write(`ff copy: ${repo.name} không ở branch ${branch}; giữ nguyên bản copy để kiểm tra\n`)
+          return 1
+        }
+        const source = path.resolve(root, repo.path)
+        const origin = git(dir, ['remote', 'get-url', 'origin'])
+        if (origin.status === 0 && origin.stdout.trim() === source && git(dir, ['config', '--get', 'remote.ff-local.url']).status === 1) {
+          try {
+            configureCopyOrigin(source, dir, repo.name, ctx)
+            if (git(dir, ['config', `branch.${branch}.remote`, 'origin']).status !== 0) throw new Error('không đặt được upstream')
+          } catch (e) { ctx.stderr.write(`ff copy: ${e.message}; giữ nguyên bản copy\n`); return 1 }
+        }
+        if (git(dir, ['config', '--get', 'ff.localOnly']).stdout.trim() === 'true') ctx.stderr.write(`ff copy: ${repo.name} không có upstream origin; bản copy chỉ dùng local, không được ship.\n`)
+      }
+      try { registerRevisionBases(root, config, card.dir, slug) } catch (e) { ctx.stderr.write(`ff copy: ${e.message}; giữ nguyên bản copy\n`); return 1 }
+      ctx.stdout.write(`Bản copy đã có: ${path.relative(root, worktree)} — không tạo lại.\n`)
+      return 0
+    }
     ctx.stderr.write(`ff copy: bản copy chưa hoàn chỉnh tại ${path.relative(root, worktree)}; giữ nguyên để tránh mất dữ liệu\n`)
     return 1
   }
@@ -43,15 +86,19 @@ export async function run(args, ctx) {
       const target = repoDir(root, config.workspace.worktrees_dir, slug, repo)
       const clone = git(root, ['clone', '--local', source, target])
       if (clone.status !== 0) throw new Error(`git clone lỗi cho ${repo.name}: ${clone.stderr.trim().split('\n').at(-1)}`)
+      configureCopyOrigin(source, target, repo.name, ctx)
       const localBranch = git(target, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])
       if (localBranch.status === 0) {
         const switched = git(target, ['switch', branch])
         if (switched.status !== 0) throw new Error(`không chuyển được ${repo.name} sang ${branch}`)
       } else {
-        const from = git(target, ['show-ref', '--verify', '--quiet', `refs/remotes/origin/${branch}`]).status === 0 ? `origin/${branch}` : `origin/${repo.base_branch}`
+        const from = git(target, ['show-ref', '--verify', '--quiet', `refs/remotes/ff-local/${branch}`]).status === 0 ? `ff-local/${branch}` : `ff-local/${repo.base_branch}`
         const switched = git(target, ['switch', '--create', branch, from])
         if (switched.status !== 0) throw new Error(`không tạo được branch ${branch} cho ${repo.name} từ ${from}`)
       }
+      // Publishing must target upstream, while ff-local only supplies copied history.
+      if (git(target, ['config', `branch.${branch}.remote`, 'origin']).status !== 0) throw new Error(`không đặt được upstream cho ${repo.name}`)
+      if (git(target, ['config', `branch.${branch}.merge`, `refs/heads/${branch}`]).status !== 0) throw new Error(`không đặt được branch upstream cho ${repo.name}`)
       for (const rel of repo.env_files ?? []) {
         const sourceFile = path.resolve(source, rel)
         const targetFile = path.resolve(target, rel)
@@ -67,6 +114,7 @@ export async function run(args, ctx) {
       }
       ctx.stdout.write(`Đã tạo ${path.relative(root, target)} trên ${branch}\n`)
     }
+    registerRevisionBases(root, config, card.dir, slug)
     return 0
   } catch (e) {
     fs.rmSync(worktree, { recursive: true, force: true })

@@ -17,8 +17,51 @@ test('db-query chỉ nhận SELECT, WITH SELECT, EXPLAIN và bỏ qua literal',(
   assert.throws(()=>validateQuerySafety('WITH x AS (DELETE FROM t) SELECT * FROM x'),/thao tác ghi/)
 })
 
-test('db-query chọn driver từ config, giới hạn file query và không lộ secret khi lỗi',async()=>{
-  const config=baseConfig();config.db={driver:'mysql',env_file:'db.env'};config.project_docs={verification_queries_dir:'queries'};const ws=makeWorkspace({config,files:{'db.env':'DATABASE_PASSWORD=supersecret\nMYSQL_USER=user\n','queries/read.sql':'SELECT 1'}});try{let options;const ctx=capture(ws.root);ctx.ctx.connectDb=async(args)=>{options=args;return{connect:async()=>{},query:async()=>({rows:[{ok:1}]}),end:async()=>{}}};assert.equal(await dbQuery.run(['--file','queries/read.sql','--json'],ctx.ctx),0);assert.equal(options.config.db.driver,'mysql');assert.equal(options.env.DATABASE_PASSWORD,'supersecret');assert.doesNotMatch(ctx.buf.out+ctx.buf.err,/supersecret/);ctx.ctx.connectDb=async()=>({connect:async()=>{},query:async()=>{throw new Error('failed supersecret')},end:async()=>{}});assert.equal(await dbQuery.run(['--sql','SELECT 1'],ctx.ctx),1);assert.doesNotMatch(ctx.buf.err,/supersecret/);assert.match(ctx.buf.err,/\[redacted\]/);const rejected=capture(ws.root);assert.equal(await dbQuery.run(['--file','../db.env'],rejected.ctx),1);assert.match(rejected.buf.err,/phải nằm trong/)}finally{ws.cleanup()}
+test('db-query chọn driver từ config, giới hạn file query và không lộ secret khi lỗi', async () => {
+  const config = baseConfig()
+  config.db = { driver: 'mysql', env_file: 'db.env' }
+  config.project_docs = { verification_queries_dir: 'queries' }
+  const ws = makeWorkspace({ config, files: {
+    'db.env': 'DATABASE_PASSWORD=supersecret\nMYSQL_USER=user\n',
+    'queries/read.sql': 'SELECT 1',
+  } })
+  try {
+    let options
+    const queries = []
+    const ctx = capture(ws.root)
+    ctx.ctx.connectDb = async (args) => {
+      options = args
+      return {
+        connect: async () => {},
+        query: async (sql) => {
+          queries.push(sql)
+          return { rows: sql === 'SELECT 1' ? [{ ok: 1 }] : [] }
+        },
+        end: async () => {},
+      }
+    }
+    assert.equal(await dbQuery.run(['--file', 'queries/read.sql', '--json'], ctx.ctx), 0)
+    assert.equal(options.config.db.driver, 'mysql')
+    assert.equal(options.env.DATABASE_PASSWORD, 'supersecret')
+    assert.deepEqual(queries, [
+      'SET SESSION max_execution_time = 15000',
+      'SET SESSION innodb_lock_wait_timeout = 5',
+      'START TRANSACTION READ ONLY', 'SELECT 1', 'ROLLBACK',
+    ])
+    assert.deepEqual(JSON.parse(ctx.buf.out), [{ ok: 1 }])
+    assert.doesNotMatch(ctx.buf.out + ctx.buf.err, /supersecret/)
+    ctx.ctx.connectDb = async () => ({
+      connect: async () => {},
+      query: async (sql) => { if (sql === 'SELECT 1') throw new Error('failed supersecret'); return { rows: [] } },
+      end: async () => {},
+    })
+    assert.equal(await dbQuery.run(['--sql', 'SELECT 1'], ctx.ctx), 1)
+    assert.doesNotMatch(ctx.buf.err, /supersecret/)
+    assert.match(ctx.buf.err, /\[redacted\]/)
+    const rejected = capture(ws.root)
+    assert.equal(await dbQuery.run(['--file', '../db.env'], rejected.ctx), 1)
+    assert.match(rejected.buf.err, /phải nằm trong/)
+  } finally { ws.cleanup() }
 })
 
 test('e2e-lint liệt kê heuristic và strict trả lỗi khi có dấu hiệu',async()=>{

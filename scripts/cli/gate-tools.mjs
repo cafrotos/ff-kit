@@ -1,7 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { findRoot, loadConfig } from '../lib/config.mjs'
+import { readRevisionBase } from './repo-common.mjs'
 
 const sha = (v) => crypto.createHash('sha256').update(v).digest('hex')
 const inside = (base, target) => { const rel = path.relative(base, target); return rel && !rel.startsWith('..') && !path.isAbsolute(rel) }
@@ -26,12 +28,27 @@ function setup(ctx, slug) {
   if (!inside(worktrees, wt) || !fs.statSync(wt).isDirectory() || !inside(fs.realpathSync(worktrees), fs.realpathSync(wt))) throw new Error(`worktree không hợp lệ hoặc không thấy: ${slug}`)
   return { root, config, wt }
 }
+function revisionOptions(args) {
+  const out = []
+  let revision = ''
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--revision') {
+      if (revision || !/^rev-[1-9]\d*$/.test(args[i + 1] ?? '')) throw new Error('revision phải dạng rev-N')
+      revision = args[++i]
+    } else out.push(args[i])
+  }
+  return { args: out, revision, suffix: revision ? `.${revision}` : '' }
+}
 export const shipApprove = {
   summary: 'ship-approve <slug> — ghi nhận cho phép ship trong 2 giờ',
   async run(args, ctx) {
     try {
       const slug = args[0]; if (!slug) throw new Error('dùng: ff ship-approve <slug>')
-      const { wt } = setup(ctx, slug)
+      const { wt, config } = setup(ctx, slug)
+      for (const repo of config.repos) {
+        const dir = path.join(wt, path.basename(repo.path))
+        if (fs.existsSync(path.join(dir, '.git')) && spawnSync('git', ['config', '--bool', 'ff.localOnly'], { cwd: dir, encoding: 'utf8' }).stdout.trim() === 'true') throw new Error(`${repo.name} chưa có upstream origin; không được ship bản copy local-only`)
+      }
       const marker = path.join(wt, '.ff-ship-approved'); assertLocalTarget(wt, marker)
       fs.writeFileSync(marker, `${Math.floor(Date.now()/1000)}\n${process.env.USER || 'user'}\n${new Date().toISOString()}\n`, { mode: 0o600 })
       ctx.stdout.write(`Đã ghi nhận cho phép ship ${slug} (hạn 2 giờ).\n`); return 0
@@ -57,14 +74,15 @@ export const allow = {
 }
 function configPathEscape(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
 export const lockTests = {
-  summary: 'lock-tests <slug> [file…] — khóa test theo SHA-256',
+  summary: 'lock-tests <slug> [--revision rev-N] [file…] — khóa test theo SHA-256',
   async run(args, ctx) {
     try {
-      const [slug, ...files] = args; if (!slug) throw new Error('dùng: ff lock-tests <slug> [file…]')
-      const { root, config, wt } = setup(ctx, slug); const manifest = path.join(wt, '.ff-test-lock')
+      const options = revisionOptions(args), [slug, ...files] = options.args; if (!slug) throw new Error('dùng: ff lock-tests <slug> [--revision rev-N] [file…]')
+      const { root, config, wt } = setup(ctx, slug); const manifest = path.join(wt, '.ff-test-lock' + options.suffix)
       assertLocalTarget(wt, manifest)
       if (fs.existsSync(manifest)) throw new Error('đã khóa; dùng ff relock <slug> --reason "…"')
       const testsDir = config.e2e?.tests_dir ? path.resolve(root, config.e2e.tests_dir, slug) : null
+      if (options.revision && !files.length) throw new Error('revision cần danh sách file test rõ ràng')
       const selected = files.length ? files : testsDir && fs.existsSync(testsDir) ? fs.readdirSync(testsDir).filter((n) => n.endsWith('.spec.ts')).sort().map((n) => path.join(testsDir, n)) : []
       if (!selected.length) throw new Error('không có file test để khóa; cấu hình e2e.tests_dir hoặc truyền file')
       const entries = selected.map((f) => { const abs = path.resolve(root, f); if (!inside(root, abs) || !inside(fs.realpathSync(root), fs.realpathSync(abs)) || !fs.statSync(abs).isFile()) throw new Error(`file không tồn tại trong workspace: ${f}`); return { abs, rel: path.relative(root, abs).split(path.sep).join('/'), hash: sha(fs.readFileSync(abs)) } })
@@ -75,13 +93,15 @@ export const lockTests = {
   },
 }
 export const relock = {
-  summary: 'relock <slug> --reason <lý do> — cập nhật hash test đã khóa',
+  summary: 'relock <slug> [--revision rev-N] --reason <lý do> [--add <files…>] — cập nhật khóa được cho phép',
   async run(args, ctx) {
     try {
+      const options = revisionOptions(args)
+      args = options.args
       const slug = args[0], ix = args.indexOf('--reason'), reason = ix >= 0 ? args[ix+1]?.trim() : ''
       if (!slug || !reason) throw new Error('dùng: ff relock <slug> --reason "lý do"')
-      const { root, wt } = setup(ctx, slug); const manifest = path.join(wt, '.ff-test-lock')
-      const log = path.join(wt, '.ff-test-lock.log'); assertLocalTarget(wt, manifest); assertLocalTarget(wt, log)
+      const { root, wt } = setup(ctx, slug); const manifest = path.join(wt, '.ff-test-lock' + options.suffix)
+      const log = manifest + '.log'; assertLocalTarget(wt, manifest); assertLocalTarget(wt, log)
       if (!fs.existsSync(manifest)) throw new Error('chưa khóa; dùng ff lock-tests trước')
       const old = fs.readFileSync(manifest)
       const entries = old.toString().split(/\r?\n/).filter(Boolean).map((line) => {
@@ -89,11 +109,23 @@ export const relock = {
         if (!match) throw new Error('manifest hỏng')
         return { hash: match[1], rel: match[2], abs: path.resolve(root, match[2]) }
       })
+      const addIndex = args.indexOf('--add')
+      const added = addIndex < 0 ? [] : args.slice(addIndex + 1).filter((arg, i, all) => !arg.startsWith('--') && !all.slice(0, i).some((a) => a.startsWith('--')))
+      if (addIndex >= 0 && !added.length) throw new Error('--add cần danh sách file mới')
       for (const entry of entries) {
         if (!inside(root, entry.abs) || !fs.existsSync(entry.abs) || !inside(fs.realpathSync(root), fs.realpathSync(entry.abs)))
           throw new Error(`file khóa không tồn tại trong workspace: ${entry.rel}`)
+        if (added.length && sha(fs.readFileSync(entry.abs)) !== entry.hash) throw new Error(`--add không được cập nhật hash test cũ đã đổi: ${entry.rel}`)
       }
       const changes = []
+      for (const file of added) {
+        const abs = path.resolve(root, file)
+        if (!inside(root, abs) || !fs.existsSync(abs) || !inside(fs.realpathSync(root), fs.realpathSync(abs)) || !fs.statSync(abs).isFile()) throw new Error(`file mới không hợp lệ: ${file}`)
+        if (entries.some((entry) => entry.abs === abs)) continue
+        const rel = path.relative(root, abs).split(path.sep).join('/')
+        entries.push({ abs, rel, hash: sha(fs.readFileSync(abs)) })
+        changes.push(`thêm ${rel}`)
+      }
       let body
       try {
         for (const entry of entries) {
@@ -133,10 +165,16 @@ export const probeSlice = {
         if(st.status!==0)throw new Error(`git status thất bại trong ${repoName}`)
         for(const l of st.stdout.split(/\r?\n/)){if(!l.trim())continue;add(repoName,l.slice(3).trim().split(' -> ').at(-1))}
         const branch=gitRun(dir,['rev-parse','--abbrev-ref','HEAD']).stdout?.trim()||''
-        const candidates=branch&&branch!=='HEAD'&&branch!==repo.base_branch?[`origin/${branch}`,`origin/${repo.base_branch}`,repo.base_branch]:[`origin/${repo.base_branch}`,repo.base_branch]
-        let base=null
+        const candidates=branch&&branch!=='HEAD'&&branch!==repo.base_branch?[`ff-local/${branch}`,`origin/${branch}`,`ff-local/${repo.base_branch}`,`origin/${repo.base_branch}`,repo.base_branch]:[`ff-local/${repo.base_branch}`,`origin/${repo.base_branch}`,repo.base_branch]
+        const cardDir=path.resolve(root,config.workspace.cards_dir,slug)
+        const revisionBase=fs.existsSync(cardDir)?readRevisionBase(cardDir,repo.name,dir):null
+        let base=revisionBase?.sha??null
+        if(!base){
         for(const ref of candidates){if(gitRun(dir,['rev-parse','--verify',ref]).status===0){base=ref;break}}
-        if(base){const merge=gitRun(dir,['merge-base','HEAD',base]);if(merge.status===0&&merge.stdout.trim()){const diff=gitRun(dir,['diff','--name-only',`${merge.stdout.trim()}..HEAD`]);if(diff.status===0)for(const p of diff.stdout.split(/\r?\n/))add(repoName,p.trim())}}
+        }
+        if(!base)throw new Error(`không xác định được baseline của ${repoName}`)
+        const merge=gitRun(dir,['merge-base','HEAD',base]);if(merge.status!==0||!merge.stdout.trim())throw new Error(`merge-base lỗi trong ${repoName}`)
+        const diff=gitRun(dir,['diff','--name-only',`${merge.stdout.trim()}..HEAD`]);if(diff.status!==0)throw new Error(`git diff lỗi trong ${repoName}`);for(const p of diff.stdout.split(/\r?\n/))add(repoName,p.trim())
       }
       const unique=[...new Set(changed)].sort(), violations=unique.filter(f=>!allowed.has(f)), status=!unique.length?'NO_CHANGES':violations.length?'ALLOWLIST_VIOLATION':'DRIFT_CLEAN';const out={status,slug,task:args.find(a=>a!==slug&&!a.startsWith('--'))??null,allowlist:{exists:fs.existsSync(allowedFile),expired,files:[...allowed]},changedFiles:unique,violations,isClean:status!=='ALLOWLIST_VIOLATION'}
       ctx.stdout.write(json?JSON.stringify(out,null,2)+'\n':`${status}: ${unique.length} file thay đổi${violations.length?`; ngoài allowlist: ${violations.join(', ')}`:''}\n`);return out.isClean?0:1

@@ -15,8 +15,8 @@ Câu hỏi của bạn: "Nếu code làm sai hành vi này, test của tôi có 
 
 ## Vị trí trong luồng
 
-Skill `ff-build` giao bạn ở bước P2b, sau Gate B. Bạn nhận Brief, `02-spec.md`, `03-design.md` (hợp đồng UI/API và ngân sách request). Bạn không được đọc code implement.
-Sau bạn: `ff e2e-lint` rà dấu hiệu yếu, phiên chính khóa test, `ff-verifier` gắn locator và chạy. Bạn chỉ viết hành vi và khai chữ ký locator.
+Skill `ff-build` giao bạn ở bước P1, sau Gate B. Bạn nhận Brief, `02-spec.md`, `03-design.md` (hợp đồng UI/API và ngân sách request). Bạn không được đọc code implement.
+Sau bạn: `ff e2e-lint` rà dấu hiệu yếu, phiên chính khóa test, `ff-verifier` gắn locator và chạy. Bạn chỉ viết hành vi và khai chữ ký locator. Dùng spec/design trong `activeDir` và Brief hoặc delta theo `activeRevision` người giao cung cấp.
 
 ## Cách nghĩ (theo thứ tự ưu tiên)
 
@@ -45,5 +45,5 @@ Thấy mình cần đọc code để viết tiếp thì dừng: đó là dấu h
 
 Đầu vào bắt buộc trong prompt: đường dẫn thẻ (Brief, `02-spec.md`, `03-design.md`), thư mục ghi test, role và dữ liệu seed. Thiếu thì báo `THIẾU ĐẦU VÀO`.
 Chỉ ghi trong thư mục test của thẻ; không sửa code sản phẩm, helper hay fixture. Không đọc code implement, kể cả bằng `grep`, `cat` hay CodeGraph.
-Không chạy `playwright test` (chưa có code, locator chưa gắn); chỉ chạy `ff e2e-lint` và sửa phát hiện trong file của mình. Không tự khóa test; `ff lock-tests` do phiên chính chạy.
+Không chạy `playwright test` (chưa có code, locator chưa gắn); chỉ chạy `ff e2e-lint` hoặc type-check test bằng command đã cấu hình và sửa phát hiện trong file của mình. Không đọc `.auth/`, token, storage-state hoặc secret. Kiểm tĩnh không chứng minh PASS hành vi; không báo behavioral pass từ lint/type-check. Không tự khóa test; `ff lock-tests` do phiên chính chạy.
 Dòng đầu của báo cáo: `File: <danh sách>`.

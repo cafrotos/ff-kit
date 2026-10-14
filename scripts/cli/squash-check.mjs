@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { findRoot, loadConfig } from '../lib/config.mjs'
 import { findCardDir } from '../lib/cards.mjs'
-import { cardBranch, git, repoDir } from './repo-common.mjs'
+import { cardBranch, git, readRevisionBase, repoDir } from './repo-common.mjs'
 
 export const summary = 'squash-check <id> — kiểm số commit, nội dung commit và file không được ship'
 const junk = /(^|\/)(?:\.env(?:\.|$)|tsconfig\.tsbuildinfo|\.run-dev\.pids|\.dev-logs\/|\.ff-ship-approved)/
@@ -26,31 +26,54 @@ export async function run(args, ctx) {
       bad = true
       continue
     }
-    let base = `origin/${repo.base_branch}`
-    if (branch && git(dir, ['rev-parse', '--verify', '--quiet', `origin/${branch}`]).status === 0 && git(dir, ['merge-base', '--is-ancestor', `origin/${branch}`, 'HEAD']).status === 0) base = `origin/${branch}`
+    const remote = git(dir, ['config', '--get', 'remote.ff-local.url']).status === 0 ? 'ff-local' : 'origin'
+    let base = `${remote}/${repo.base_branch}`
+    let baseline
+    try { baseline = readRevisionBase(card.dir, repo.name, dir) } catch (error) {
+      ctx.stderr.write(`ff squash-check: ${error.message}\n`)
+      bad = true
+      continue
+    }
+    if (baseline) base = baseline.sha
+    else if (branch && git(dir, ['rev-parse', '--verify', '--quiet', `${remote}/${branch}`]).status === 0 && git(dir, ['merge-base', '--is-ancestor', `${remote}/${branch}`, 'HEAD']).status === 0) base = `${remote}/${branch}`
     const merge = git(dir, ['merge-base', 'HEAD', base])
     if (merge.status !== 0) {
       ctx.stderr.write(`ff squash-check: không tìm được merge-base ${repo.name} với ${base}\n`)
       bad = true
       continue
     }
-    const count = Number(git(dir, ['rev-list', '--count', `${merge.stdout.trim()}..HEAD`]).stdout.trim())
-    ctx.stdout.write(`## ${repo.name} — ${count} commit trên ${base.replace(/^origin\//, '')}\n`)
-    const dirty = git(dir, ['status', '--porcelain']).stdout.split(/\r?\n/).filter((line) => line && !/tsconfig\.tsbuildinfo|CLAUDE\.md$/.test(line))
-    if (dirty.length) ctx.stdout.write(`  ⚠️ còn file chưa commit: ${dirty.length}\n`)
+    const counted = git(dir, ['rev-list', '--count', `${merge.stdout.trim()}..HEAD`])
+    const status = git(dir, ['status', '--porcelain'])
+    if (counted.status !== 0 || status.status !== 0 || !/^\d+$/.test(counted.stdout.trim())) {
+      ctx.stderr.write(`ff squash-check: git lỗi trong ${repo.name}; không thể kiểm tra commit/trạng thái\n`)
+      bad = true
+      continue
+    }
+    const count = Number(counted.stdout.trim())
+    ctx.stdout.write(`## ${repo.name} — ${count} commit trên ${baseline ? baseline.revision : base.slice(remote.length + 1)}\n`)
+    const dirty = status.stdout.split(/\r?\n/).filter(Boolean)
+    if (dirty.length) { ctx.stdout.write(`  ❌ còn file chưa commit: ${dirty.length}\n`); bad = true }
     if (!count) { ctx.stdout.write('  (không có commit trên nhánh gốc)\n'); continue }
-    const commits = git(dir, ['log', '--format=%h %s', `${merge.stdout.trim()}..HEAD`]).stdout.trim()
+    const commitLog = git(dir, ['log', '--format=%h %s', `${merge.stdout.trim()}..HEAD`])
+    const commitBody = git(dir, ['log', '-1', '--format=%B'])
+    const changed = git(dir, ['diff', '--name-only', `${merge.stdout.trim()}..HEAD`])
+    if ([commitLog, commitBody, changed].some((result) => result.status !== 0)) {
+      ctx.stderr.write(`ff squash-check: git lỗi trong ${repo.name}; không thể kiểm tra nội dung\n`)
+      bad = true
+      continue
+    }
+    const commits = commitLog.stdout.trim()
     if (count !== 1 && !hasSubtasks) {
       ctx.stdout.write('  ❌ cần đúng 1 commit cho mỗi repo\n')
       bad = true
     }
-    const body = git(dir, ['log', '-1', '--format=%B']).stdout.split(/\r?\n/).slice(1)
+    const body = commitBody.stdout.split(/\r?\n/).slice(1)
     if (!body.some((line) => line.trim() === `Trello: #${id}`)) {
       ctx.stdout.write(`  ❌ commit message thiếu dòng 'Trello: #${id}'\n`)
       bad = true
     }
     if (commits) ctx.stdout.write(`${commits.split('\n').map((line) => `  ${line}`).join('\n')}\n`)
-    const files = git(dir, ['diff', '--name-only', `${merge.stdout.trim()}..HEAD`]).stdout.split(/\r?\n/).filter(Boolean)
+    const files = changed.stdout.split(/\r?\n/).filter(Boolean)
     const invalid = files.filter((file) => junk.test(file) && !/(^|\/)\.env\.example$/.test(file))
     if (invalid.length) {
       ctx.stdout.write(`  ❌ file không được commit: ${invalid.join(', ')}\n`)
