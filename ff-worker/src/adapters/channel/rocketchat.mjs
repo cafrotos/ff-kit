@@ -1,4 +1,5 @@
 import { readEnvFile } from '../../core/env.mjs'
+import { formatEvent } from './console.mjs'
 
 export class RocketChatChannel {
   name = 'rocketchat'
@@ -28,7 +29,5 @@ export class RocketChatChannel {
 }
 
 export function formatMessage(event) {
-  const task = event.taskId ? `[${event.taskId}] ` : ''
-  const fields = Object.entries(event.fields ?? {}).map(([key, value]) => `${key}: ${value}`).join('\n')
-  return [`${task}[${event.kind}] ${event.title}`, fields, event.body].filter(Boolean).join('\n')
+  return formatEvent(event)
 }

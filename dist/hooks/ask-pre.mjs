@@ -108,17 +108,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key, node, visitor, path6) {
-      const ctrl = callVisitor(key, node, visitor, path6);
+    function visit_(key, node, visitor, path7) {
+      const ctrl = callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path6, ctrl);
-        return visit_(key, ctrl, visitor, path6);
+        replaceNode(key, path7, ctrl);
+        return visit_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path6 = Object.freeze(path6.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path6);
+            const ci = visit_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -129,13 +129,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path6 = Object.freeze(path6.concat(node));
-          const ck = visit_("key", node.key, visitor, path6);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = visit_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path6);
+          const cv = visit_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -156,17 +156,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key, node, visitor, path6) {
-      const ctrl = await callVisitor(key, node, visitor, path6);
+    async function visitAsync_(key, node, visitor, path7) {
+      const ctrl = await callVisitor(key, node, visitor, path7);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key, path6, ctrl);
-        return visitAsync_(key, ctrl, visitor, path6);
+        replaceNode(key, path7, ctrl);
+        return visitAsync_(key, ctrl, visitor, path7);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path6 = Object.freeze(path6.concat(node));
+          path7 = Object.freeze(path7.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path6);
+            const ci = await visitAsync_(i, node.items[i], visitor, path7);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -177,13 +177,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path6 = Object.freeze(path6.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path6);
+          path7 = Object.freeze(path7.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path7);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path6);
+          const cv = await visitAsync_("value", node.value, visitor, path7);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -210,23 +210,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key, node, visitor, path6) {
+    function callVisitor(key, node, visitor, path7) {
       if (typeof visitor === "function")
-        return visitor(key, node, path6);
+        return visitor(key, node, path7);
       if (identity.isMap(node))
-        return visitor.Map?.(key, node, path6);
+        return visitor.Map?.(key, node, path7);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key, node, path6);
+        return visitor.Seq?.(key, node, path7);
       if (identity.isPair(node))
-        return visitor.Pair?.(key, node, path6);
+        return visitor.Pair?.(key, node, path7);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key, node, path6);
+        return visitor.Scalar?.(key, node, path7);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key, node, path6);
+        return visitor.Alias?.(key, node, path7);
       return void 0;
     }
-    function replaceNode(key, path6, node) {
-      const parent = path6[path6.length - 1];
+    function replaceNode(key, path7, node) {
+      const parent = path7[path7.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key] = node;
       } else if (identity.isPair(parent)) {
@@ -838,10 +838,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path6, value) {
+    function collectionFromPath(schema, path7, value) {
       let v = value;
-      for (let i = path6.length - 1; i >= 0; --i) {
-        const k = path6[i];
+      for (let i = path7.length - 1; i >= 0; --i) {
+        const k = path7[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -860,7 +860,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path6) => path6 == null || typeof path6 === "object" && !!path6[Symbol.iterator]().next().done;
+    var isEmptyPath = (path7) => path7 == null || typeof path7 === "object" && !!path7[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -890,11 +890,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path6, value) {
-        if (isEmptyPath(path6))
+      addIn(path7, value) {
+        if (isEmptyPath(path7))
           this.add(value);
         else {
-          const [key, ...rest] = path6;
+          const [key, ...rest] = path7;
           const node = this.get(key, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -908,8 +908,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path6) {
-        const [key, ...rest] = path6;
+      deleteIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.delete(key);
         const node = this.get(key, true);
@@ -923,8 +923,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path6, keepScalar) {
-        const [key, ...rest] = path6;
+      getIn(path7, keepScalar) {
+        const [key, ...rest] = path7;
         const node = this.get(key, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -942,8 +942,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path6) {
-        const [key, ...rest] = path6;
+      hasIn(path7) {
+        const [key, ...rest] = path7;
         if (rest.length === 0)
           return this.has(key);
         const node = this.get(key, true);
@@ -953,8 +953,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path6, value) {
-        const [key, ...rest] = path6;
+      setIn(path7, value) {
+        const [key, ...rest] = path7;
         if (rest.length === 0) {
           this.set(key, value);
         } else {
@@ -998,14 +998,14 @@ var require_foldFlowLines = __commonJS({
     var FOLD_FLOW = "flow";
     var FOLD_BLOCK = "block";
     var FOLD_QUOTED = "quoted";
-    function foldFlowLines(text, indent, mode = "flow", { indentAtStart, lineWidth = 80, minContentWidth = 20, onFold, onOverflow } = {}) {
+    function foldFlowLines(text2, indent, mode = "flow", { indentAtStart, lineWidth = 80, minContentWidth = 20, onFold, onOverflow } = {}) {
       if (!lineWidth || lineWidth < 0)
-        return text;
+        return text2;
       if (lineWidth < minContentWidth)
         minContentWidth = 0;
       const endStep = Math.max(1 + minContentWidth, 1 + lineWidth - indent.length);
-      if (text.length <= endStep)
-        return text;
+      if (text2.length <= endStep)
+        return text2;
       const folds = [];
       const escapedFolds = {};
       let end = lineWidth - indent.length;
@@ -1022,14 +1022,14 @@ var require_foldFlowLines = __commonJS({
       let escStart = -1;
       let escEnd = -1;
       if (mode === FOLD_BLOCK) {
-        i = consumeMoreIndentedLines(text, i, indent.length);
+        i = consumeMoreIndentedLines(text2, i, indent.length);
         if (i !== -1)
           end = i + endStep;
       }
-      for (let ch; ch = text[i += 1]; ) {
+      for (let ch; ch = text2[i += 1]; ) {
         if (mode === FOLD_QUOTED && ch === "\\") {
           escStart = i;
-          switch (text[i + 1]) {
+          switch (text2[i + 1]) {
             case "x":
               i += 3;
               break;
@@ -1046,12 +1046,12 @@ var require_foldFlowLines = __commonJS({
         }
         if (ch === "\n") {
           if (mode === FOLD_BLOCK)
-            i = consumeMoreIndentedLines(text, i, indent.length);
+            i = consumeMoreIndentedLines(text2, i, indent.length);
           end = i + indent.length + endStep;
           split = void 0;
         } else {
           if (ch === " " && prev && prev !== " " && prev !== "\n" && prev !== "	") {
-            const next = text[i + 1];
+            const next = text2[i + 1];
             if (next && next !== " " && next !== "\n" && next !== "	")
               split = i;
           }
@@ -1063,12 +1063,12 @@ var require_foldFlowLines = __commonJS({
             } else if (mode === FOLD_QUOTED) {
               while (prev === " " || prev === "	") {
                 prev = ch;
-                ch = text[i += 1];
+                ch = text2[i += 1];
                 overflow = true;
               }
               const j = i > escEnd + 1 ? i - 2 : escStart - 1;
               if (escapedFolds[j])
-                return text;
+                return text2;
               folds.push(j);
               escapedFolds[j] = true;
               end = j + endStep;
@@ -1083,39 +1083,39 @@ var require_foldFlowLines = __commonJS({
       if (overflow && onOverflow)
         onOverflow();
       if (folds.length === 0)
-        return text;
+        return text2;
       if (onFold)
         onFold();
-      let res = text.slice(0, folds[0]);
+      let res = text2.slice(0, folds[0]);
       for (let i2 = 0; i2 < folds.length; ++i2) {
         const fold = folds[i2];
-        const end2 = folds[i2 + 1] || text.length;
+        const end2 = folds[i2 + 1] || text2.length;
         if (fold === 0)
           res = `
-${indent}${text.slice(0, end2)}`;
+${indent}${text2.slice(0, end2)}`;
         else {
           if (mode === FOLD_QUOTED && escapedFolds[fold])
-            res += `${text[fold]}\\`;
+            res += `${text2[fold]}\\`;
           res += `
-${indent}${text.slice(fold + 1, end2)}`;
+${indent}${text2.slice(fold + 1, end2)}`;
         }
       }
       return res;
     }
-    function consumeMoreIndentedLines(text, i, indent) {
+    function consumeMoreIndentedLines(text2, i, indent) {
       let end = i;
       let start = i + 1;
-      let ch = text[start];
+      let ch = text2[start];
       while (ch === " " || ch === "	") {
         if (i < start + indent) {
-          ch = text[++i];
+          ch = text2[++i];
         } else {
           do {
-            ch = text[++i];
+            ch = text2[++i];
           } while (ch && ch !== "\n");
           end = i;
           start = i + 1;
-          ch = text[start];
+          ch = text2[start];
         }
       }
       return end;
@@ -1334,10 +1334,10 @@ ${indent}`) + "'";
             literalFallback = true;
           };
         }
-        const body = foldFlowLines.foldFlowLines(`${start}${foldedValue}${end}`, indent, foldFlowLines.FOLD_BLOCK, foldOptions);
+        const body2 = foldFlowLines.foldFlowLines(`${start}${foldedValue}${end}`, indent, foldFlowLines.FOLD_BLOCK, foldOptions);
         if (!literalFallback)
           return `>${header}
-${indent}${body}`;
+${indent}${body2}`;
       }
       value = value.replace(/\n+/g, `$&${indent}`);
       return `|${header}
@@ -3353,13 +3353,13 @@ var require_stringifyDocument = __commonJS({
           contentComment = doc.contents.comment;
         }
         const onChompKeep = contentComment ? void 0 : () => chompKeep = true;
-        let body = stringify.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
+        let body2 = stringify.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
-          body += stringifyComment.lineComment(body, "", commentString(contentComment));
-        if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
-          lines[lines.length - 1] = `--- ${body}`;
+          body2 += stringifyComment.lineComment(body2, "", commentString(contentComment));
+        if ((body2[0] === "|" || body2[0] === ">") && lines[lines.length - 1] === "---") {
+          lines[lines.length - 1] = `--- ${body2}`;
         } else
-          lines.push(body);
+          lines.push(body2);
       } else {
         lines.push(stringify.stringify(doc.contents, ctx));
       }
@@ -3469,9 +3469,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path6, value) {
+      addIn(path7, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path6, value);
+          this.contents.addIn(path7, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3546,14 +3546,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path6) {
-        if (Collection.isEmptyPath(path6)) {
+      deleteIn(path7) {
+        if (Collection.isEmptyPath(path7)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path6) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path7) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3568,10 +3568,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path6, keepScalar) {
-        if (Collection.isEmptyPath(path6))
+      getIn(path7, keepScalar) {
+        if (Collection.isEmptyPath(path7))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path6, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path7, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3582,10 +3582,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path6) {
-        if (Collection.isEmptyPath(path6))
+      hasIn(path7) {
+        if (Collection.isEmptyPath(path7))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path6) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path7) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3602,13 +3602,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path6, value) {
-        if (Collection.isEmptyPath(path6)) {
+      setIn(path7, value) {
+        if (Collection.isEmptyPath(path7)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path6), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path7), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path6, value);
+          this.contents.setIn(path7, value);
         }
       }
       /**
@@ -4607,9 +4607,9 @@ var require_resolve_block_scalar = __commonJS({
     }
     function splitLines(source) {
       const split = source.split(/\n( *)/);
-      const first2 = split[0];
-      const m = first2.match(/^( *)/);
-      const line0 = m?.[1] ? [m[1], first2.slice(m[1].length)] : ["", first2];
+      const first = split[0];
+      const m = first.match(/^( *)/);
+      const line0 = m?.[1] ? [m[1], first.slice(m[1].length)] : ["", first];
       const lines = [line0];
       for (let i = 1; i < split.length; i += 2)
         lines.push([split[i], split[i + 1]]);
@@ -5336,15 +5336,15 @@ var require_cst_scalar = __commonJS({
       }
       return null;
     }
-    function createScalarToken(value, context) {
-      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context;
+    function createScalarToken(value, context2) {
+      const { implicitKey = false, indent, inFlow = false, offset = -1, type = "PLAIN" } = context2;
       const source = stringifyString.stringifyString({ type, value }, {
         implicitKey,
         indent: indent > 0 ? " ".repeat(indent) : "",
         inFlow,
         options: { blockQuote: true, lineWidth: -1 }
       });
-      const end = context.end ?? [
+      const end = context2.end ?? [
         { type: "newline", offset: -1, indent, source: "\n" }
       ];
       switch (source[0]) {
@@ -5352,13 +5352,13 @@ var require_cst_scalar = __commonJS({
         case ">": {
           const he = source.indexOf("\n");
           const head = source.substring(0, he);
-          const body = source.substring(he + 1) + "\n";
+          const body2 = source.substring(he + 1) + "\n";
           const props = [
             { type: "block-scalar-header", offset, indent, source: head }
           ];
           if (!addEndtoBlockProps(props, end))
             props.push({ type: "newline", offset: -1, indent, source: "\n" });
-          return { type: "block-scalar", offset, indent, props, source: body };
+          return { type: "block-scalar", offset, indent, props, source: body2 };
         }
         case '"':
           return { type: "double-quoted-scalar", offset, indent, source, end };
@@ -5368,8 +5368,8 @@ var require_cst_scalar = __commonJS({
           return { type: "scalar", offset, indent, source, end };
       }
     }
-    function setScalarValue(token, value, context = {}) {
-      let { afterKey = false, implicitKey = false, inFlow = false, type } = context;
+    function setScalarValue(token, value, context2 = {}) {
+      let { afterKey = false, implicitKey = false, inFlow = false, type } = context2;
       let indent = "indent" in token ? token.indent : null;
       if (afterKey && typeof indent === "number")
         indent += 2;
@@ -5415,13 +5415,13 @@ var require_cst_scalar = __commonJS({
     function setBlockScalarValue(token, source) {
       const he = source.indexOf("\n");
       const head = source.substring(0, he);
-      const body = source.substring(he + 1) + "\n";
+      const body2 = source.substring(he + 1) + "\n";
       if (token.type === "block-scalar") {
         const header = token.props[0];
         if (header.type !== "block-scalar-header")
           throw new Error("Invalid block scalar header");
         header.source = head;
-        token.source = body;
+        token.source = body2;
       } else {
         const { offset } = token;
         const indent = "indent" in token ? token.indent : -1;
@@ -5433,7 +5433,7 @@ var require_cst_scalar = __commonJS({
         for (const key of Object.keys(token))
           if (key !== "type" && key !== "offset")
             delete token[key];
-        Object.assign(token, { type: "block-scalar", indent, props, source: body });
+        Object.assign(token, { type: "block-scalar", indent, props, source: body2 });
       }
     }
     function addEndtoBlockProps(props, end) {
@@ -5569,9 +5569,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path6) => {
+    visit.itemAtPath = (cst, path7) => {
       let item = cst;
-      for (const [field, index] of path6) {
+      for (const [field, index] of path7) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5580,23 +5580,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path6) => {
-      const parent = visit.itemAtPath(cst, path6.slice(0, -1));
-      const field = path6[path6.length - 1][0];
+    visit.parentCollection = (cst, path7) => {
+      const parent = visit.itemAtPath(cst, path7.slice(0, -1));
+      const field = path7[path7.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path6, item, visitor) {
-      let ctrl = visitor(item, path6);
+    function _visit(path7, item, visitor) {
+      let ctrl = visitor(item, path7);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path6.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path7.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5607,10 +5607,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path6);
+            ctrl = ctrl(item, path7);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path6) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path7) : ctrl;
     }
     exports.visit = visit;
   }
@@ -6912,14 +6912,14 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs7 = this.flowScalar(this.type);
+              const fs8 = this.flowScalar(this.type);
               if (atNextItem || it.value) {
-                map.items.push({ start, key: fs7, sep: [] });
+                map.items.push({ start, key: fs8, sep: [] });
                 this.onKeyLine = true;
               } else if (it.sep) {
-                this.stack.push(fs7);
+                this.stack.push(fs8);
               } else {
-                Object.assign(it, { key: fs7, sep: [] });
+                Object.assign(it, { key: fs8, sep: [] });
                 this.onKeyLine = true;
               }
               return;
@@ -7047,13 +7047,13 @@ var require_parser = __commonJS({
             case "scalar":
             case "single-quoted-scalar":
             case "double-quoted-scalar": {
-              const fs7 = this.flowScalar(this.type);
+              const fs8 = this.flowScalar(this.type);
               if (!it || it.value)
-                fc.items.push({ start: [], key: fs7, sep: [] });
+                fc.items.push({ start: [], key: fs8, sep: [] });
               else if (it.sep)
-                this.stack.push(fs7);
+                this.stack.push(fs8);
               else
-                Object.assign(it, { key: fs7, sep: [] });
+                Object.assign(it, { key: fs8, sep: [] });
               return;
             }
             case "flow-map-end":
@@ -8248,10 +8248,10 @@ var require_codegen = __commonJS({
         return this._leafNode(new Throw(error));
       }
       // start self-balancing block
-      block(body, nodeCount) {
+      block(body2, nodeCount) {
         this._blockStarts.push(this._nodes.length);
-        if (body)
-          this.code(body).endBlock(nodeCount);
+        if (body2)
+          this.code(body2).endBlock(nodeCount);
         return this;
       }
       // end the current self-balancing block
@@ -8389,10 +8389,10 @@ var require_util = __commonJS({
     var codegen_1 = require_codegen();
     var code_1 = require_code();
     function toHash(arr) {
-      const hash = {};
+      const hash2 = {};
       for (const item of arr)
-        hash[item] = true;
-      return hash;
+        hash2[item] = true;
+      return hash2;
     }
     exports.toHash = toHash;
     function alwaysValidSchema(it, schema) {
@@ -9091,7 +9091,7 @@ var require_code2 = __commonJS({
       return allSchemaProperties(schemaMap).filter((p) => !(0, util_1.alwaysValidSchema)(it, schemaMap[p]));
     }
     exports.schemaProperties = schemaProperties;
-    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context, passSchema) {
+    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context2, passSchema) {
       const dataAndSchema = passSchema ? (0, codegen_1._)`${schemaCode}, ${data}, ${topSchemaRef}${schemaPath}` : data;
       const valCxt = [
         [names_1.default.instancePath, (0, codegen_1.strConcat)(names_1.default.instancePath, errorPath)],
@@ -9102,7 +9102,7 @@ var require_code2 = __commonJS({
       if (it.opts.dynamicRef)
         valCxt.push([names_1.default.dynamicAnchors, names_1.default.dynamicAnchors]);
       const args = (0, codegen_1._)`${dataAndSchema}, ${gen.object(...valCxt)}`;
-      return context !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context}, ${args})` : (0, codegen_1._)`${func}(${args})`;
+      return context2 !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context2}, ${args})` : (0, codegen_1._)`${func}(${args})`;
     }
     exports.callValidateCode = callValidateCode;
     var newRegExp = (0, codegen_1._)`new RegExp`;
@@ -9563,10 +9563,10 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id = "", normalize) {
+    function getFullPath(resolver, id2 = "", normalize) {
       if (normalize !== false)
-        id = normalizeId(id);
-      const p = resolver.parse(id);
+        id2 = normalizeId(id2);
+      const p = resolver.parse(id2);
       return _getFullPath(resolver, p);
     }
     exports.getFullPath = getFullPath;
@@ -9576,13 +9576,13 @@ var require_resolve = __commonJS({
     }
     exports._getFullPath = _getFullPath;
     var TRAILING_SLASH_HASH = /#\/?$/;
-    function normalizeId(id) {
-      return id ? id.replace(TRAILING_SLASH_HASH, "") : "";
+    function normalizeId(id2) {
+      return id2 ? id2.replace(TRAILING_SLASH_HASH, "") : "";
     }
     exports.normalizeId = normalizeId;
-    function resolveUrl(resolver, baseId, id) {
-      id = normalizeId(id);
-      return resolver.resolve(baseId, id);
+    function resolveUrl(resolver, baseId, id2) {
+      id2 = normalizeId(id2);
+      return resolver.resolve(baseId, id2);
     }
     exports.resolveUrl = resolveUrl;
     var ANCHOR = /^[a-z_][-a-z0-9._]*$/i;
@@ -9676,15 +9676,15 @@ var require_validate = __commonJS({
       validateFunction(it, () => (0, boolSchema_1.topBoolOrEmptySchema)(it));
     }
     exports.validateFunctionCode = validateFunctionCode;
-    function validateFunction({ gen, validateName, schema, schemaEnv, opts }, body) {
+    function validateFunction({ gen, validateName, schema, schemaEnv, opts }, body2) {
       if (opts.code.es5) {
         gen.func(validateName, (0, codegen_1._)`${names_1.default.data}, ${names_1.default.valCxt}`, schemaEnv.$async, () => {
           gen.code((0, codegen_1._)`"use strict"; ${funcSourceUrl(schema, opts)}`);
           destructureValCxtES5(gen, opts);
-          gen.code(body);
+          gen.code(body2);
         });
       } else {
-        gen.func(validateName, (0, codegen_1._)`${names_1.default.data}, ${destructureValCxt(opts)}`, schemaEnv.$async, () => gen.code(funcSourceUrl(schema, opts)).code(body));
+        gen.func(validateName, (0, codegen_1._)`${names_1.default.data}, ${destructureValCxt(opts)}`, schemaEnv.$async, () => gen.code(funcSourceUrl(schema, opts)).code(body2));
       }
     }
     function destructureValCxt(opts) {
@@ -10352,8 +10352,8 @@ var require_compile = __commonJS({
       if (Object.keys(root2.schema).length > 0 && refPath === baseId) {
         return getJsonPointer.call(this, p, root2);
       }
-      const id = (0, resolve_1.normalizeId)(refPath);
-      const schOrRef = this.refs[id] || this.schemas[id];
+      const id2 = (0, resolve_1.normalizeId)(refPath);
+      const schOrRef = this.refs[id2] || this.schemas[id2];
       if (typeof schOrRef == "string") {
         const sch = resolveSchema.call(this, root2, schOrRef);
         if (typeof (sch === null || sch === void 0 ? void 0 : sch.schema) !== "object")
@@ -10364,7 +10364,7 @@ var require_compile = __commonJS({
         return;
       if (!schOrRef.validate)
         compileSchema.call(this, schOrRef);
-      if (id === (0, resolve_1.normalizeId)(ref)) {
+      if (id2 === (0, resolve_1.normalizeId)(ref)) {
         const { schema } = schOrRef;
         const { schemaId } = this.opts;
         const schId = schema[schemaId];
@@ -10590,8 +10590,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path6) {
-      let input2 = path6;
+    function removeDotSegments(path7) {
+      let input2 = path7;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -11000,8 +11000,8 @@ var require_schemes = __commonJS({
       }
       if (wsComponent.resourceName) {
         const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path6 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path6 && path6 !== "/" ? path6 : void 0;
+        const path7 = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
+        wsComponent.path = path7 && path7 !== "/" ? path7 : void 0;
         wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
         wsComponent.resourceName = void 0;
       }
@@ -11791,15 +11791,15 @@ var require_core = __commonJS({
             this.addSchema(sch, void 0, _meta, _validateSchema);
           return this;
         }
-        let id;
+        let id2;
         if (typeof schema === "object") {
           const { schemaId } = this.opts;
-          id = schema[schemaId];
-          if (id !== void 0 && typeof id != "string") {
+          id2 = schema[schemaId];
+          if (id2 !== void 0 && typeof id2 != "string") {
             throw new Error(`schema ${schemaId} must be string`);
           }
         }
-        key = (0, resolve_1.normalizeId)(key || id);
+        key = (0, resolve_1.normalizeId)(key || id2);
         this._checkUnique(key);
         this.schemas[key] = this._addSchema(schema, _meta, key, _validateSchema, true);
         return this;
@@ -11878,11 +11878,11 @@ var require_core = __commonJS({
           case "object": {
             const cacheKey = schemaKeyRef;
             this._cache.delete(cacheKey);
-            let id = schemaKeyRef[this.opts.schemaId];
-            if (id) {
-              id = (0, resolve_1.normalizeId)(id);
-              delete this.schemas[id];
-              delete this.refs[id];
+            let id2 = schemaKeyRef[this.opts.schemaId];
+            if (id2) {
+              id2 = (0, resolve_1.normalizeId)(id2);
+              delete this.schemas[id2];
+              delete this.refs[id2];
             }
             return this;
           }
@@ -11953,7 +11953,7 @@ var require_core = __commonJS({
       errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
         if (!errors || errors.length === 0)
           return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text, msg) => text + separator + msg);
+        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text2, msg) => text2 + separator + msg);
       }
       $dataMetaSchema(metaSchema, keywordsJsonPointers) {
         const rules = this.RULES.all;
@@ -11989,10 +11989,10 @@ var require_core = __commonJS({
         }
       }
       _addSchema(schema, meta, baseId, validateSchema = this.opts.validateSchema, addSchema = this.opts.addUsedSchema) {
-        let id;
+        let id2;
         const { schemaId } = this.opts;
         if (typeof schema == "object") {
-          id = schema[schemaId];
+          id2 = schema[schemaId];
         } else {
           if (this.opts.jtd)
             throw new Error("schema must be object");
@@ -12002,7 +12002,7 @@ var require_core = __commonJS({
         let sch = this._cache.get(schema);
         if (sch !== void 0)
           return sch;
-        baseId = (0, resolve_1.normalizeId)(id || baseId);
+        baseId = (0, resolve_1.normalizeId)(id2 || baseId);
         const localRefs = resolve_1.getSchemaRefs.call(this, schema, baseId);
         sch = new compile_1.SchemaEnv({ schema, schemaId, meta, baseId, localRefs });
         this._cache.set(sch.schema, sch);
@@ -12015,9 +12015,9 @@ var require_core = __commonJS({
           this.validateSchema(schema, true);
         return sch;
       }
-      _checkUnique(id) {
-        if (this.schemas[id] || this.refs[id]) {
-          throw new Error(`schema with key or id "${id}" already exists`);
+      _checkUnique(id2) {
+        if (this.schemas[id2] || this.refs[id2]) {
+          throw new Error(`schema with key or id "${id2}" already exists`);
         }
       }
       _compileSchemaEnv(sch) {
@@ -14827,8 +14827,8 @@ function merge(def, val) {
   }
   return val;
 }
-function parseConfigText(text) {
-  const doc = import_yaml.default.parseDocument(text.replace(/^﻿/, ""));
+function parseConfigText(text2) {
+  const doc = import_yaml.default.parseDocument(text2.replace(/^﻿/, ""));
   if (doc.errors.length) {
     const e = doc.errors[0];
     const line = e.linePos?.[0]?.line ?? "?";
@@ -14838,30 +14838,30 @@ function parseConfigText(text) {
   return { config: merge(DEFAULTS, raw), raw };
 }
 function loadConfig(root2) {
-  let text;
+  let text2;
   try {
-    text = fs2.readFileSync(path.join(root2, CONFIG_FILE), "utf8");
+    text2 = fs2.readFileSync(path.join(root2, CONFIG_FILE), "utf8");
   } catch {
     throw new ConfigError(`kh\xF4ng \u0111\u1ECDc \u0111\u01B0\u1EE3c ${path.join(root2, CONFIG_FILE)}`);
   }
-  return parseConfigText(text);
+  return parseConfigText(text2);
 }
 
 // scripts/lib/cards.mjs
 import fs3 from "node:fs";
 import path2 from "node:path";
 var CARD_ID_RE = /^[A-Za-z0-9]+$/;
-function findCardDir(root2, config2, id) {
-  if (!CARD_ID_RE.test(String(id))) return { error: `id th\u1EBB kh\xF4ng h\u1EE3p l\u1EC7: ${id}` };
+function findCardDir(root2, config2, id2) {
+  if (!CARD_ID_RE.test(String(id2))) return { error: `id th\u1EBB kh\xF4ng h\u1EE3p l\u1EC7: ${id2}` };
   const base = path2.resolve(root2, config2.workspace.cards_dir);
   let names = [];
   try {
     names = fs3.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
   } catch {
   }
-  const hits = names.filter((n) => n === id || n.startsWith(`${id}-`));
-  if (!hits.length) return { error: `kh\xF4ng th\u1EA5y th\u01B0 m\u1EE5c ${config2.workspace.cards_dir}/${id}-*` };
-  if (hits.length > 1) return { error: `nhi\u1EC1u th\u01B0 m\u1EE5c kh\u1EDBp th\u1EBB ${id}: ${hits.join(", ")}` };
+  const hits = names.filter((n) => n === id2 || n.startsWith(`${id2}-`));
+  if (!hits.length) return { error: `kh\xF4ng th\u1EA5y th\u01B0 m\u1EE5c ${config2.workspace.cards_dir}/${id2}-*` };
+  if (hits.length > 1) return { error: `nhi\u1EC1u th\u01B0 m\u1EE5c kh\u1EDBp th\u1EBB ${id2}: ${hits.join(", ")}` };
   return { dir: path2.join(base, hits[0]) };
 }
 
@@ -14878,8 +14878,8 @@ function splitRow(line) {
   if (parts.length && parts[parts.length - 1].trim() === "") parts.pop();
   return parts.map((c) => c.trim());
 }
-function parseTables(text) {
-  const lines = norm(text).split(/\r?\n/);
+function parseTables(text2) {
+  const lines = norm(text2).split(/\r?\n/);
   const tables = [];
   let heads = [];
   for (let i = 0; i < lines.length; i++) {
@@ -14900,11 +14900,11 @@ function parseTables(text) {
 }
 var EXEMPT_SECTION_RE = /^(Tiêu đề|Branch|Loại|Thông tin tiếp nhận|Comments?)\b/i;
 var stripLinePrefix = (l) => l.replace(/^\s*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+|>\s+)/, "").trim();
-function dossierUnits(text) {
+function dossierUnits(text2) {
   const units = [];
   let section = "";
   let fence = false;
-  norm(text).split(/\r?\n/).forEach((raw, i) => {
+  norm(text2).split(/\r?\n/).forEach((raw, i) => {
     if (/^\s*```/.test(raw)) {
       fence = !fence;
       return;
@@ -14916,26 +14916,26 @@ function dossierUnits(text) {
       else if (h[1].length === 2) section = h[2].replace(/^[^\p{L}]+/u, "").trim();
       return;
     }
-    const body = stripLinePrefix(raw);
-    if (!body) return;
-    units.push({ line: squash(body), sentences: body.split(/(?<=[.!?…])\s+/).map(squash).filter(Boolean), section, lineNo: i + 1 });
+    const body2 = stripLinePrefix(raw);
+    if (!body2) return;
+    units.push({ line: squash(body2), sentences: body2.split(/(?<=[.!?…])\s+/).map(squash).filter(Boolean), section, lineNo: i + 1 });
   });
   return units;
 }
-function outOfScopeCodes(text) {
+function outOfScopeCodes(text2) {
   const codes = [];
-  let inside = false;
-  for (const line of norm(text).split(/\r?\n/)) {
-    if (/^#{1,4}\s/.test(line)) inside = /^#{2,4}\s*Ngoài phạm vi/i.test(line);
-    else if (inside) codes.push(...[...line.matchAll(CODE_RE)].map((m) => m[1]).filter((c) => c.startsWith("D-")));
+  let inside2 = false;
+  for (const line of norm(text2).split(/\r?\n/)) {
+    if (/^#{1,4}\s/.test(line)) inside2 = /^#{2,4}\s*Ngoài phạm vi/i.test(line);
+    else if (inside2) codes.push(...[...line.matchAll(CODE_RE)].map((m) => m[1]).filter((c) => c.startsWith("D-")));
   }
   return codes;
 }
-function parseLedger(text) {
+function parseLedger(text2) {
   const D = /* @__PURE__ */ new Map();
   const U = /* @__PURE__ */ new Map();
   const errors = [];
-  for (const tb of parseTables(text)) {
+  for (const tb of parseTables(text2)) {
     for (const r of tb.rows) {
       const code = r.cells[0] ?? "";
       if (!/^[DU]-\d+$/.test(code)) continue;
@@ -15008,9 +15008,9 @@ function traceCheck(cardDir) {
   const outOfScope = new Set(outOfScopeCodes(ledgerText));
   for (const file of listArtifacts(cardDir)) {
     const rel = path3.relative(cardDir, file).split(path3.sep).join("/");
-    const text = norm(fs4.readFileSync(file, "utf8"));
-    for (const c of outOfScopeCodes(text)) outOfScope.add(c);
-    for (const tb of parseTables(text)) {
+    const text2 = norm(fs4.readFileSync(file, "utf8"));
+    for (const c of outOfScopeCodes(text2)) outOfScope.add(c);
+    for (const tb of parseTables(text2)) {
       const col = tb.header.findIndex((h) => squash(h).toLowerCase() === "ngu\u1ED3n");
       if (col < 0) {
         if (!tb.inAppendix) errors.push(`${rel}:${tb.line} b\u1EA3ng kh\xF4ng c\xF3 c\u1ED9t Ngu\u1ED3n (b\u1EA3ng tra c\u1EE9u th\xEC \u0111\u1EB7t d\u01B0\u1EDBi heading "Ph\u1EE5 l\u1EE5c")`);
@@ -15047,9 +15047,9 @@ function activeRevision(cardDir) {
   const revs = fs5.readdirSync(cardDir, { withFileTypes: true }).filter((e) => e.isDirectory() && /^rev-[1-9]\d*$/.test(e.name)).map((e) => e.name).sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)));
   return revs[0] ?? null;
 }
-function validateScope(cardDir, scope = "") {
-  if (scope && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope)) throw new Error("scope Gate kh\xF4ng h\u1EE3p l\u1EC7");
-  const dir = path4.resolve(cardDir, scope);
+function validateScope(cardDir, scope2 = "") {
+  if (scope2 && !/^(?:rev-[1-9]\d*(?:\/task-\d+(?:-[A-Za-z0-9-]+)?)?|task-\d+(?:-[A-Za-z0-9-]+)?)$/.test(scope2)) throw new Error("scope Gate kh\xF4ng h\u1EE3p l\u1EC7");
+  const dir = path4.resolve(cardDir, scope2);
   const real = fs5.realpathSync(dir), base = fs5.realpathSync(cardDir);
   if (real !== base && !real.startsWith(base + path4.sep)) throw new Error("scope Gate v\u01B0\u1EE3t kh\u1ECFi th\u1EBB");
   return dir;
@@ -15060,22 +15060,23 @@ function gateScope(question) {
   return [rev, task].filter(Boolean).join("/");
 }
 function validateGateQuestion(cardDir, question) {
-  const scope = gateScope(question), revision = activeRevision(cardDir);
-  if (revision && scope.split("/")[0] !== revision || !revision && scope.startsWith("rev-")) throw new Error(`Gate ph\u1EA3i ch\u1EC9 \u0111\xFAng revision hi\u1EC7n t\u1EA1i ${revision ?? "g\u1ED1c"}`);
-  validateScope(cardDir, scope);
-  return scope;
+  const scope2 = gateScope(question), revision2 = activeRevision(cardDir);
+  if (revision2 && scope2.split("/")[0] !== revision2 || !revision2 && scope2.startsWith("rev-")) throw new Error(`Gate ph\u1EA3i ch\u1EC9 \u0111\xFAng revision hi\u1EC7n t\u1EA1i ${revision2 ?? "g\u1ED1c"}`);
+  validateScope(cardDir, scope2);
+  return scope2;
 }
 
 // scripts/lib/notify.mjs
 import fs6 from "node:fs";
 import path5 from "node:path";
 var KINDS = ["info", "gate", "ask", "attention", "error", "done"];
-function makeEvent({ kind, taskId = "", title, fields = {}, body = "" }) {
+var NOTIFY_TIMEOUT_MS = 12e3;
+function makeEvent({ kind, taskId = "", title, fields = {}, body: body2 = "" }) {
   if (!KINDS.includes(kind)) throw new Error(`kind ph\u1EA3i l\xE0 m\u1ED9t trong: ${KINDS.join(", ")}`);
   if (!title) throw new Error("thi\u1EBFu title");
-  return { kind, taskId: String(taskId), title: String(title), fields, body: String(body) };
+  return { kind, taskId: String(taskId), title: String(title), fields, body: String(body2) };
 }
-async function notify(root2, event2, { timeoutMs = 1500, log = (s) => process.stderr.write(s) } = {}) {
+async function notify(root2, event2, { timeoutMs = NOTIFY_TIMEOUT_MS, log = (s) => process.stderr.write(s) } = {}) {
   let w = {};
   try {
     w = JSON.parse(fs6.readFileSync(path5.join(root2, ".ff", "worker.json"), "utf8"));
@@ -15084,22 +15085,193 @@ async function notify(root2, event2, { timeoutMs = 1500, log = (s) => process.st
   if (!w.port) {
     log(`[ff notify] worker kh\xF4ng ch\u1EA1y \u2014 b\u1ECF qua: ${event2.kind} ${event2.title}
 `);
-    return { delivered: false };
+    return { delivered: false, status: "not_sent", reason: "worker_unavailable" };
+  }
+  let body2;
+  try {
+    body2 = JSON.stringify(event2);
+  } catch {
+    log("[ff notify] not_sent: invalid_event\n");
+    return { delivered: false, status: "not_sent", reason: "invalid_event" };
   }
   try {
     const res = await fetch(`http://127.0.0.1:${w.port}/notify`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${w.token ?? ""}` },
-      body: JSON.stringify(event2),
+      body: body2,
       signal: AbortSignal.timeout(timeoutMs)
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return { delivered: true };
-  } catch (e) {
-    log(`[ff notify] g\u1EEDi l\u1ED7i (${e.message}) \u2014 b\u1ECF qua
+    if (!res.ok) {
+      const reason = `http_${res.status}`;
+      log(`[ff notify] failed: ${reason}
 `);
-    return { delivered: false };
+      return { delivered: false, status: "failed", reason };
+    }
+    if (res.headers.get("content-type")?.includes("application/json")) {
+      const result = await res.json();
+      if (result?.status === "unknown") {
+        const reason = ["timeout", "network_error"].includes(result.reason) ? result.reason : "delivery_unknown";
+        log(`[ff notify] unknown: ${reason}; ch\u01B0a x\xE1c \u0111\u1ECBnh \u0111\xE3 g\u1EEDi, kh\xF4ng t\u1EF1 g\u1EEDi l\u1EA1i
+`);
+        return { delivered: false, status: "unknown", reason };
+      }
+      if (result?.delivered === false || result?.status === "failed" || result?.error) {
+        log("[ff notify] failed: delivery_rejected\n");
+        return { delivered: false, status: "failed", reason: "delivery_rejected" };
+      }
+    }
+    return { delivered: true, status: "delivered" };
+  } catch (e) {
+    const reason = ["TimeoutError", "AbortError"].includes(e?.name) ? "timeout" : "network_error";
+    log(`[ff notify] unknown: ${reason}; ch\u01B0a x\xE1c \u0111\u1ECBnh \u0111\xE3 g\u1EEDi, kh\xF4ng t\u1EF1 g\u1EEDi l\u1EA1i
+`);
+    return { delivered: false, status: "unknown", reason };
   }
+}
+
+// scripts/lib/human-output.mjs
+import fs7 from "node:fs";
+import path6 from "node:path";
+import crypto from "node:crypto";
+var PHASE_SECTIONS = {
+  understand: { function: "Ch\u1EE9c n\u0103ng v\xE0 ng\u01B0\u1EDDi d\xF9ng", current: "Hi\u1EC7n tr\u1EA1ng \u0111\xE3 x\xE1c minh", requested: "Dossier y\xEAu c\u1EA7u", target: "H\xE0nh vi sau c\u1EADp nh\u1EADt", impact: "\u1EA2nh h\u01B0\u1EDFng v\xE0 ph\u1EA1m vi gi\u1EEF nguy\xEAn", acceptance: "Th\u1EBF n\xE0o l\xE0 \u0111\xFAng", uncertainty: "Gi\u1EDBi h\u1EA1n v\xE0 \u0111i\u1EC1u ch\u01B0a r\xF5" },
+  design: { realization: "Hi\u1EC7n th\u1EF1c h\xF3a h\xE0nh vi \u0111\xE3 ch\u1ED1t", differences: "Kh\xE1c bi\u1EC7t c\u1EA7n quy\u1EBFt \u0111\u1ECBnh", impact: "\u1EA2nh h\u01B0\u1EDFng", uncertainty: "Gi\u1EDBi h\u1EA1n v\xE0 \u0111i\u1EC1u ch\u01B0a r\xF5" },
+  build: { implemented: "H\xE0nh vi \u0111\xE3 tri\u1EC3n khai", checks: "Ki\u1EC3m tra th\u1EF1c s\u1EF1 \u0111\xE3 ch\u1EA1y", remaining: "Ph\u1EA7n thi\u1EBFu, l\u1EC7ch ho\u1EB7c \u0111ang k\u1EB9t", readiness: "M\u1EE9c s\u1EB5n s\xE0ng nghi\u1EC7m thu" },
+  verify: { expectedActual: "\u0110\xE3 h\u1EE9a v\xE0 k\u1EBFt qu\u1EA3 th\u1EF1c t\u1EBF", evidence: "B\u1EB1ng ch\u1EE9ng ch\xEDnh", regression: "H\u1ED3i quy v\xE0 ph\u1EA7n \u1EA3nh h\u01B0\u1EDFng", limitations: "Ch\u01B0a ki\u1EC3m v\xE0 kh\xF4ng \xE1p d\u1EE5ng", conclusion: "K\u1EBFt lu\u1EADn nghi\u1EC7m thu" },
+  ship: { acceptedScope: "Ph\u1EA1m vi v\xE0 version \u0111\xE3 nghi\u1EC7m thu", destination: "Repo, branch v\xE0 commit", checks: "Ki\u1EC3m tra tr\u01B0\u1EDBc ho\u1EB7c sau ship", limitations: "Gi\u1EDBi h\u1EA1n v\xE0 tr\u1EA1ng th\xE1i ship" }
+};
+var GATE_PHASE = { GATE_A: "understand", GATE_B: "design", GATE_C: "verify" };
+var hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
+var text = (v, field) => {
+  if (typeof v !== "string" || !v.trim()) throw new Error(`thi\u1EBFu ${field}`);
+  return v.trim();
+};
+var inside = (base, file) => file === base || file.startsWith(base + path6.sep);
+function context(root2, config2, id2, scope2 = "") {
+  const card = findCardDir(root2, config2, String(id2));
+  if (card.error) throw new Error(card.error);
+  const revision2 = activeRevision(card.dir);
+  if (scope2 && !/^task-\d+(?:-[A-Za-z0-9-]+)?$/.test(scope2)) throw new Error("scope presentation kh\xF4ng h\u1EE3p l\u1EC7");
+  const fullScope = [revision2, scope2].filter(Boolean).join("/");
+  const dir = validateScope(card.dir, fullScope);
+  return { cardDir: card.dir, revision: revision2, scope: scope2, fullScope, dir, taskId: String(id2) };
+}
+function sources(ctx, phase) {
+  const rel = (name) => [ctx.fullScope, name].filter(Boolean).join("/");
+  const rootBrief = [ctx.revision, ctx.revision ? "delta.md" : "brief.md"].filter(Boolean).join("/");
+  const ownBrief = ctx.scope && !ctx.revision ? rel("brief.md") : rootBrief;
+  const names = [phase === "understand" ? ownBrief : rootBrief];
+  const parentRel = (name) => [ctx.revision, name].filter(Boolean).join("/");
+  const children = ctx.scope ? [] : fs7.readdirSync(ctx.dir, { withFileTypes: true }).filter((e) => e.isDirectory() && /^task-\d+(?:-[A-Za-z0-9-]+)?$/.test(e.name)).map((e) => e.name).sort();
+  const addOptional = (p) => {
+    if (fs7.existsSync(path6.join(ctx.cardDir, p))) names.push(p);
+  };
+  const required = phase === "understand" ? [] : phase === "design" ? ["02-spec.md", "03-design.md"] : phase === "build" ? ["02-spec.md", "03-design.md", "04-plan.md"] : ["02-spec.md", "03-design.md", "05-verify-report.md"];
+  for (const name of required) {
+    if (children.length) {
+      if (name === "05-verify-report.md" && fs7.existsSync(path6.join(ctx.dir, name))) {
+        names.push(rel(name));
+        for (const child of children) addOptional(rel(`${child}/${name}`));
+      } else {
+        for (const child of children) names.push(rel(`${child}/${name}`));
+        addOptional(rel(name));
+      }
+    } else names.push(rel(name));
+  }
+  if (ctx.scope) {
+    addOptional(rel("brief.md"));
+    addOptional(rel("01b-ledger.md"));
+    addOptional(parentRel("03-design.md"));
+    addOptional(parentRel("02-spec.md"));
+  }
+  for (const child of children) {
+    addOptional(rel(`${child}/brief.md`));
+    addOptional(rel(`${child}/01b-ledger.md`));
+  }
+  addOptional(parentRel("00-subtasks.md"));
+  addOptional(parentRel("01b-ledger.md"));
+  for (const optional of ["01-dossier.md", "01b-ledger.md"]) if (fs7.existsSync(path6.join(ctx.cardDir, optional))) names.push(optional);
+  return [...new Set(names)];
+}
+function sourceHashes(ctx, phase) {
+  const out = {};
+  for (const rel of sources(ctx, phase)) {
+    const file = path6.join(ctx.cardDir, rel);
+    let real;
+    try {
+      real = fs7.realpathSync(file);
+    } catch {
+      throw new Error(`thi\u1EBFu artifact hi\u1EC7n t\u1EA1i: ${rel}`);
+    }
+    if (!inside(fs7.realpathSync(ctx.cardDir), real) || !fs7.statSync(real).isFile()) throw new Error(`artifact kh\xF4ng h\u1EE3p l\u1EC7: ${rel}`);
+    out[rel] = hash(fs7.readFileSync(real));
+  }
+  return out;
+}
+function recordPath(root2, id2, phase, scope2 = "") {
+  return path6.join(root2, ".ff", "presentations", `${id2}.${phase}.${scope2 || "root"}.json`);
+}
+function preparePresentation(root2, config2, id2, input2, { gate } = {}) {
+  if (input2?.version !== 1 || !Object.hasOwn(PHASE_SECTIONS, input2?.phase)) throw new Error("presentation c\u1EA7n version 1 v\xE0 phase v\u1EADn h\xE0nh h\u1EE3p l\u1EC7");
+  const ctx = context(root2, config2, id2, input2.scope ?? "");
+  if (input2.taskId !== void 0 && String(input2.taskId) !== ctx.taskId) throw new Error("taskId kh\xF4ng kh\u1EDBp");
+  if (input2.revision !== void 0 && input2.revision !== ctx.revision) throw new Error("revision kh\xF4ng hi\u1EC7n h\xE0nh");
+  if (gate && GATE_PHASE[gate] !== input2.phase) throw new Error("Gate kh\xF4ng kh\u1EDBp phase");
+  const sections = {};
+  for (const key of Object.keys(PHASE_SECTIONS[input2.phase])) sections[key] = text(input2.sections?.[key], `sections.${key}`);
+  if (!Array.isArray(input2.decisions)) throw new Error("decisions ph\u1EA3i l\xE0 m\u1EA3ng (r\u1ED7ng khi kh\xF4ng c\u1EA7n quy\u1EBFt)");
+  if (input2.decisions.length > 4) throw new Error("m\u1ED9t l\u01B0\u1EE3t t\u1ED1i \u0111a 4 quy\u1EBFt \u0111\u1ECBnh \u0111\u1ED9c l\u1EADp");
+  const ids2 = /* @__PURE__ */ new Set();
+  const decisions = input2.decisions.map((d) => {
+    if (!/^Q\d+$/.test(d.id) || ids2.has(d.id)) throw new Error("decision id ph\u1EA3i l\xE0 Q<n> v\xE0 kh\xF4ng tr\xF9ng");
+    ids2.add(d.id);
+    if (!Array.isArray(d.options) || d.options.length < 2 || d.options.length > 4) throw new Error(`${d.id} c\u1EA7n 2\u20134 ph\u01B0\u01A1ng \xE1n`);
+    const labels = /* @__PURE__ */ new Set();
+    const options = d.options.map((o) => {
+      const label = text(o.label, "option.label");
+      if (labels.has(label)) throw new Error("option label tr\xF9ng");
+      labels.add(label);
+      return { label, description: text(o.description, "option.description") };
+    });
+    return { id: d.id, question: text(d.question, "decision.question"), options, recommendation: text(d.recommendation, "decision.recommendation") };
+  });
+  const packet2 = { version: 1, taskId: ctx.taskId, revision: ctx.revision, scope: ctx.scope, phase: input2.phase, gate: gate ?? null, headline: text(input2.headline, "headline"), sections, decisions, nextAction: text(input2.nextAction, "nextAction"), sourceHashes: sourceHashes(ctx, input2.phase), createdAt: (/* @__PURE__ */ new Date()).toISOString() };
+  packet2.presentationId = hash(JSON.stringify({ ...packet2, createdAt: void 0 })).slice(0, 24);
+  if (Buffer.byteLength(JSON.stringify(packet2)) > 32 * 1024) throw new Error("t\u1ED5ng h\u1EE3p v\u01B0\u1EE3t 32 KiB; r\xFAt g\u1ECDn n\u1ED9i dung, kh\xF4ng c\u1EAFt c\xE2u h\u1ECFi");
+  return packet2;
+}
+function readPresentation(root2, config2, id2, { gate, scope: scope2 = "", phase } = {}) {
+  const phases = phase ? [phase] : gate ? [GATE_PHASE[gate]] : Object.keys(PHASE_SECTIONS);
+  const ctx = context(root2, config2, id2, scope2), found = [];
+  for (const p of phases) {
+    try {
+      const packet2 = JSON.parse(fs7.readFileSync(recordPath(root2, String(id2), p, scope2), "utf8"));
+      if (packet2.taskId !== String(id2) || packet2.revision !== ctx.revision || packet2.scope !== scope2 || packet2.phase !== p) continue;
+      if (gate && packet2.gate !== gate) continue;
+      if (typeof packet2.createdAt !== "string" || !Number.isFinite(Date.parse(packet2.createdAt))) continue;
+      const validated = preparePresentation(root2, config2, id2, packet2, { gate: packet2.gate });
+      if (validated.presentationId !== packet2.presentationId) continue;
+      const current = sourceHashes(ctx, p);
+      if (JSON.stringify(current) !== JSON.stringify(packet2.sourceHashes)) continue;
+      found.push(packet2);
+    } catch {
+    }
+  }
+  return found.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0] ?? null;
+}
+function renderPresentation(packet2) {
+  const lines = [`[#${packet2.taskId}] [${packet2.revision ?? "g\u1ED1c"}]${packet2.scope ? ` [${packet2.scope}]` : ""} \u2014 ${packet2.headline}`, `Pha: ${packet2.phase}${packet2.gate ? ` \xB7 ${packet2.gate}` : ""}`];
+  for (const [key, label] of Object.entries(PHASE_SECTIONS[packet2.phase])) lines.push("", label, packet2.sections[key]);
+  if (packet2.decisions.length) lines.push("", "C\u1EA7n b\u1EA1n ch\u1ED1t");
+  const prefix2 = `[#${packet2.taskId}]${packet2.revision ? ` [${packet2.revision}]` : ""}${packet2.scope ? ` [${packet2.scope}]` : ""}`;
+  for (const d of packet2.decisions) {
+    lines.push(`${d.id}. ${prefix2} ${d.question}`, ...d.options.map((o) => `- ${o.label}: ${o.description}`), `Khuy\u1EBFn ngh\u1ECB: ${d.recommendation}`);
+  }
+  lines.push("", `B\u01B0\u1EDBc ti\u1EBFp theo: ${packet2.nextAction}`, "Quy\u1EBFt \u0111\u1ECBnh/duy\u1EC7t th\u1EF1c hi\u1EC7n t\u1EA1i CLI; channel ch\u1EC9 th\xF4ng b\xE1o.");
+  return lines.join("\n");
+}
+function formatQuestions(questions2) {
+  return questions2.map((q, i) => [`${q.header || `Q${i + 1}`}. ${q.question ?? ""}`, ...(q.options ?? []).map((o) => `- ${o.label ?? ""}${o.description ? `: ${o.description}` : ""}`), q.multiSelect ? "C\xF3 th\u1EC3 ch\u1ECDn nhi\u1EC1u ph\u01B0\u01A1ng \xE1n." : ""].filter(Boolean).join("\n")).join("\n\n");
 }
 
 // scripts/hooks/ask-pre.mjs
@@ -15144,8 +15316,41 @@ ${r.errors.map((e) => `- ${e}`).join("\n")}
   }
 }
 var prefix = config.worker.tmux.session_prefix;
-var first = Array.isArray(ti.questions) ? ti.questions[0] : null;
-var event = gates.length ? makeEvent({ kind: "gate", taskId: gates[0].cardId, title: `${gates[0].gate} th\u1EBB #${gates[0].cardId} ch\u1EDD duy\u1EC7t`, body: `M\u1EDF phi\xEAn \u0111\u1EC3 duy\u1EC7t: tmux attach -t ${prefix}${gates[0].cardId}` }) : makeEvent({ kind: "ask", title: String(first?.question ?? "Agent \u0111ang h\u1ECFi").slice(0, 120) });
-await notify(root, event, { log: () => {
-} });
+var questions = Array.isArray(ti.questions) ? ti.questions : [];
+var ids = [...new Set(questions.map((q) => String(q.question ?? "").match(/^\s*\[#([A-Za-z0-9]+)\]/)?.[1]).filter(Boolean))];
+if (ids.length > 1) {
+  process.stderr.write("[ff] M\u1ED9t l\u01B0\u1EE3t h\u1ECFi ch\u1EC9 thu\u1ED9c m\u1ED9t th\u1EBB.\n");
+  process.exit(2);
+}
+var id = gates[0]?.cardId ?? ids[0] ?? "";
+var scope = String(questions[0]?.question ?? "").match(/\[(task-\d+(?:-[A-Za-z0-9-]+)?)\]/)?.[1] ?? "";
+if (ids.length && new Set(questions.map((q) => gateScope(String(q.question ?? "")))).size > 1) {
+  process.stderr.write("[ff] M\u1ED9t l\u01B0\u1EE3t h\u1ECFi ch\u1EC9 thu\u1ED9c m\u1ED9t revision/ph\u1EA1m vi.\n");
+  process.exit(2);
+}
+var packet = null;
+var revision = null;
+if (id) {
+  const card = findCardDir(root, config, id);
+  if (card.dir) {
+    revision = activeRevision(card.dir);
+    try {
+      for (const q of questions) validateGateQuestion(card.dir, String(q.question ?? ""));
+    } catch (e) {
+      process.stderr.write(`[ff] ${e.message}
+`);
+      process.exit(2);
+    }
+    packet = readPresentation(root, config, id, { gate: gates[0]?.gate, scope });
+  }
+}
+var body = [packet ? renderPresentation(packet) : "B\u1EA3n t\u1ED5ng h\u1EE3p cho human thi\u1EBFu ho\u1EB7c h\u1EBFt hi\u1EC7u l\u1EF1c; c\u1EA7n xem l\u1EA1i ng\u1EEF c\u1EA3nh trong CLI.", formatQuestions(questions), id ? `M\u1EDF phi\xEAn CLI \u0111\u1EC3 tr\u1EA3 l\u1EDDi/duy\u1EC7t: tmux attach -t ${prefix}${id}` : "Tr\u1EA3 l\u1EDDi/duy\u1EC7t trong phi\xEAn CLI hi\u1EC7n t\u1EA1i; channel ch\u1EC9 th\xF4ng b\xE1o."].join("\n\n");
+var event = makeEvent({ kind: gates.length ? "gate" : "ask", taskId: id, title: gates.length ? `${gates[0].gate} th\u1EBB #${id} ch\u1EDD duy\u1EC7t` : "C\u1EA7n quy\u1EBFt \u0111\u1ECBnh trong CLI", fields: { revision: revision ?? "g\u1ED1c", scope: scope || "to\xE0n th\u1EBB", ...packet ? { phase: packet.phase, presentation: packet.presentationId } : {} }, body });
+if (Buffer.byteLength(JSON.stringify(event)) > 60 * 1024) {
+  process.stderr.write("[ff] N\u1ED9i dung h\u1ECFi qu\xE1 l\u1EDBn; r\xFAt g\u1ECDn t\u1ED5ng h\u1EE3p, kh\xF4ng c\u1EAFt l\u1EF1a ch\u1ECDn.\n");
+  process.exit(2);
+}
+var delivery = await notify(root, event, { log: (s) => process.stderr.write(s) });
+if (!delivery.delivered) process.stderr.write(`[ff] channel: ${delivery.status ?? "not_sent"}; quy\u1EBFt \u0111\u1ECBnh v\u1EABn \u1EDF CLI.
+`);
 process.exit(0);

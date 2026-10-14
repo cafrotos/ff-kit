@@ -81,7 +81,7 @@ test('worker validates config, polls once, and shuts down cleanly', async (t) =>
   assert.deepEqual(events, [])
 })
 
-test('worker completes only after current Gate C record matches the report hash', async (t) => {
+test('current Gate C accepts the task without shipping or destroying its human session', async (t) => {
   const w = makeWorkspace({ files: {
     'trellocards/123-search/01-dossier.md': '# Search\n',
     'trellocards/123-search/05-verify-report.md': '# Verify\n',
@@ -99,9 +99,46 @@ test('worker completes only after current Gate C record matches the report hash'
   const completed = await checkCompletedTasks({ root: w.root, config, source, channel: { notify: async (event) => events.push(event) }, tmux: { killSession: (name) => kills.push(name) } })
   assert.equal(completed.length, 1)
   assert.equal(readTask(w.root, '123').phase, 'completed')
+  assert.equal(readTask(w.root, '123').acceptance, 'accepted')
+  assert.equal(readTask(w.root, '123').acceptedRevision, '')
+  assert.equal(readTask(w.root, '123').shipState, 'not_shipped')
+  assert.equal(readTask(w.root, '123').session, 'ff-123')
   assert.deepEqual(moved, [['remote-card-123', 'Ready For QA']])
-  assert.deepEqual(kills, ['ff-123'])
+  assert.deepEqual(kills, [])
   assert.equal(events[0].kind, 'done')
+  assert.deepEqual(events[0].fields, { acceptance: 'accepted', revision: '', shipState: 'not_shipped' })
+  assert.match(events[0].body, /chưa ship/i)
+  assert.match(events[0].body, /xác nhận/i)
+  assert.doesNotMatch(events[0].body, /đã hoàn tất|đã ship/i)
+  assert.deepEqual(await checkCompletedTasks({ root: w.root, config, source, channel: { notify: async () => assert.fail('acceptance must not be notified twice') }, tmux: { killSession: () => assert.fail('retain accepted session') } }), [])
+})
+
+test('Gate C notification failure is logged while accepted work remains available to humans', async (t) => {
+  const w = makeWorkspace({ files: { 'trellocards/123-search/01-dossier.md': '# Search\n', 'trellocards/123-search/05-verify-report.md': '# Verify\n' } })
+  t.after(w.cleanup)
+  const config = loadConfig(w.root).config
+  const question = '[#123] Duyệt Gate C?'
+  recordGates(w.root, config, { questions: [{ header: 'GATE_C', question }] }, { answers: { [question]: 'Duyệt' } })
+  writeTask(w.root, { cardId: '123', slug: 'search', phase: 'running', session: 'ff-123' })
+  const logs = []
+  const accepted = await checkCompletedTasks({ root: w.root, config, source: { moveTo: async () => {} }, channel: { notify: async () => { throw new Error('private token=secret') } }, tmux: { killSession: () => assert.fail('session needed for ship approval') }, log: (line) => logs.push(line) })
+  assert.equal(accepted.length, 1)
+  assert.equal(readTask(w.root, '123').shipState, 'not_shipped')
+  assert.match(logs.join(''), /thông báo.*thất bại/i)
+  assert.doesNotMatch(logs.join(''), /private|secret/)
+})
+
+test('changed report never advances Gate C acceptance or its done-list milestone', async (t) => {
+  const w = makeWorkspace({ files: { 'trellocards/123-search/01-dossier.md': '# Search\n', 'trellocards/123-search/05-verify-report.md': '# Verify\n' } })
+  t.after(w.cleanup)
+  const config = loadConfig(w.root).config
+  const question = '[#123] Duyệt Gate C?'
+  recordGates(w.root, config, { questions: [{ header: 'GATE_C', question }] }, { answers: { [question]: 'Duyệt' } })
+  fs.appendFileSync(path.join(w.root, 'trellocards/123-search/05-verify-report.md'), 'Changed evidence\n')
+  writeTask(w.root, { cardId: '123', slug: 'search', phase: 'running', session: 'ff-123' })
+  const accepted = await checkCompletedTasks({ root: w.root, config, source: { moveTo: async () => assert.fail('stale Gate C') }, channel: { notify: async () => assert.fail('stale Gate C') }, tmux: { killSession: () => assert.fail('stale Gate C') } })
+  assert.deepEqual(accepted, [])
+  assert.equal(readTask(w.root, '123').phase, 'running')
 })
 
 test('worker completes Gate C before attempting to recover its agent session', async (t) => {
@@ -134,5 +171,64 @@ test('worker completes Gate C before attempting to recover its agent session', a
   processLike.emit('SIGTERM')
   assert.equal(await stopped, 0)
   assert.deepEqual(moved, [['remote-123', 'Ready For QA']])
+})
+
+test('ship request preserves presentation fields and requests a decision without marking shipped', async (t) => {
+  const w = makeWorkspace({ files: { '.ff.env': 'TRELLO_API_KEY=test-key\nTRELLO_API_TOKEN=test-token\n' } })
+  t.after(w.cleanup)
+  const processLike = new EventEmitter()
+  const events = []
+  let handlers
+  let readyResolve
+  const ready = new Promise((resolve) => { readyResolve = resolve })
+  const stopped = runWorker({ configPath: path.join(w.root, 'ff.config.yaml'), source: { name: 'fake', poll: async () => [], moveTo: async () => {}, fetchDossier: async () => '' }, channel: { name: 'fake', notify: async (event) => events.push(event) }, processLike, watch: false, log: () => {}, httpStarter: async (options) => {
+    handlers = options.handlers
+    readyResolve()
+    return { address: { port: 1234 }, statusPath: path.join(w.root, '.ff/worker.json'), close: async () => {} }
+  } })
+  await ready
+  const body = { taskId: '123', title: 'Xác nhận ship?', body: 'Gate C accepted; chưa ship', fields: { revision: 'rev-2', destination: 'origin/card' }, presentation: { phase: 'ship', sections: { acceptedScope: 'Search' } } }
+  assert.deepEqual(await handlers.shipRequest(body), { accepted: true })
+  assert.deepEqual(events, [{ ...body, kind: 'ask' }])
+  assert.equal(readTask(w.root, '123'), null)
+  processLike.emit('SIGTERM')
+  assert.equal(await stopped, 0)
+})
+
+test('failed poll-error notification is logged without leaking channel error details', async (t) => {
+  const w = makeWorkspace({ files: { '.ff.env': 'TRELLO_API_KEY=test-key\nTRELLO_API_TOKEN=test-token\n' } })
+  t.after(w.cleanup)
+  const processLike = new EventEmitter()
+  const logs = []
+  let readyResolve
+  const ready = new Promise((resolve) => { readyResolve = resolve })
+  const stopped = runWorker({ configPath: path.join(w.root, 'ff.config.yaml'), source: { name: 'fake', poll: async () => { throw new Error('poll offline') }, moveTo: async () => {}, fetchDossier: async () => '' }, channel: { name: 'fake', notify: async () => { throw new Error('private channel token secret') } }, processLike, watch: false, log: (line) => { logs.push(line); if (line.includes('ready pid=')) readyResolve() }, httpStarter: async () => ({ address: { port: 1234 }, statusPath: path.join(w.root, '.ff/worker.json'), close: async () => {} }) })
+  await ready
+  processLike.emit('SIGTERM')
+  assert.equal(await stopped, 0)
+  assert.match(logs.join(''), /thông báo.*thất bại/i)
+  assert.doesNotMatch(logs.join(''), /private|secret/)
+})
+
+test('ship notification failure is logged and never grants a ship decision', async (t) => {
+  const w = makeWorkspace({ files: { '.ff.env': 'TRELLO_API_KEY=test-key\nTRELLO_API_TOKEN=test-token\n' } })
+  t.after(w.cleanup)
+  const processLike = new EventEmitter()
+  const logs = []
+  let handlers
+  let readyResolve
+  const ready = new Promise((resolve) => { readyResolve = resolve })
+  const stopped = runWorker({ configPath: path.join(w.root, 'ff.config.yaml'), source: { name: 'fake', poll: async () => [], moveTo: async () => {}, fetchDossier: async () => '' }, channel: { name: 'fake', notify: async () => { throw Object.assign(new Error('private channel token secret'), { status: 400 }) } }, processLike, watch: false, log: (line) => logs.push(line), httpStarter: async (options) => {
+    handlers = options.handlers
+    readyResolve()
+    return { address: { port: 1234 }, statusPath: path.join(w.root, '.ff/worker.json'), close: async () => {} }
+  } })
+  await ready
+  await assert.rejects(handlers.shipRequest({ taskId: '123', title: 'Ship?' }), { message: 'ship notification failed' })
+  assert.match(logs.join(''), /thông báo.*ship.*thất bại/i)
+  assert.doesNotMatch(logs.join(''), /private|secret/)
+  assert.equal(readTask(w.root, '123'), null)
+  processLike.emit('SIGTERM')
+  assert.equal(await stopped, 0)
 })
 

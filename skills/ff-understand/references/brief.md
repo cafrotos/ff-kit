@@ -125,6 +125,9 @@ Task không có dữ liệu cấu hình/dropdown → ghi "không áp dụng" t�
 # Brief <id> — <tên>
 Cỡ: Nhỏ|Vừa|Lớn (lý do 1 dòng) · Nhánh: <từ dossier> · Repo: <tên cấu hình>
 
+## Chức năng và hiện trạng
+<Chức năng để làm gì, ai dùng, luồng chính; AS-IS đã kiểm và nguồn. Nhận xét dossier chưa kiểm ghi rõ.>
+
 ## Thẻ yêu cầu gì
 - "<trích nguyên văn>" — D-01
 
@@ -141,6 +144,9 @@ Cỡ: Nhỏ|Vừa|Lớn (lý do 1 dòng) · Nhánh: <từ dossier> · Repo: <tê
 | Việc | Lý do | Nguồn |
 |---|---|---|
 
+## Hành vi đích và thế nào là xong
+<TO-BE theo role/thao tác; ví dụ đầu vào → kết quả; tác động dùng chung và điều chưa chắc.>
+
 ## Cần bạn chọn
 ### Q1. <câu hỏi>
 Bối cảnh: <1–2 câu>
@@ -156,7 +162,7 @@ Khuyến nghị: <A|B> vì <căn cứ file:line hoặc D-xx>
 
 ## Khuôn restate
 
-Người duyệt đọc ~2 phần chính ~2 phần chính; phần còn lại ở Phụ lục.
+Artifact giữ nguồn và hợp đồng cho agent. Bản restate cho người duyệt là packet `understand` theo `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`; tổng hợp đủ bối cảnh trước quyết định, không dán Brief hoặc phụ lục.
 
 ## Khuôn MƠ HỒ
 

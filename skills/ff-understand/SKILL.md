@@ -3,7 +3,7 @@ name: ff-understand
 description: Dùng khi bắt đầu làm thẻ (user nhắc số thẻ, dossier, "làm thẻ X", yêu cầu feature/sửa bug theo thẻ) mà thẻ CHƯA có Brief được duyệt hoặc chưa có design qua Gate B; hoặc "reopen thẻ X" (mở lại thẻ đã ship). Ra Brief + design; không code. Brief + design đã duyệt thì dùng ff-build.
 argument-hint: "[số thẻ | slug | 'reopen <số thẻ>']"
 arguments: [card]
-allowed-tools: Read, Write, Edit, Grep, Glob, Agent, Bash(ff cfg get *), Bash(ff state *), Bash(ff sync *), Bash(ff trace-check *), Bash(ff design-check *), Bash(ff ac-matrix *), Bash(ff mcp-auth *), Bash(ff copy *), Bash(ff verify-up *), Bash(ff verify-down *), Bash(ff db-query *), Bash(ff gate-auto *), Bash(ff reopen *)
+allowed-tools: Bash(ff present *), Read, Write, Edit, Grep, Glob, Agent, Bash(ff cfg get *), Bash(ff state *), Bash(ff sync *), Bash(ff trace-check *), Bash(ff design-check *), Bash(ff ac-matrix *), Bash(ff mcp-auth *), Bash(ff copy *), Bash(ff verify-up *), Bash(ff verify-down *), Bash(ff db-query *), Bash(ff gate-auto *), Bash(ff reopen *)
 ---
 
 Đọc `${CLAUDE_PLUGIN_ROOT}/skills/ff-understand/rules.md` trước mọi việc. Phiên mở lại giữa chừng thì đọc `${CLAUDE_PLUGIN_ROOT}/skills/ff-understand/references/resume.md`.
@@ -45,9 +45,13 @@ Chi tiết + khuôn: `references/brief.md`. Thứ tự:
 ## P1b — Phá Brief (bỏ qua với task Nhỏ không có dòng MỚI)
 Spawn `ff-brief-adversary` (sonnet) theo `briefs/adversary.md`; nhận ledger + dossier + Brief theo `references/doubt.md` (không nhận kết luận người viết). Tự đối chiếu từng lỗi nó nêu với code rồi sửa Brief; phân loại phát hiện theo `doubt.md`; không tin báo cáo mù.
 
+## Kết quả cho người dùng
+
+Đọc `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`; Brief/spec/design vẫn là hợp đồng cho agent. Hoàn thiện Brief rồi tạo packet `phase: understand`, chạy `ff present <id> --file <activeDir>/human-output.json --gate GATE_A` và in văn bản render trong chat. Giải thích chức năng, AS-IS, yêu cầu, TO-BE, ảnh hưởng, ví dụ nghiệm thu và điều chưa chắc trước các quyết định.
+
 ## Gate A (bắt buộc)
 - Lượt `Q<n>`: câu cần chọn trước (≤4 câu/lượt, trả lời ghi vào ledger thành `U-xx`). Dừng hỏi khi đoán được phản ứng của người duyệt với ba câu kế tiếp. Ba lượt `Q` liền mà vẫn không đoán được: nói thẳng dossier thiếu gì (ai dùng, vì sao, thế nào là xong).
-- Trước khi trình: `ff trace-check <id>` phải xanh; giao `ff-gate-reader` đọc phần chính. Trả `THIẾU:` thì viết lại, tối đa **2 vòng**, sau đó trình kèm ghi chú phần còn khó hiểu.
+- Trước khi trình: `ff trace-check <id>` phải xanh; giao một `ff-gate-reader` mới chỉ văn bản render của `present` và pha `understand` theo `briefs/gate-reader.md`. Trả `THIẾU:` thì viết lại, tối đa **2 vòng**, sau đó trình kèm ghi chú phần còn khó hiểu.
 - Lượt duyệt riêng: `AskUserQuestion` header `GATE_A`, câu hỏi bắt đầu `[#<id>]` (revision: `[#<id>] [rev-N]`; cụm có thể thêm `[task-N]`), lựa chọn `Duyệt` / `Cần sửa`. Chỉ `Duyệt` mới là duyệt; hook ghi bản ghi Gate + hash. Không tự ghi marker duyệt, không sửa Brief sau khi đã duyệt.
 
 ## P2 — Design
@@ -64,6 +68,8 @@ ff trace-check <id>
 Spawn `ff-design-reviewer` (sonnet, `briefs/design-review.md`); tự đối chiếu rồi sửa.
 
 ## Gate B
+Sau checks/review, tạo packet `phase: design` theo recipe chung và in kết quả `ff present <id> --file <activeDir>/human-output.json` để giải thích hiện thực, khác biệt và ảnh hưởng. Giao reader mới đọc bản render pha `design`. Nếu cần hỏi Gate B, chạy lại với `--gate GATE_B` trước lượt duyệt riêng.
+
 Tự chạy tiếp. **Chỉ dừng** khi: hợp đồng có dòng MỚI (bảng đối chiếu) · lệch precedent · còn "Cần bạn chọn" chưa xử lý. Nếu dừng, trình riêng bằng `AskUserQuestion` header `GATE_B` (câu hỏi bắt đầu `[#<id>]` (revision: `[#<id>] [rev-N]`; cụm có thể thêm `[task-N]`)). Không có điều kiện dừng thì ghi metadata `gate_b` gồm ba boolean `false` theo `references/design.md`, rồi chạy `ff gate-auto <id> --reason "<căn cứ theo hợp đồng/precedent>"`; CLI tạo Gate B `auto_passed` ràng buộc hash Gate A, design, spec, ledger và dossier hiện tại. Đọc lại state để xác nhận. Auto pass không phải user duyệt; marker trong design chỉ để hiển thị, không thay bản ghi.
 
 ## Ranh giới dừng hỏi

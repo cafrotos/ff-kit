@@ -18,7 +18,7 @@ Do đó, **mọi khẳng định về tính đúng đắn của tính năng cầ
 
 ## 2. Tam giác đạc 4 tín hiệu (Triangulation Engine)
 
-Để kết luận một Tiêu chí chấp nhận (AC) hoặc kịch bản kiểm thử, agent cần phải đối chiếu đồng thời **4 tín hiệu độc lập**:
+Để kết luận một AC hoặc kịch bản, đối chiếu các tín hiệu áp dụng trong **4 kênh độc lập** dưới đây. Kênh không liên quan hành vi ghi `N/A` kèm lý do; không bỏ kênh bắt buộc chỉ vì khó đo:
 
 ```
                   [ 1. UI State ]
@@ -59,13 +59,15 @@ Do đó, **mọi khẳng định về tính đúng đắn của tính năng cầ
 
 ---
 
-## 3. Hệ phân loại kết luận chuẩn 5 trạng thái (Verdict Taxonomy)
+## 3. Kết luận kỹ thuật và quan sát UX (Verdict Taxonomy)
 
-Mọi AC trong ma trận nghiệm thu cần phải được gán đúng 1 trong 5 trạng thái chuẩn sau:
+Mỗi AC kỹ thuật có verdict `PASS`, `FAIL`, `PARTIAL` hoặc `UNVERIFIED`. `OBSERVATION` ghi riêng cho UX, không là verdict thành công của AC.
+
+Ở từng tín hiệu: `N/A` nghĩa là không áp dụng theo hành vi/hợp đồng và phải nêu lý do (ví dụ đổi trạng thái mở/đóng cục bộ không ghi DB). Tín hiệu bắt buộc nhưng thiếu quyền, query hoặc chưa chạy là `UNVERIFIED`, không được che bằng N/A. Có tín hiệu bắt buộc chưa xác minh thì AC chưa PASS. User chấp nhận giới hạn không biến kết quả chưa đo thành thành công kỹ thuật.
 
 | Trạng thái | Điều kiện xác lập | Yêu cầu bằng chứng cần |
 |---|---|---|
-| **`PASS`** | Tính năng hoạt động hoàn hảo trên cả 4 tín hiệu. | **Đòi hỏi bằng chứng khẳng định (Positive Evidence).**<br>*Quy tắc thép:* **"Không thấy lỗi" KHÔNG PHẢI là PASS.** Phải có bằng chứng chứng minh hành vi mong đợi đã xảy ra (UI đổi + DB cập nhật + HTTP 2xx + Console sạch). |
+| **`PASS`** | Hành vi mong đợi đạt trên mọi tín hiệu áp dụng theo hợp đồng. | Bằng chứng dương cho kết quả UI, DB/network khi có liên quan và console. "Không thấy lỗi" không phải PASS. Tín hiệu `N/A` có lý do không thay bằng chứng cho tín hiệu bắt buộc. |
 | **`FAIL`** | Tính năng bị lỗi logic, sai hợp đồng UI/API hoặc gây sập hệ thống. | Tái hiện $\ge 2$ lần độc lập + Runner state đã xác thực + Bằng chứng cụ thể (Screenshot + Trích dòng lỗi Network/Console/DB sai lệch). Đã hoàn thành Self-check checklist. |
 | **`PARTIAL`** | Hoạt động ở luồng chính (happy path) nhưng gãy ở điều kiện biên (edge cases). | Nêu rõ biên nào đạt, biên nào gãy, dữ liệu đầu vào và thông báo lỗi phát sinh. |
 | **`UNVERIFIED`** | Không thể kiểm thử do thiếu role, thiếu seed data, hoặc phụ thuộc môi trường bên thứ ba. | **Không suy diễn "không test được = code lỗi" ("Could not test it != it is broken").** Ghi rõ lý do và điều kiện thiếu vào báo cáo để User quyết định. |

@@ -11,10 +11,10 @@
       { "matcher": "AskUserQuestion", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/ask-post.mjs\"", "timeout": 10 }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/stop.mjs\"", "timeout": 10 }] }
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/stop.mjs\"", "timeout": 15 }] }
     ],
     "Notification": [
-      { "matcher": "permission_prompt|idle_prompt", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/notification.mjs\"", "timeout": 10 }] }
+      { "matcher": "permission_prompt|idle_prompt", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/dist/hooks/notification.mjs\"", "timeout": 15 }] }
     ]
   }
 }

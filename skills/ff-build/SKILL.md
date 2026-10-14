@@ -2,7 +2,7 @@
 name: ff-build
 description: Dùng để triển khai task sau khi Brief và design đã qua Gate A/B; tạo test hành vi, lập plan, code trong worktree, review và squash.
 argument-hint: "[id | slug]"
-allowed-tools: Read, Edit, Write, Grep, Glob, Agent, Bash, Bash(ff cfg get *), Bash(ff state *), Bash(ff copy *), Bash(ff e2e-lint *), Bash(ff lock-tests *), Bash(ff allow *), Bash(ff probe-slice *), Bash(ff ac-matrix *), Bash(ff squash-check *)
+allowed-tools: Bash(ff present *), Read, Edit, Write, Grep, Glob, Agent, Bash, Bash(ff cfg get *), Bash(ff state *), Bash(ff copy *), Bash(ff e2e-lint *), Bash(ff lock-tests *), Bash(ff allow *), Bash(ff probe-slice *), Bash(ff ac-matrix *), Bash(ff squash-check *)
 ---
 
 Đọc `${CLAUDE_PLUGIN_ROOT}/skills/ff-understand/rules.md` trước khi làm.
@@ -45,4 +45,4 @@ Nếu interface đổi, cập nhật đúng task plan bị ảnh hưởng trư�
 
 Theo `references/review-squash.md`: lint/build/test bằng lệnh trong config, chỉ trong worktree. Squash theo quy ước một commit mỗi repo rồi chạy `ff squash-check <id>` và `ff ac-matrix <id>`.
 
-Báo hash test lock, kết quả slice review, squash-check, AC còn thiếu và việc cần user quyết. Sau đó hướng dẫn `/ff-verify <id>`. Không tự chạy verify hoặc push.
+Đọc `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`. Khi một cụm/đợt có thay đổi đáng kể hoặc bị kẹt, và trước bàn giao, tạo packet `phase: build` từ spec/design/plan hiện tại, chạy `ff present <id> --file <activeDir>/human-output.json`, in bản render trong chat. Nêu hành vi đã triển khai, checks thực sự chạy (gồm hash test lock, slice review, squash-check), việc còn lại và mức sẵn sàng verify. Không thêm Gate cho build; không coi lint/build xanh là nghiệm thu. Sau đó hướng dẫn `/ff-verify <id>`. Không tự chạy verify hoặc push.

@@ -14807,12 +14807,13 @@ function findRoot(start = process.cwd()) {
 import fs3 from "node:fs";
 import path2 from "node:path";
 var KINDS = ["info", "gate", "ask", "attention", "error", "done"];
+var NOTIFY_TIMEOUT_MS = 12e3;
 function makeEvent({ kind, taskId = "", title, fields = {}, body = "" }) {
   if (!KINDS.includes(kind)) throw new Error(`kind ph\u1EA3i l\xE0 m\u1ED9t trong: ${KINDS.join(", ")}`);
   if (!title) throw new Error("thi\u1EBFu title");
   return { kind, taskId: String(taskId), title: String(title), fields, body: String(body) };
 }
-async function notify(root2, event, { timeoutMs = 1500, log = (s) => process.stderr.write(s) } = {}) {
+async function notify(root2, event, { timeoutMs = NOTIFY_TIMEOUT_MS, log = (s) => process.stderr.write(s) } = {}) {
   let w = {};
   try {
     w = JSON.parse(fs3.readFileSync(path2.join(root2, ".ff", "worker.json"), "utf8"));
@@ -14821,21 +14822,47 @@ async function notify(root2, event, { timeoutMs = 1500, log = (s) => process.std
   if (!w.port) {
     log(`[ff notify] worker kh\xF4ng ch\u1EA1y \u2014 b\u1ECF qua: ${event.kind} ${event.title}
 `);
-    return { delivered: false };
+    return { delivered: false, status: "not_sent", reason: "worker_unavailable" };
+  }
+  let body;
+  try {
+    body = JSON.stringify(event);
+  } catch {
+    log("[ff notify] not_sent: invalid_event\n");
+    return { delivered: false, status: "not_sent", reason: "invalid_event" };
   }
   try {
     const res = await fetch(`http://127.0.0.1:${w.port}/notify`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${w.token ?? ""}` },
-      body: JSON.stringify(event),
+      body,
       signal: AbortSignal.timeout(timeoutMs)
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return { delivered: true };
-  } catch (e) {
-    log(`[ff notify] g\u1EEDi l\u1ED7i (${e.message}) \u2014 b\u1ECF qua
+    if (!res.ok) {
+      const reason = `http_${res.status}`;
+      log(`[ff notify] failed: ${reason}
 `);
-    return { delivered: false };
+      return { delivered: false, status: "failed", reason };
+    }
+    if (res.headers.get("content-type")?.includes("application/json")) {
+      const result = await res.json();
+      if (result?.status === "unknown") {
+        const reason = ["timeout", "network_error"].includes(result.reason) ? result.reason : "delivery_unknown";
+        log(`[ff notify] unknown: ${reason}; ch\u01B0a x\xE1c \u0111\u1ECBnh \u0111\xE3 g\u1EEDi, kh\xF4ng t\u1EF1 g\u1EEDi l\u1EA1i
+`);
+        return { delivered: false, status: "unknown", reason };
+      }
+      if (result?.delivered === false || result?.status === "failed" || result?.error) {
+        log("[ff notify] failed: delivery_rejected\n");
+        return { delivered: false, status: "failed", reason: "delivery_rejected" };
+      }
+    }
+    return { delivered: true, status: "delivered" };
+  } catch (e) {
+    const reason = ["TimeoutError", "AbortError"].includes(e?.name) ? "timeout" : "network_error";
+    log(`[ff notify] unknown: ${reason}; ch\u01B0a x\xE1c \u0111\u1ECBnh \u0111\xE3 g\u1EEDi, kh\xF4ng t\u1EF1 g\u1EEDi l\u1EA1i
+`);
+    return { delivered: false, status: "unknown", reason };
   }
 }
 
@@ -14844,6 +14871,5 @@ var input = readHookInput();
 if (input.stop_hook_active) process.exit(0);
 var root = findRoot(input.cwd ?? process.cwd());
 if (!root) process.exit(0);
-await notify(root, makeEvent({ kind: "attention", title: "Phi\xEAn agent \u0111\xE3 d\u1EEBng; ki\u1EC3m tra tr\u1EA1ng th\xE1i th\u1EBB v\xE0 vi\u1EC7c \u0111ang ch\u1EDD" }), { log: () => {
-} });
+await notify(root, makeEvent({ kind: "attention", title: "Phi\xEAn agent \u0111\xE3 d\u1EEBng; ki\u1EC3m tra tr\u1EA1ng th\xE1i th\u1EBB v\xE0 vi\u1EC7c \u0111ang ch\u1EDD" }));
 process.exit(0);

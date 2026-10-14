@@ -3,8 +3,9 @@ import { readHookInput } from '../lib/hook-io.mjs'
 import { findRoot, loadConfig } from '../lib/config.mjs'
 import { findCardDir } from '../lib/cards.mjs'
 import { traceCheck } from '../lib/trace.mjs'
-import { gateQuestions, validateGateQuestion } from '../lib/gates.mjs'
+import { gateQuestions, validateGateQuestion, activeRevision,gateScope } from '../lib/gates.mjs'
 import { notify, makeEvent } from '../lib/notify.mjs'
+import { readPresentation,renderPresentation,formatQuestions } from '../lib/human-output.mjs'
 
 const input = readHookInput()
 const root = findRoot(input.cwd ?? process.cwd())
@@ -39,9 +40,20 @@ for (const g of gates) {
 }
 
 const prefix = config.worker.tmux.session_prefix
-const first = Array.isArray(ti.questions) ? ti.questions[0] : null
-const event = gates.length
-  ? makeEvent({ kind: 'gate', taskId: gates[0].cardId, title: `${gates[0].gate} thẻ #${gates[0].cardId} chờ duyệt`, body: `Mở phiên để duyệt: tmux attach -t ${prefix}${gates[0].cardId}` })
-  : makeEvent({ kind: 'ask', title: String(first?.question ?? 'Agent đang hỏi').slice(0, 120) })
-await notify(root, event, { log: () => {} })
+const questions = Array.isArray(ti.questions) ? ti.questions : []
+const ids = [...new Set(questions.map(q=>String(q.question??'').match(/^\s*\[#([A-Za-z0-9]+)\]/)?.[1]).filter(Boolean))]
+if(ids.length>1){process.stderr.write('[ff] Một lượt hỏi chỉ thuộc một thẻ.\n');process.exit(2)}
+const id=gates[0]?.cardId??ids[0]??'', scope=String(questions[0]?.question??'').match(/\[(task-\d+(?:-[A-Za-z0-9-]+)?)\]/)?.[1]??''
+if(ids.length&&new Set(questions.map(q=>gateScope(String(q.question??'')))).size>1){process.stderr.write('[ff] Một lượt hỏi chỉ thuộc một revision/phạm vi.\n');process.exit(2)}
+let packet=null,revision=null
+if(id){const card=findCardDir(root,config,id);if(card.dir){
+  revision=activeRevision(card.dir)
+  try{for(const q of questions)validateGateQuestion(card.dir,String(q.question??''))}catch(e){process.stderr.write(`[ff] ${e.message}\n`);process.exit(2)}
+  packet=readPresentation(root,config,id,{gate:gates[0]?.gate,scope})
+}}
+const body=[packet?renderPresentation(packet):'Bản tổng hợp cho human thiếu hoặc hết hiệu lực; cần xem lại ngữ cảnh trong CLI.',formatQuestions(questions),id?`Mở phiên CLI để trả lời/duyệt: tmux attach -t ${prefix}${id}`:'Trả lời/duyệt trong phiên CLI hiện tại; channel chỉ thông báo.'].join('\n\n')
+const event=makeEvent({kind:gates.length?'gate':'ask',taskId:id,title:gates.length?`${gates[0].gate} thẻ #${id} chờ duyệt`:'Cần quyết định trong CLI',fields:{revision:revision??'gốc',scope:scope||'toàn thẻ',...(packet?{phase:packet.phase,presentation:packet.presentationId}:{})},body})
+if(Buffer.byteLength(JSON.stringify(event))>60*1024){process.stderr.write('[ff] Nội dung hỏi quá lớn; rút gọn tổng hợp, không cắt lựa chọn.\n');process.exit(2)}
+const delivery=await notify(root,event,{log:s=>process.stderr.write(s)})
+if(!delivery.delivered)process.stderr.write(`[ff] channel: ${delivery.status??'not_sent'}; quyết định vẫn ở CLI.\n`)
 process.exit(0)

@@ -57,6 +57,8 @@ ff trace-check <id>
 Rồi spawn `ff-design-reviewer` (sonnet; brief `briefs/design-review.md`, truyền spec + design + repo). Tự đối chiếu kết luận, sửa design.
 
 ## 5. Gate B
+
+Trình bản design tổng hợp theo `${CLAUDE_PLUGIN_ROOT}/references/human-output.md` sau khi review/checks: cách hiện thực, khác biệt đáng kể, tác động dùng chung và điều chưa chắc. Dùng `ff present` trước quyết định/Gate; chỉ reader mới đọc bản render, không lấy độ rõ từ spec/phụ lục. Không thay đổi điều kiện dừng dưới đây.
 Dừng khi có dòng MỚI trong bảng đối chiếu, lệch precedent hoặc "Cần bạn chọn" chưa xử lý. Khi đủ điều kiện tự qua, thêm frontmatter YAML vào `03-design.md`:
 
 ```yaml

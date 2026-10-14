@@ -22,6 +22,7 @@ import * as verifyLock from './verify-lock.mjs'
 import * as shipRequest from './ship-request.mjs'
 import * as gateAuto from './gate-auto.mjs'
 import * as reopen from './reopen.mjs'
+import * as present from './present.mjs'
 const VERSION = '0.1.0'
 
 export const COMMANDS = {
@@ -36,6 +37,7 @@ export const COMMANDS = {
   state,
   'gate-auto': gateAuto,
   reopen,
+  present,
   sync,
   copy,
   'squash-check': squashCheck,

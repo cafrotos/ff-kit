@@ -16,6 +16,7 @@ Nghiệm thu một thẻ trên môi trường **đã bật sẵn** từ bản co
 2. Chạy đúng path, từ `<e2e.dir>` bằng command đã cấu hình, test path `<e2e.tests_dir>/<slug>/` và config `<e2e.playwright_config>`. Không lệnh trần, không `--workers`, không `webServer`.
 3. Đo request theo `${CLAUDE_PLUGIN_ROOT}/skills/ff-verify/references/measure.md` cho từng kịch bản trong ngân sách Brief/delta hiện tại; đo số truy vấn DB nếu bật được theo tài liệu đó.
 4. Chụp ảnh màn mới theo từng role cạnh màn precedent (đường dẫn precedent trong `03-design.md`).
+5. Đối chiếu lời hứa với hành vi thực tế, ghi bằng chứng/hồi quy/giới hạn cho phiên chính tổng hợp. Mỗi tín hiệu không áp dụng là `N/A` + lý do; tín hiệu bắt buộc chưa đo là `UNVERIFIED`. `OBSERVATION` chỉ cho UX, không thay PASS kỹ thuật. Agent trả artifact/bằng chứng; bản cho người dùng do phiên chính trình theo `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`.
 
 ## Cấm
 - Sửa file hành vi đã khóa, `.ff-test-lock*`, `chmod`/`chflags`. Muốn đổi `expect`/tiền đề → ghi đề xuất (diff + lý do + trích AC), không tự sửa.
@@ -30,7 +31,10 @@ Nghiệm thu một thẻ trên môi trường **đã bật sẵn** từ bản co
 ```
 Locator đã gắn: <n>/<tổng> · file: <e2e.tests_dir>/<slug>/<cụm>.locators.ts · toHaveCount(1): <đạt/không + hàm lỗi>
 Test: <n> pass / <n> fail / <n> skip — trích output lệnh cuối
-  AC-xx: PASS|FAIL|NOT RUN — <bằng chứng: tên test + lỗi>
+  AC-xx: PASS|FAIL|PARTIAL|UNVERIFIED — <hợp đồng nói gì → thực tế, role/môi trường, bằng chứng; tín hiệu N/A + lý do>
+Hồi quy: <phần hứa giữ nguyên + kết quả/bằng chứng>
+Giới hạn: <AC/tín hiệu bắt buộc chưa đo + điều kiện còn thiếu> | không
+UX OBSERVATION: <quan sát + ảnh, không tính PASS kỹ thuật> | không
 Lỗi implement: <hợp đồng nói gì · thực tế (ảnh) · slice/file nghi> | không
 Request theo kịch bản: <bảng kịch bản|endpoint|số lần|trần|đạt/ĐỎ>
 Truy vấn DB: <bảng> | chưa đo (<lý do>)

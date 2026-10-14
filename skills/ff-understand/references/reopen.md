@@ -56,6 +56,8 @@ Thẻ lớn vẫn dùng `task-N/` và `00-subtasks.md` trong revision; gọi là
 | P-01 | D-06 | A | AC-01: giữ bộ lọc khi chuyển trang | role và bước | nguồn đã kiểm | phạm vi đề xuất | test chưa phủ | không |
 ```
 
+Trước R4/R5 và các pha sau, trình theo `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`; lưu `<activeDir>/human-output.json` và dùng `ff present` với pha/Gate hiện tại. Bản understand nêu revision đang làm, hành vi đã ship được đối chiếu, delta cần sửa và phần giữ nguyên; file lịch sử không bị ghi đè.
+
 Gate A phê duyệt `delta.md` hiện tại bằng receipt/hash; marker chỉ hiển thị. Sau user duyệt, không sửa delta tại chỗ. Gate B tự qua chỉ qua `ff gate-auto <id> [--task task-N] --reason "<căn cứ>"` khi metadata `gate_b` và checks đáp ứng `references/design.md`.
 
 ## Cỡ và git

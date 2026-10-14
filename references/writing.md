@@ -1,6 +1,6 @@
 # Reader-first writing
 
-Dùng cho Brief, design, báo cáo và câu hỏi Gate.
+Dùng cho Brief, design, báo cáo và câu hỏi Gate. Kết quả cho người dùng theo `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`: tổng hợp riêng theo pha, không dán artifact. Chức năng, hiện trạng, thay đổi và hệ quả đi trước câu hỏi; độ dài theo mức phức tạp, không ép thẻ lớn thành bảng câu hỏi.
 
 - Mỗi câu mang một ý. Câu dài hơn 25 từ cần được xem lại.
 - Dùng một thuật ngữ cho một khái niệm; giải thích từ nội bộ ở lần đầu.

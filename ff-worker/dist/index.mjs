@@ -15323,8 +15323,8 @@ function formatEvent(event) {
   const prefix = event.taskId ? `[${event.taskId}]` : "[worker]";
   const title = String(event.title ?? "").trim();
   const body = String(event.body ?? "").trim();
-  return `${prefix} [${event.kind}] ${title}${body ? `
-${body}` : ""}`;
+  const fields = Object.entries(event.fields ?? {}).map(([key, value]) => `${key}: ${value}`).join("\n");
+  return [`${prefix} [${event.kind}] ${title}`, fields, body].filter(Boolean).join("\n");
 }
 function makeConsoleChannel(output = process.stdout) {
   return {
@@ -15384,9 +15384,7 @@ var RocketChatChannel = class {
   }
 };
 function formatMessage(event) {
-  const task = event.taskId ? `[${event.taskId}] ` : "";
-  const fields = Object.entries(event.fields ?? {}).map(([key, value]) => `${key}: ${value}`).join("\n");
-  return [`${task}[${event.kind}] ${event.title}`, fields, event.body].filter(Boolean).join("\n");
+  return formatEvent(event);
 }
 
 // src/adapters/task-source/trello.mjs
@@ -15739,22 +15737,34 @@ function send(res, status, value) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "content-length": Buffer.byteLength(data), "cache-control": "no-store" });
   res.end(data);
 }
-async function startWorkerHttp({ root, port = 0, token = crypto.randomBytes(32).toString("hex"), channel, handlers = {}, maxBodyBytes = 64 * 1024, adapter = "unknown" }) {
+async function startWorkerHttp({ root, port = 0, token = crypto.randomBytes(32).toString("hex"), channel, handlers = {}, maxBodyBytes = 64 * 1024, adapter = "unknown", log = (line) => process.stderr.write(line) }) {
   const server = http.createServer(async (req, res) => {
     if (req.method !== "POST" || !["/notify", "/verify-lock", "/ship-request"].includes(req.url)) return send(res, 404, { error: "not found" });
     if (!authorized(req, token)) return send(res, 401, { error: "unauthorized" });
+    let notificationAttempted = false;
     try {
       const body = await readJson(req, maxBodyBytes);
       if (req.url === "/notify") {
         if (!body || !KINDS.has(body.kind) || typeof body.title !== "string" || !body.title.trim()) return send(res, 400, { error: "invalid notification" });
+        notificationAttempted = true;
         await channel.notify(body);
-        return send(res, 200, { delivered: true });
+        return send(res, 200, { delivered: true, status: "delivered" });
       }
       const handler = req.url === "/verify-lock" ? handlers.verifyLock : handlers.shipRequest;
       if (!handler) return send(res, 501, { error: "not configured" });
       return send(res, 200, await handler(body));
     } catch (e) {
-      return send(res, e.status ?? 500, { error: e.status ? e.message : "request failed" });
+      if (notificationAttempted && ["TimeoutError", "AbortError", "TypeError"].includes(e?.name)) {
+        const reason = e.name === "TypeError" ? "network_error" : "timeout";
+        log(`[ff-worker] ${req.url} delivery unknown: ${reason}; no retry
+`);
+        return send(res, 200, { delivered: false, status: "unknown", reason });
+      }
+      const status2 = !notificationAttempted && [400, 413].includes(e.status) ? e.status : 500;
+      if (status2 === 500) log(`[ff-worker] ${req.url} failed; delivery not confirmed
+`);
+      const error = status2 === 413 ? "request too large" : status2 === 400 ? "invalid request" : "request failed";
+      return send(res, status2, { error });
     }
   });
   await new Promise((resolve, reject) => {
@@ -16065,6 +16075,7 @@ async function runWorker({ configPath, source: injectedSource, channel: injected
     root,
     port: config.worker.http.port,
     channel: adapters.channel,
+    log,
     adapter: `${adapters.source.name}/${adapters.channel.name}`,
     handlers: {
       verifyLock(body) {
@@ -16073,7 +16084,12 @@ async function runWorker({ configPath, source: injectedSource, channel: injected
       },
       async shipRequest(body) {
         if (!body || typeof body.title !== "string" || !body.title.trim()) throw Object.assign(new Error("invalid ship request"), { status: 400 });
-        await adapters.channel.notify({ kind: "ask", taskId: String(body.taskId ?? ""), title: body.title, body: String(body.body ?? "") });
+        try {
+          await adapters.channel.notify({ ...body, kind: "ask", taskId: String(body.taskId ?? ""), title: body.title, body: String(body.body ?? "") });
+        } catch {
+          log("[ff-worker] g\u1EEDi th\xF4ng b\xE1o ship th\u1EA5t b\u1EA1i; ch\u01B0a x\xE1c nh\u1EADn delivery\n");
+          throw new Error("ship notification failed");
+        }
         return { accepted: true };
       }
     }
@@ -16102,6 +16118,7 @@ async function runWorker({ configPath, source: injectedSource, channel: injected
       try {
         await adapters.channel.notify({ kind: "error", title: "Worker polling l\u1ED7i", body: e.message });
       } catch {
+        log("[ff-worker] g\u1EEDi th\xF4ng b\xE1o l\u1ED7i poll th\u1EA5t b\u1EA1i; ch\u01B0a x\xE1c nh\u1EADn delivery\n");
       }
     }
   }
@@ -16207,12 +16224,22 @@ async function checkCompletedTasks({ root, config, source, channel, tmux, log = 
     }
     task.phase = "completed";
     task.completedAt = (/* @__PURE__ */ new Date()).toISOString();
+    task.acceptance = "accepted";
+    task.acceptedAt = task.completedAt;
+    task.acceptedRevision = revision ?? "";
+    task.shipState = "not_shipped";
     writeTask(root, task);
-    const session = task.session ?? `${config.worker.tmux.session_prefix ?? "ff-"}${id}`;
-    if (config.worker.tmux.cleanup_on_success) tmux?.killSession(session, root);
     try {
-      await channel.notify({ taskId: id, kind: "done", title: `Th\u1EBB #${id} \u0111\xE3 qua Gate C`, body: `\u0110\xE3 ho\xE0n t\u1EA5t: ${task.slug}` });
+      await channel.notify({
+        taskId: id,
+        kind: "done",
+        title: `Th\u1EBB #${id} \u0111\xE3 qua Gate C \u2014 ch\u01B0a ship`,
+        fields: { acceptance: "accepted", revision: revision ?? "", shipState: "not_shipped" },
+        body: `\u0110\xE3 ch\u1EA5p nh\u1EADn: ${task.slug}. Ch\u01B0a ship; ch\u1EDD x\xE1c nh\u1EADn ship ri\xEAng trong phi\xEAn agent \u0111ang gi\u1EEF l\u1EA1i.`
+      });
     } catch {
+      log(`[ff-worker] g\u1EEDi th\xF4ng b\xE1o Gate C th\u1EBB ${id} th\u1EA5t b\u1EA1i; acceptance \u0111\xE3 l\u01B0u, ch\u01B0a x\xE1c nh\u1EADn delivery
+`);
     }
     completed.push(task);
   }

@@ -35,7 +35,7 @@ export async function runWorker({ configPath, source: injectedSource, channel: i
   const adapters = (injectedSource && injectedChannel) ? { source: injectedSource, channel: injectedChannel } : createAdapters({ root, config })
   const lockFile = verifyLockPath(root, config)
   const api = await httpStarter({
-    root, port: config.worker.http.port, channel: adapters.channel,
+    root, port: config.worker.http.port, channel: adapters.channel, log,
     adapter: `${adapters.source.name}/${adapters.channel.name}`,
     handlers: {
       verifyLock(body) {
@@ -44,7 +44,11 @@ export async function runWorker({ configPath, source: injectedSource, channel: i
       },
       async shipRequest(body) {
         if (!body || typeof body.title !== 'string' || !body.title.trim()) throw Object.assign(new Error('invalid ship request'), { status: 400 })
-        await adapters.channel.notify({ kind: 'ask', taskId: String(body.taskId ?? ''), title: body.title, body: String(body.body ?? '') })
+        try { await adapters.channel.notify({ ...body, kind: 'ask', taskId: String(body.taskId ?? ''), title: body.title, body: String(body.body ?? '') }) }
+        catch {
+          log('[ff-worker] gửi thông báo ship thất bại; chưa xác nhận delivery\n')
+          throw new Error('ship notification failed')
+        }
         return { accepted: true }
       },
     },
@@ -65,7 +69,8 @@ export async function runWorker({ configPath, source: injectedSource, channel: i
     }
     catch (e) {
       log(`[ff-worker] vòng poll lỗi (${e.message})\n`)
-      try { await adapters.channel.notify({ kind: 'error', title: 'Worker polling lỗi', body: e.message }) } catch {}
+      try { await adapters.channel.notify({ kind: 'error', title: 'Worker polling lỗi', body: e.message }) }
+      catch { log('[ff-worker] gửi thông báo lỗi poll thất bại; chưa xác nhận delivery\n') }
     }
   }
   let polling = false
@@ -144,10 +149,17 @@ export async function checkCompletedTasks({ root, config, source, channel, tmux,
     }
     task.phase = 'completed'
     task.completedAt = new Date().toISOString()
+    task.acceptance = 'accepted'
+    task.acceptedAt = task.completedAt
+    task.acceptedRevision = revision ?? ''
+    task.shipState = 'not_shipped'
     writeTask(root, task)
-    const session = task.session ?? `${config.worker.tmux.session_prefix ?? 'ff-'}${id}`
-    if (config.worker.tmux.cleanup_on_success) tmux?.killSession(session, root)
-    try { await channel.notify({ taskId: id, kind: 'done', title: `Thẻ #${id} đã qua Gate C`, body: `Đã hoàn tất: ${task.slug}` }) } catch {}
+    // Gate C là mốc acceptance, phiên vẫn cần cho xác nhận ship riêng của người dùng.
+    try {
+      await channel.notify({ taskId: id, kind: 'done', title: `Thẻ #${id} đã qua Gate C — chưa ship`,
+        fields: { acceptance: 'accepted', revision: revision ?? '', shipState: 'not_shipped' },
+        body: `Đã chấp nhận: ${task.slug}. Chưa ship; chờ xác nhận ship riêng trong phiên agent đang giữ lại.` })
+    } catch { log(`[ff-worker] gửi thông báo Gate C thẻ ${id} thất bại; acceptance đã lưu, chưa xác nhận delivery\n`) }
     completed.push(task)
   }
   return completed

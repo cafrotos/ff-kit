@@ -1,6 +1,6 @@
 # Khuôn báo cáo cuối — `<activeDir>/05-verify-report.md`
 
-Đây là gate nghiệm thu (spec §5.2). Báo cáo tuân thủ nghiêm ngặt **Kỷ luật Bằng chứng (Proof Discipline)** và **Tam giác đạc (Triangulation)** từ `references/proof-discipline.md`. Viết tiếng Việt, mỗi mục súc tích; mục không có nội dung ghi "không". Ảnh lưu trong `<activeDir>/verify/<role>/`, dẫn bằng đường dẫn tương đối.
+Artifact này là hợp đồng bằng chứng cho agent và receipt Gate C. Bản người dùng đọc được tổng hợp riêng theo `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`, không dán ma trận/log cả file. Đây là gate nghiệm thu (spec §5.2). Báo cáo tuân thủ nghiêm ngặt **Kỷ luật Bằng chứng (Proof Discipline)** và **Tam giác đạc (Triangulation)** từ `references/proof-discipline.md`. Viết tiếng Việt, mỗi mục súc tích; mục không có nội dung ghi "không". Ảnh lưu trong `<activeDir>/verify/<role>/`, dẫn bằng đường dẫn tương đối.
 
 ```markdown
 # Báo cáo verify — <id>-<slug> (<task-N nếu có>)
@@ -19,7 +19,7 @@
 | AC-01 | <phần tử hiển thị, text đúng> | <db-query: dòng/trường đúng> | <HTTP 200, payload sạch> | <console sạch, BE log sạch> | PASS |
 | AC-02 | <phần tử không xuất hiện> | <db-query: không đổi> | <HTTP 500 / error> | <Uncaught TypeError> | FAIL |
 
-*Hệ phân loại Verdict: `PASS` | `FAIL` | `PARTIAL` | `UNVERIFIED` | `OBSERVATION` (theo `references/proof-discipline.md`). "Không thấy lỗi" KHÔNG PHẢI là PASS.*
+*Verdict AC kỹ thuật: `PASS` | `FAIL` | `PARTIAL` | `UNVERIFIED`, theo `references/proof-discipline.md`. Tín hiệu không áp dụng ghi `N/A` + lý do; tín hiệu bắt buộc chưa đo ghi `UNVERIFIED`. `OBSERVATION` chỉ ghi ở UX, không thay PASS. "Không thấy lỗi" không phải PASS.*
 
 ## 2. Neighborhood Sweep (Quét tính năng lân cận)
 | Tính năng / Thao tác lân cận | Hành vi quan sát được | Trạng thái hồi quy (Đạt / Gãy) |
@@ -65,8 +65,8 @@
 
 ### Quy tắc kết luận tổng
 **ĐẠT** chỉ khi đáp ứng đồng thời tất cả các điều kiện sau:
-1. Mọi AC đều có verdict `PASS` (hoặc `OBSERVATION` đã ghi chú rõ), không có `FAIL` hay `PARTIAL`.
-2. Mọi mục `UNVERIFIED` (nếu có) phải được giải trình rõ nguyên nhân khách quan và được User chấp thuận trong "Cần bạn quyết".
+1. Mọi AC kỹ thuật đều có verdict `PASS`, với bằng chứng cho mọi tín hiệu áp dụng; không có `FAIL`, `PARTIAL` hoặc `UNVERIFIED`. `OBSERVATION` UX không tính là PASS.
+2. Mọi giới hạn và tín hiệu `N/A` có lý do. Điều bắt buộc chưa kiểm vẫn là `UNVERIFIED` và kết luận CHƯA ĐẠT, kể cả khi user chấp nhận rủi ro; ghi quyết định đó riêng trong "Cần bạn quyết".
 3. Không có test nào bị `skip` hoặc `NOT RUN`.
 4. `ff e2e-lint --strict` sạch sẽ hoàn toàn.
 5. Mọi kịch bản request $\le$ trần ngân sách quy định trong `brief.md`.

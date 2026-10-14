@@ -40,7 +40,8 @@ export async function run(args, ctx) {
       fs.writeFileSync(path.join(dir, name), `> Trạng thái: CHỜ DUYỆT\n# ${title} ${id} ${revision}\n\n<!-- Điền hợp đồng từ dossier/ledger trước khi trình Gate; không phải bằng chứng hoàn tất. -->\n`, { mode: 0o600 })
     }
     const task = readTask(root, id)
-    if (task) writeTask(root, { ...task, phase: 'received', revision, launchAttempts: 0, startedAt: undefined, completedAt: undefined, updatedAt: new Date().toISOString() })
+    if (task) writeTask(root, { ...task, phase: 'received', revision, launchAttempts: 0, startedAt: undefined, completedAt: undefined,
+      acceptance:undefined,acceptedAt:undefined,acceptedRevision:undefined,shipState:undefined,updatedAt: new Date().toISOString() })
     ctx.stdout.write(`Reopen ${id}: ${path.relative(root, dir)}; Gate A dùng [#${id}] [${revision}] và delta.md\n`)
     return 0
   } catch (e) { ctx.stderr.write(`ff reopen: ${e.message}\n`); return 1 }

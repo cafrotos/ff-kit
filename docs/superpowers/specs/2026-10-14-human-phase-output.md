@@ -1,0 +1,13 @@
+# Human output for operating phases
+
+Approved scope: operating skills and ship/reopen only; no ff-init, inbound channel replies, live channel messages or deployment.
+
+Detailed artifacts remain agent contracts. A separate synthesized packet is printed in Claude chat and sent by the worker, without dumping artifact files. Understand explains function, verified AS-IS, dossier request, TO-BE, affected/preserved scope and acceptance examples before decisions. Design explains realization and meaningful differences. Build explains implemented behavior, actual checks, remaining work and verify readiness. Verify explains promised versus actual behavior, evidence, regression, limitations and conclusion. Ship explains accepted scope, destination, checks and limits. Reopen uses active revision and delta.
+
+`ff present <id> --file <activeDir>/human-output.json [--gate GATE_A|GATE_B|GATE_C]` validates a version-1 packet, supplies authoritative identity, binds current source hashes, stores an internal presentation record, renders human text and sends an optional one-way notification. Source artifacts are not printed. Ask hooks attach the current presentation and preserve all questions/options; missing presentations remain explicitly missing, never invented. No packet grants approval. Gate A/B/C and separate ship confirmation remain unchanged.
+
+Input fields: version=1, phase=understand|design|build|verify|ship, scope=""|task-N, headline, sections (phase-specific string fields), decisions=[{id,question,options:[{label,description}],recommendation}], nextAction. Optional taskId/revision must agree with actual state. Sections: understand=function,current,requested,target,impact,acceptance,uncertainty; design=realization,differences,impact,uncertainty; build=implemented,checks,remaining,readiness; verify=expectedActual,evidence,regression,limitations,conclusion; ship=acceptedScope,destination,checks,limitations. Required sources are the current Brief/delta for understand; spec/design for design; spec/design/plan for build; spec/design/report for verify and ship. Identity and hashes are runtime-owned.
+
+Gate C retains the accepted milestone but must not destroy the session required for separate ship approval or describe acceptance as verified shipping. Notification failure does not grant approval or prevent standalone CLI confirmation. Timeout means unknown delivery, not definite failure; no blind retry. Both renderers preserve metadata and content.
+
+Mechanical checks validate identity, sources, stale revision/content, completeness, transport preservation, one-way behavior, timeout status, no-worker ship fallback and Gate C session retention. Semantic faithfulness/comprehension remain future Claude evals; no claims of completed model evals.

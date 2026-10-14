@@ -35,22 +35,32 @@ function send(res, status, value) {
   res.end(data)
 }
 
-export async function startWorkerHttp({ root, port = 0, token = crypto.randomBytes(32).toString('hex'), channel, handlers = {}, maxBodyBytes = 64 * 1024, adapter = 'unknown' }) {
+export async function startWorkerHttp({ root, port = 0, token = crypto.randomBytes(32).toString('hex'), channel, handlers = {}, maxBodyBytes = 64 * 1024, adapter = 'unknown', log = (line) => process.stderr.write(line) }) {
   const server = http.createServer(async (req, res) => {
     if (req.method !== 'POST' || !['/notify', '/verify-lock', '/ship-request'].includes(req.url)) return send(res, 404, { error: 'not found' })
     if (!authorized(req, token)) return send(res, 401, { error: 'unauthorized' })
+    let notificationAttempted = false
     try {
       const body = await readJson(req, maxBodyBytes)
       if (req.url === '/notify') {
         if (!body || !KINDS.has(body.kind) || typeof body.title !== 'string' || !body.title.trim()) return send(res, 400, { error: 'invalid notification' })
+        notificationAttempted = true
         await channel.notify(body)
-        return send(res, 200, { delivered: true })
+        return send(res, 200, { delivered: true, status: 'delivered' })
       }
       const handler = req.url === '/verify-lock' ? handlers.verifyLock : handlers.shipRequest
       if (!handler) return send(res, 501, { error: 'not configured' })
       return send(res, 200, await handler(body))
     } catch (e) {
-      return send(res, e.status ?? 500, { error: e.status ? e.message : 'request failed' })
+      if (notificationAttempted && ['TimeoutError', 'AbortError', 'TypeError'].includes(e?.name)) {
+        const reason = e.name === 'TypeError' ? 'network_error' : 'timeout'
+        log(`[ff-worker] ${req.url} delivery unknown: ${reason}; no retry\n`)
+        return send(res, 200, { delivered: false, status: 'unknown', reason })
+      }
+      const status = !notificationAttempted && [400, 413].includes(e.status) ? e.status : 500
+      if (status === 500) log(`[ff-worker] ${req.url} failed; delivery not confirmed\n`)
+      const error = status === 413 ? 'request too large' : status === 400 ? 'invalid request' : 'request failed'
+      return send(res, status, { error })
     }
   })
 

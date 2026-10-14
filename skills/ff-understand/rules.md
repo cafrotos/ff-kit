@@ -49,7 +49,7 @@ Bốn ranh giới dừng hỏi: (1) việc không đảo ngược khi sai (migra
 
 `AskUserQuestion`: mỗi lượt 1–4 câu, mỗi câu 2–4 lựa chọn, `header` ≤ 12 ký tự. Câu cần chọn: `Q<n>`. Câu duyệt: lượt riêng, header `GATE_A|GATE_B|GATE_C`, câu hỏi bắt đầu `[#<id>]`; revision thêm `[rev-N]`, cụm có thể thêm `[task-N]`, lựa chọn `Duyệt` / `Cần sửa`. Lý do: hai lựa chọn cụ thể giúp user quyết nhanh hơn một câu mở.
 
-Thông báo do hook `Notification`/`Stop` lo; không tự gọi công cụ thông báo ngoài luồng.
+Thông báo do hook `Notification`/`Stop` và lifecycle tin cậy của `ff present` lo; không tự gọi công cụ thông báo ngoài luồng. Tiến độ một chiều không nhận trả lời, không cấp duyệt.
 
 Khuôn Gate trỏ `${CLAUDE_PLUGIN_ROOT}/references/writing.md`.
 
