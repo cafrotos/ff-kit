@@ -1,0 +1,7 @@
+-- ff db-query: SELECT phone, count(*) FROM customers GROUP BY 1 ORDER BY 2 DESC LIMIT 6
+0901234567        | 8120
++84 901 234 567   | 1904
+090.123.4567      | 611
+(028) 3822 1234   | 377
+84901234567       | 245
+0901-234-567      | 98

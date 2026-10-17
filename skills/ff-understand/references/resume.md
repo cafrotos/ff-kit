@@ -1,0 +1,16 @@
+# Phục hồi phiên
+
+Dùng khi phiên mở lại giữa chừng: worker khởi động lại, tmux session chết, hoặc user quay lại thẻ sau một thời gian.
+File, không phải hội thoại, giữ trạng thái.
+
+## Phục hồi phiên
+
+1. Chạy `ff state <id> --json`, lấy `activeRevision`, `activeDir` và full slug. Đọc dossier/`01b-ledger.md` cấp thẻ; root đọc `brief.md`, revision đọc `<activeDir>/delta.md`; spec/design/plan/report chỉ từ `activeDir` (cụm `task-N/` nếu có).
+2. Có bản copy theo `workspace.worktrees_dir` thì chạy `git status` trong đó. Gate `pending`/`stale` không được coi là đã qua; Gate B `auto_passed` là tự qua có hash, không phải user duyệt.
+3. Nêu 2–3 dòng: đang ở pha nào, việc dở, đang chờ gì. Ví dụ: "Brief đã duyệt, design còn thiếu hợp đồng API; đang chờ bạn chọn Q2."
+4. Gate đã `Duyệt` theo bản ghi Gate và hash thì giữ nguyên. Không suy ra "đã duyệt" từ hội thoại cũ; chỉ bản ghi Gate có giá trị.
+5. Chạy lại lệnh kiểm khi kết quả cũ không được ghi lại, khi code đã đổi, hoặc khi bước sau phụ thuộc vào nó.
+6. Tiếp tục từ pha mà `ff state` chỉ ra. Không chạy lại pha trước và không hỏi lại user điều file đã trả lời.
+7. Phát hiện bằng chứng làm một Gate đã qua không còn đúng (dossier đổi, hash lệch): nói thẳng và trình lại Gate đó. Trước milestone/Gate kế tiếp, tạo packet từ nguồn/revision hiện tại theo `${CLAUDE_PLUGIN_ROOT}/references/human-output.md`; không gửi lại bản trình cũ khi nguồn đã đổi.
+
+Trước khi rời một phiên chủ động, ghi vào file của thẻ: phạm vi và quyết định đã chốt, việc đang làm và việc kế tiếp, file đã đổi và trạng thái cây làm việc, lệnh kiểm và kết quả, câu hỏi còn mở và việc chờ duyệt.
