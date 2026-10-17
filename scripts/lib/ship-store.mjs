@@ -1,0 +1,7 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import {randomUUID} from 'node:crypto'
+import {withFileMutexRetry} from './file-mutex.mjs'
+export function shipStatePath(root,cardId){if(!/^[A-Za-z0-9]+$/.test(String(cardId)))throw new Error('invalid cardId');return path.join(root,'.ff/ship',`${cardId}.json`)}
+export function readShipState(root,cardId){try{const s=JSON.parse(fs.readFileSync(shipStatePath(root,cardId),'utf8'));if(s.version!==1||s.cardId!==String(cardId)||!Array.isArray(s.runs)||!Number.isSafeInteger(s.stateVersion))throw new Error('invalid ship state');return s}catch(e){if(e.code==='ENOENT')return null;throw e}}
+export async function updateShipState(root,cardId,reduce){const file=shipStatePath(root,cardId);return withFileMutexRetry(file+'.lock',{operation:'ship-state'},()=>{const old=readShipState(root,cardId),next=reduce(old??{version:1,cardId:String(cardId),stateVersion:0,runs:[]});if(next?.then||next.cardId!==String(cardId)||next.version!==1)throw new Error('invalid ship reducer');next.stateVersion=(old?.stateVersion??0)+1;const tmp=file+'.'+randomUUID()+'.tmp';try{fs.writeFileSync(tmp,JSON.stringify(next)+'\n',{mode:0o600,flag:'wx'});const fd=fs.openSync(tmp,'r');try{fs.fsyncSync(fd)}finally{fs.closeSync(fd)}fs.renameSync(tmp,file);const d=fs.openSync(path.dirname(file),'r');try{fs.fsyncSync(d)}finally{fs.closeSync(d)}}finally{fs.rmSync(tmp,{force:true})}return next})}

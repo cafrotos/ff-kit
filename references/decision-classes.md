@@ -1,0 +1,21 @@
+# Scoped decision advice
+
+Soft classes: naming, default-value, copy-text, ui-layout, validation-rule, error-handling, test-scope, other. A gap the dossier is silent on, with same-domain code evidence, follows the THIẾU YÊU CẦU recipe in `skills/ff-understand/references/brief.md` and needs no `ff decide`.
+Verification exemption: an AC left UNVERIFIED because external infrastructure cannot be reproduced locally is exempt from auto Gate C only when `ff decide <id> --class test-scope --decision-key verify-exemption:<infra> --repo <repo> --question "Có miễn kiểm AC UNVERIFIED do hạ tầng ngoài \"<infra>\" không tái hiện được cục bộ không?"` returns `proceed` (`ff gate-auto` asks it itself). No config list; missing seed/data/accounts/env are never exempt.
+Hard classes: migration, data-model, permission, new-behavior, destructive always escalate. Unknown classes are usage errors. Risk keywords and configured high_risk rules also escalate.
+
+`ff decide <id> --class <class> --decision-key <key> --repo <repo> --question <text> [--options "a|b|c"]` consults the current understand presentation's explicit decisionContext. No global or similarity fallback. Three independent human origins must match project, repo, businessScope, policyVersion, decisionKey and normalized value. Conflicts, reversals and missing metadata escalate. Copies sharing an origin count once. Agent, shadow and precedent records never count as human evidence.
+
+Store decisionContext only in the presentation packet (never in AskUserQuestion); normalizedOptions maps labels to canonical values. CLI question text and options must match the packet for human answers to acquire scope. The workspace identity and effective knowledge policy digest are captured with that packet. Advice is saved as agent evidence; ledger skipped questions include the returned evidence. Gate A, Gate C and SHIP are always shadow escalation via `ff decide --gate GATE_A|GATE_C|SHIP <id>`; `ff decide --gate` never approves or creates approval receipts. Gate C may become `auto_passed` only through the deterministic checks of `ff gate-auto --gate GATE_C`; SHIP may be auto-approved only via `ff ship-approve --auto`, bound to that `auto_passed` Gate C. Gate A stays human.
+
+## Công thức mọi câu `Q<n>` (KNW-04, KNW-10)
+1. Quyết định nào cần hỏi cũng nằm trong packet `ff present` của pha hiện tại với `decisionContext {repo,businessScope,decisionKey,class,normalizedOptions}`. Thiếu thì hook cảnh báo và câu trả lời chỉ ghi `unscoped` (không làm tiền lệ).
+2. Lớp mềm: LUÔN chạy `ff decide <id> --class … --decision-key … --repo … --question "<câu trong packet>" --options "a|b"` trước khi hỏi, kể cả khi định hỏi: đó là chế độ bóng, máy ghi dự đoán (giá trị hoặc `null` = không biết) rồi so với câu trả lời của người. Lớp cứng, từ khóa rủi ro và Gate không có dự đoán tự quyết.
+3. Chỉ `proceed` mới bỏ hỏi. Khi đó dùng `default`, ghi ledger `D-xx (<pha>) … Nguồn: decide:<evidence>` (quyết định tự động) và liệt kê nó trong danh sách "Tự quyết" của Gate kế tiếp để người sửa. Người sửa/đảo ở Gate thì chạy `ff decide --contradict <id> --class <class> --repo <repo> --reason "<lý do>"`: lớp về chế độ bóng.
+4. `escalate` (kể cả "Chế độ bóng") thì hỏi người đúng câu và nhãn của packet, ghi U-xx.
+
+## Chế độ bóng (KNW-10)
+Theo từng (lớp, repo), cửa sổ `knowledge.shadow_window` (10) lần dự đoán gần nhất; "tin" khi đủ cửa sổ và ≥ `knowledge.shadow_min_match` (9) khớp người. Lần "không biết" không vào cửa sổ. Một lần lệch khi đang tin, hoặc `--contradict`, xóa cửa sổ: lớp về chế độ bóng và phải đủ lại. `proceed` cần cả lớp đã tin LẪN luật tiền lệ ở trên. `ff decide --stats [--class c] [--repo r]` in khớp/lệch, trusted, resets theo lớp+repo. Nhật ký: `.ff/knowledge.jsonl` (`shadow_prediction`, `shadow_result`, `shadow_reset`).
+
+## Kết quả thẻ và "vì sao lọt" (KNW-05)
+`.ff/knowledge.jsonl` còn ghi `outcome_recorded` (`qa_pass`, `qa_fail`, `merged`, `done`, `reopen`) tự động từ driver/worker, `ff reopen` và câu ACCEPTANCE. Sau `ff reopen`, agent chẩn đoán xong chạy `ff escape <id> --route A|B|C|D --skill <skill> --evidence "<bằng chứng>"` (ngả A lỗi triển khai · B spec/Brief thiếu hoặc sai · C yêu cầu mới/cải tiến · D không tái hiện/hiểu khác). Đề xuất chỉ thành `escape_recorded` khi người duyệt Gate A của revision đó.

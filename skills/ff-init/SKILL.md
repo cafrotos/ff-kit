@@ -1,0 +1,35 @@
+---
+name: ff-init
+description: Khảo sát workspace và tạo hoặc cập nhật cấu hình ff-kit có nguồn, giữ lại lựa chọn đã có và báo các bước còn thiếu.
+allowed-tools: Read, Grep, Glob, Edit, Write, Bash(ff cfg get *), Bash(ff doctor *), Bash(ff env-example *), Bash(git -C * rev-parse *)
+---
+
+# /ff-init
+
+Thiết lập cấu hình ff-kit cho workspace hiện tại. Chỉ dùng bằng chứng đọc được từ repo hoặc câu trả lời của user. Không đọc `.ff.env`, không tự điền secret và không bật worker.
+
+## Tiền điều kiện
+
+- `CLAUDE.md` và thư mục e2e phải tồn tại. Nếu thiếu, hướng dẫn quay lại bước tương ứng trong `${CLAUDE_PLUGIN_ROOT}/INSTALL.md`.
+- Đọc spec config và `${CLAUDE_PLUGIN_ROOT}/skills/ff-init/references/detect.md`.
+- Nếu đã có config, giữ mọi trường và `source` hiện tại trừ phần user yêu cầu thay đổi. Không ghi đè `.ff.env`.
+
+## Khảo sát và hỏi
+
+Đọc `CLAUDE.md` ở workspace root trước (nguồn chính), rồi `AGENTS.md`, CLAUDE.md/README từng repo, manifests (scripts, workspaces, turbo/nx), script dev có sẵn (chỉ đọc, không chạy), docker-compose, template env và CI. Tự suy luận repo path, branch, lệnh install/lint/typecheck/build/test/migrate, toàn bộ `e2e.services` (ff tự bật/tắt app; xem `references/detect.md`), app URL/health check, e2e auth, DB và adapter. User không phải tự đưa lệnh: trình bày một bản đề xuất với `file:line` cho từng giá trị rồi hỏi một câu xác nhận ("Đúng hết" / "Cần sửa") bằng `AskUserQuestion`; chỉ hỏi riêng giá trị không có bằng chứng.
+
+Với worker Trello, hỏi thêm `worker.task_source.trello.park_list`: cột chuyển thẻ tạm dừng (gợi ý cột To Do/Backlog của board); user đảm bảo cột tồn tại trên board, nếu sai tên worker báo lỗi khi park. Xác nhận `doing_list` (cột đang làm, gợi ý Doing trong `poll_lists`) và `qa_fail_list` (cột thẻ nghiệm thu fail, gợi ý QA Fail trong `poll_lists`); mặc định suy từ `poll_lists`. Cột không tồn tại trên board thì worker từ chối khởi động, không tự tạo. `worker.task_source.trello.poll_interval_sec` (mặc định 300 giây) và `worker.park_close_after_minutes` (mặc định 60) dùng mặc định, không cần hỏi.
+
+Hỏi một câu có bật chế độ tự lái không (`autopilot.enabled`, mặc định tắt): bật thì ff tự qua Gate A/B/C khi đủ điều kiện, tự ship lên `ship_branch`, chỉ hỏi người khi đầu vào mơ hồ. `autopilot.gate_a` (mặc định `on`) và `autopilot.ship` (mặc định `true`) dùng mặc định; `autopilot.daily_report_at` (`HH:MM`) chỉ ghi khi user muốn báo cáo ngày.
+
+Tạo config theo schema hiện tại. Mọi lá cấu hình phải có `source` (`file:line` hoặc `user`). Giữ thông tin nhạy cảm chỉ dưới dạng đường dẫn file/key name; không đọc giá trị.
+
+## Ghi và kiểm
+
+Ghi `ff.config.yaml` và `ff.config.lock.json` nhất hợp với nguồn; chạy `ff doctor --schema-only`. Chạy `ff env-example` để chỉ thêm key còn thiếu. Bổ sung luật secret và `.ff/` vào `CLAUDE.md`, mục `deny`/`ask` vào `.claude/settings.json` mà vẫn giữ mục có sẵn (deny đọc chỉ liệt kê file secret/state cụ thể: `Read(./.ff.env)`, `Read(./.ff.env.*)`, `Read(./.ff/worker.json)`, `Read(./.ff/runner/**)`, `Read(./.ff/tasks/**)`, `Read(./.ff/harness/**)`; KHÔNG deny đọc `./.ff/**` vì workflow ghim `.ff/workflows/<digest>/` phải đọc được; `Edit`/`Write(./.ff/**)` vẫn deny), và các đường dẫn runtime vào `.gitignore`.
+
+Chạy đầy đủ `ff doctor`. Core đỏ thì báo lỗi và dừng; worker/e2e đỏ vì key thiếu thì tiếp tục, ghi rõ key cần và mục đích. Không gọi `/ff-worker start`. Nhắc user: trước khi chạy worker, mở `claude` một lần trong workspace và chọn "Yes, I trust this folder" (workspace mới chưa tin sẽ kẹt ở hộp thoại trust).
+
+## Báo cáo
+
+Theo `references/report.md`: đã cấu hình và nguồn, thiếu key và nơi lấy, lỗi kèm cách sửa, bước tiếp theo. Nêu rõ user có thể dùng skill thủ công khi worker chưa cấu hình.
