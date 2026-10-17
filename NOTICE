@@ -1,0 +1,5 @@
+ff-kit includes workflow material adapted from the Tiniweb workspace at the user's direction. That source workspace remains unchanged.
+
+The workflow draws on reference material from tronghieu/agent-skills and addyosmani/agent-skills. Attribution identifies those sources; it does not imply endorsement or ownership of ff-kit.
+
+`references/writing.md` contains a Vietnamese adaptation of Reader-First Prose, based on `diataxis-writer` (MIT). Attribution retained as required by the packaging design.

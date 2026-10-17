@@ -1,0 +1,11 @@
+{
+  "name": "ff-worker",
+  "version": "0.2.5",
+  "description": "Config-driven task worker for ff-kit workspaces",
+  "type": "module",
+  "bin": { "ff-worker": "dist/index.mjs" },
+  "files": ["dist/", "README.md"],
+  "engines": { "node": ">=20.10" },
+  "scripts": { "build": "node build.mjs", "test": "cd .. && node --test tests/worker-*.test.mjs" },
+  "license": "MIT"
+}
